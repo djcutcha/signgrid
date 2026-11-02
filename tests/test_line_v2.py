@@ -265,10 +265,10 @@ class RichMenuTest(unittest.TestCase):
     def test_json_shape(self):
         m = richmenu.menu_json()
         self.assertEqual(m["size"], {"width": 2500, "height": 1686})
-        self.assertEqual([a["action"]["type"] for a in m["areas"]], ["camera", "uri", "postback", "postback"])
-        self.assertEqual(m["areas"][1]["action"]["uri"], "https://line.me/R/nv/location")
-        self.assertEqual(m["areas"][2]["action"]["data"], "act=today")
-        self.assertEqual(m["areas"][3]["action"]["data"], "act=guide&start=1")
+        self.assertEqual([a["action"]["type"] for a in m["areas"]], ["postback", "camera", "uri", "postback"])
+        self.assertEqual(m["areas"][0]["action"]["data"], "act=guide&start=1")   # ガイドが左上
+        self.assertEqual(m["areas"][2]["action"]["uri"], "https://line.me/R/nv/location")
+        self.assertEqual(m["areas"][3]["action"]["data"], "act=today")
         self.assertEqual([(a["bounds"]["x"], a["bounds"]["y"], a["bounds"]["width"], a["bounds"]["height"])
                           for a in m["areas"]],
                          [(0, 0, 1250, 843), (1250, 0, 1250, 843), (0, 843, 1250, 843), (1250, 843, 1250, 843)])

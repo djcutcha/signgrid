@@ -388,6 +388,27 @@ class OnlyMissingTest(GuideBase):
         self.assertEqual(s.status, "draft")
         self.assertEqual(res[0].undecided, 1)
 
+    def test_web_draft_uses_only_missing_for_guide_signs(self):
+        # Web の「下書きを作る」(api.draft_bundle)は、ガイドの看板がある束では現場の答えを上書きしない
+        from kanban_karte.web import api
+        self.start_with_site()
+        self.say("A")
+        self.photo()   # 全景
+        self.photo()   # 部位の写真
+        self.tap(next=1, p=0)
+        self.tap(ans="a", item="基礎部・上部構造-1")
+        judges = []
+
+        def factory(rules):
+            judges.append(_Judge())
+            return judges[-1]
+        with self.ledger() as lg:
+            sign = lg.list_signs()[0]
+            out = api.draft_bundle(lg, sign.source_bundle, factory)
+            self.assertTrue(out["only_missing"])
+            self.assertNotIn("④基礎部・上部構造-1 上部構造全体の傾斜、ぐらつき", judges[0].asked[0])
+            self.assertEqual(lg.get_sign(sign.id).items["基礎部・上部構造-1"], "良好")
+
     def test_default_is_unchanged_full_draft(self):
         j, res, s = self.drafted(False)
         self.assertEqual(len(j.asked[0]), 18)

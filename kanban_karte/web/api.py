@@ -261,12 +261,16 @@ def draft_bundle(ledger: Ledger, bundle_id: int, judge_factory=None) -> dict:
         raise ApiError(404, f"束 {bundle_id} が台帳にありません")
     if judge_factory is None and not can_draft():
         raise ApiError(503, "ANTHROPIC_API_KEY がないので、下書きは作れません(環境変数か .env)")
+    # ガイド付き点検(LINE)で現場が答えた看板がある束は、答えを上書きせず「分からない」だけを下書きする
+    only_missing = any((ledger.get_sign(sid).draft_by or "").startswith("line_guide")
+                       for sid in draft_mod.ensure_signs(ledger, bundle_id))
     try:
         judge = (judge_factory or (lambda rules: draft_mod.default_judge(rules)))(ledger.recent_rules())
-        results = draft_mod.draft_bundle(ledger, bundle_id, judge)
+        results = draft_mod.draft_bundle(ledger, bundle_id, judge, only_missing=only_missing)
     except (RuntimeError, OSError, LookupError, ValueError) as e:
         raise ApiError(503, f"下書きを作れませんでした: {e}")
-    return {"results": [{"sign_id": r.sign_id, "status": r.status, "rank": r.rank, "undecided": r.undecided,
+    return {"only_missing": only_missing,
+            "results": [{"sign_id": r.sign_id, "status": r.status, "rank": r.rank, "undecided": r.undecided,
                          "error": r.error} for r in results]}
 
 

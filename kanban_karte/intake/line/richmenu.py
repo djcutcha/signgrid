@@ -19,7 +19,7 @@ from .reply import LOCATION_URI
 
 WIDTH, HEIGHT = 2500, 1686  # LINE のリッチメニューの大きいサイズ(2500x1686)。2×2 で1区画 1250x843
 CELL_W, CELL_H = WIDTH // 2, HEIGHT // 2
-LABELS = ("写真を送る", "現在地を送る", "今日の案件", "ガイド付き点検")
+LABELS = ("ガイド付き点検", "写真を送る", "現在地を送る", "今日の案件")  # ガイドを左上に(本線判断 2026-11-03: 未経験者の入口を最初に)
 CREATE_URL = "https://api.line.me/v2/bot/richmenu"
 UPLOAD_URL = "https://api-data.line.me/v2/bot/richmenu/{id}/content"
 DEFAULT_URL = "https://api.line.me/v2/bot/user/all/richmenu/{id}"
@@ -28,10 +28,10 @@ _FILLS = ((231, 242, 233), (231, 238, 247), (247, 241, 226), (242, 232, 244))  #
 
 def menu_json() -> dict:
     actions = (
-        {"type": "camera", "label": LABELS[0]},
-        {"type": "uri", "label": LABELS[1], "uri": LOCATION_URI},
-        {"type": "postback", "label": LABELS[2], "data": "act=today", "displayText": LABELS[2]},
-        {"type": "postback", "label": LABELS[3], "data": "act=guide&start=1", "displayText": LABELS[3]},
+        {"type": "postback", "label": LABELS[0], "data": "act=guide&start=1", "displayText": LABELS[0]},
+        {"type": "camera", "label": LABELS[1]},
+        {"type": "uri", "label": LABELS[2], "uri": LOCATION_URI},
+        {"type": "postback", "label": LABELS[3], "data": "act=today", "displayText": LABELS[3]},
     )
     return {
         "size": {"width": WIDTH, "height": HEIGHT},
