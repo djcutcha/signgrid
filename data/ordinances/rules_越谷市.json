@@ -1,0 +1,484 @@
+{
+  "schema_version": 1,
+  "ordinance_key": "越谷市",
+  "status": "AI抽出の第1版(検算前)",
+  "model": "claude-sonnet-5-5",
+  "effort": "medium",
+  "extracted_at": "2026-11-02T14:34:58+09:00",
+  "sources": [
+    {
+      "role": "条例",
+      "file": "越谷市.txt",
+      "bytes": 62969,
+      "mtime": "2026-10-20"
+    },
+    {
+      "role": "施行規則",
+      "file": "越谷市_屋外広告物条例施行規則.txt",
+      "bytes": 59074,
+      "mtime": "2026-10-20"
+    }
+  ],
+  "rules": {
+    "self_use": {
+      "definition": "自己の氏名、名称、店名若しくは商標又は自己の事業若しくは営業の内容を表示するため、自己の住所又は事業所、営業所若しくは作業場に表示する広告物又はこれを掲出する物件",
+      "exempt_from_permit": true,
+      "standards": [
+        {
+          "kind": "屋上広告(木造建築物を利用)",
+          "zone": "permit_zone",
+          "zone_note": null,
+          "zone_labels": [],
+          "area_max_m2": 10,
+          "area_basis": "unspecified",
+          "height_max_m": 12,
+          "ground_clearance_min_m": null,
+          "conditions": "木造建築物を利用する場合。高さは上端の高さで地上から。壁面から突き出さない。地色に赤及び黄の原色・黒色を使用しない等の色彩・光源条件あり",
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第2第1項",
+              "quote": "1　木造建築物を利用する場合",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.8
+        },
+        {
+          "kind": "屋上広告(鉄筋コンクリート造り・鉄骨造り等)",
+          "zone": "permit_zone",
+          "zone_note": null,
+          "zone_labels": [],
+          "area_max_m2": 10,
+          "area_basis": "unspecified",
+          "height_max_m": 48,
+          "ground_clearance_min_m": null,
+          "conditions": "表示面積は壁面面積の10分の1以下(10分の1が10㎡未満なら10㎡以下)。上端の高さは地上から軒高の3分の5以下かつ48m以下(3分の5が12m未満なら12m以下)。壁面から突き出さない",
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第2第1項",
+              "quote": "表示面積は壁面面積の10分の1以下であること。ただし、壁面面積の10分の1が10平方メートルに満たないときは、10平方メートル以下であること。",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.75
+        },
+        {
+          "kind": "壁面広告",
+          "zone": "permit_zone",
+          "zone_note": null,
+          "zone_labels": [],
+          "area_max_m2": null,
+          "area_basis": "unspecified",
+          "height_max_m": null,
+          "ground_clearance_min_m": null,
+          "conditions": "一面の壁面につきその壁面面積(開口部を含む)の5分の1以下。3階以上の階の開口部をふさがない。近隣商業地域及び商業地域は別掲",
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第2第1項",
+              "quote": "表示面積は、一面の壁面につきその壁面面積(開口部を含む)の5分の1以下であること。",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.8
+        },
+        {
+          "kind": "壁面広告",
+          "zone": "other",
+          "zone_note": "都市計画法の近隣商業地域及び商業地域",
+          "zone_labels": [
+            "近隣商業地域",
+            "商業地域"
+          ],
+          "area_max_m2": null,
+          "area_basis": "unspecified",
+          "height_max_m": null,
+          "ground_clearance_min_m": null,
+          "conditions": "一面の壁面につきその壁面面積の10分の3以下。3階以上の階の開口部をふさがない",
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第2第1項",
+              "quote": "近隣商業地域及び商業地域にあっては10分の3以下であること。",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.8
+        },
+        {
+          "kind": "突出し広告",
+          "zone": "permit_zone",
+          "zone_note": null,
+          "zone_labels": [],
+          "area_max_m2": null,
+          "area_basis": "unspecified",
+          "height_max_m": null,
+          "ground_clearance_min_m": null,
+          "conditions": "上端の高さは壁面の高さ以下。壁面からの突き出し幅1.2m以下。道路上に突き出さない",
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第2第1項",
+              "quote": "2　壁面からの突き出し幅は1.2メートル以下であること。",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.7
+        },
+        {
+          "kind": "広告塔・広告板(建造物から独立した広告)",
+          "zone": "permit_zone",
+          "zone_note": null,
+          "zone_labels": [],
+          "area_max_m2": 10,
+          "area_basis": "unspecified",
+          "height_max_m": 10,
+          "ground_clearance_min_m": null,
+          "conditions": "上端の高さは地上から。設置基数は4基以下。道路上に突き出さない。なお別表第1では自家広告は60㎡以下で設置基数の定めなし",
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第2第1項",
+              "quote": "3　自己の住所、事業所等における設置基数は4基以下であること。",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.6
+        },
+        {
+          "kind": "広告幕",
+          "zone": "permit_zone",
+          "zone_note": null,
+          "zone_labels": [],
+          "area_max_m2": null,
+          "area_basis": "unspecified",
+          "height_max_m": null,
+          "ground_clearance_min_m": null,
+          "conditions": "長さ15m以下かつ幅1.2m以下",
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第2第1項",
+              "quote": "長さが15メートル以下で、かつ、幅が1.2メートル以下であること。",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.7
+        },
+        {
+          "kind": "広告旗",
+          "zone": "permit_zone",
+          "zone_note": null,
+          "zone_labels": [],
+          "area_max_m2": 2,
+          "area_basis": "unspecified",
+          "height_max_m": 3,
+          "ground_clearance_min_m": null,
+          "conditions": "道路上に突き出さない",
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第2第1項",
+              "quote": "1　表示面積は2平方メートル以下であること。",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.7
+        },
+        {
+          "kind": "掛看板",
+          "zone": "permit_zone",
+          "zone_note": null,
+          "zone_labels": [],
+          "area_max_m2": 2,
+          "area_basis": "unspecified",
+          "height_max_m": null,
+          "ground_clearance_min_m": null,
+          "conditions": null,
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第2第1項",
+              "quote": "表示面積は2平方メートル以下であること。",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.7
+        },
+        {
+          "kind": "屋上広告",
+          "zone": "prohibited_zone",
+          "zone_note": null,
+          "zone_labels": [],
+          "area_max_m2": 5,
+          "area_basis": "unspecified",
+          "height_max_m": 10,
+          "ground_clearance_min_m": null,
+          "conditions": "上端の高さは地上から。広告物自体の高さ2m以下。壁面から突き出さない",
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第2第1項",
+              "quote": "4　広告物自体の高さは2メートル以下であること。",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.8
+        },
+        {
+          "kind": "壁面広告",
+          "zone": "prohibited_zone",
+          "zone_note": null,
+          "zone_labels": [],
+          "area_max_m2": 10,
+          "area_basis": "unspecified",
+          "height_max_m": null,
+          "ground_clearance_min_m": null,
+          "conditions": "上端の高さは軒高以下。3階以上の窓・開口部をふさがない",
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第2第1項",
+              "quote": "2　上端の高さは軒高以下であること。",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.8
+        },
+        {
+          "kind": "突出し広告",
+          "zone": "prohibited_zone",
+          "zone_note": null,
+          "zone_labels": [],
+          "area_max_m2": 3,
+          "area_basis": "unspecified",
+          "height_max_m": null,
+          "ground_clearance_min_m": null,
+          "conditions": "上端の高さは壁面の高さ以下。突き出し幅1m以下。道路上に突き出さない",
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第2第1項",
+              "quote": "1　表示面積は3平方メートル以下であること。",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.8
+        },
+        {
+          "kind": "広告塔・広告板(建造物から独立した広告)",
+          "zone": "prohibited_zone",
+          "zone_note": null,
+          "zone_labels": [],
+          "area_max_m2": 5,
+          "area_basis": "unspecified",
+          "height_max_m": 7,
+          "ground_clearance_min_m": null,
+          "conditions": "上端の高さは地上から。設置基数3基以下。道路上に突き出さない",
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第2第1項",
+              "quote": "3　自己の住所、事業所等における設置基数は3基以下であること。",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.8
+        },
+        {
+          "kind": "広告幕",
+          "zone": "prohibited_zone",
+          "zone_note": null,
+          "zone_labels": [],
+          "area_max_m2": null,
+          "area_basis": "unspecified",
+          "height_max_m": null,
+          "ground_clearance_min_m": null,
+          "conditions": "長さ10m以下かつ幅1m以下",
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第2第1項",
+              "quote": "長さが10メートル以下で、かつ、幅が1メートル以下であること。",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.8
+        },
+        {
+          "kind": "掛看板",
+          "zone": "prohibited_zone",
+          "zone_note": null,
+          "zone_labels": [],
+          "area_max_m2": 1,
+          "area_basis": "unspecified",
+          "height_max_m": null,
+          "ground_clearance_min_m": null,
+          "conditions": null,
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第2第1項",
+              "quote": "表示面積は1平方メートル以下であること。",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.7
+        }
+      ],
+      "prohibited_zone_permit": {
+        "required": "permit_possible",
+        "summary": "禁止地域でも別表第2の基準に適合する自家広告物は許可不要。基準を超える自家広告物は市長の許可を受ければ表示できる",
+        "citations": [
+          {
+            "source": "条例",
+            "article": "第8条第5項第1号",
+            "quote": "第2項第1号に掲げるもの以外のもの",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.8
+      }
+    },
+    "permit_required_types": [
+      {
+        "kind": "広告物全般(禁止地域等以外での表示・設置)",
+        "area_threshold_m2": null,
+        "height_threshold_m": null,
+        "ground_clearance_threshold_m": null,
+        "description": "禁止地域等以外で広告物を表示し掲出物件を設置するには、面積によらず市長の許可が必要(適用除外を除く)",
+        "citations": [
+          {
+            "source": "条例",
+            "article": "第7条第1項",
+            "quote": "規則で定めるところにより、市長の許可を受けなければならない。",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.85
+      }
+    ],
+    "permit_term": {
+      "default_years": 3,
+      "items": [
+        {
+          "kind": "全般",
+          "years": 3,
+          "condition": "許可の期間は3年を超えることができない",
+          "is_maximum": true,
+          "citations": [
+            {
+              "source": "条例",
+              "article": "第12条第2項",
+              "quote": "前項の許可の期間は、3年を超えることができない。",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.9
+        },
+        {
+          "kind": "広告塔、広告板、電柱等利用広告、標識利用広告、アーチ利用広告、自動車利用広告",
+          "years": 3,
+          "condition": null,
+          "is_maximum": true,
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第4",
+              "quote": "3年以内であること。",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.8
+        },
+        {
+          "kind": "掛看板",
+          "years": 1,
+          "condition": null,
+          "is_maximum": true,
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第4",
+              "quote": "1年以内であること。",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.8
+        }
+      ]
+    },
+    "inspection": {
+      "required": "conditional",
+      "conditions": [
+        {
+          "description": "広告物の所有者等は屋外広告士等に点検させる義務がある。貼り紙・立看板・広告幕・アドバルーン等の軽易な広告物や、法令で同程度の点検がある広告物は除外。許可・更新申請時に点検結果を提出",
+          "area_min_m2": null,
+          "height_min_m": null,
+          "ground_clearance_min_m": null
+        }
+      ],
+      "applies_to_self_use": null,
+      "qualification": "屋外広告士その他これと同等以上の知識を有する者(条例第41条第1項第2号から第5号の者、事業者団体の点検技能講習修了者、市長が認める者)",
+      "form": "屋外広告物等点検報告書(第2号様式)",
+      "interval_years": null,
+      "citations": [
+        {
+          "source": "条例",
+          "article": "第18条の2第1項",
+          "quote": "規則で定めるところにより、法第10条第2項第3号イに掲げる者",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第14条の4第1号",
+          "quote": "貼り紙、貼り札、広告旗、立看板、広告幕(つり下げを含む。)、置き看板、アドバルーンその他これらに類する軽易な広告物",
+          "quote_verified": true
+        }
+      ],
+      "confidence": 0.6
+    },
+    "prohibited_zones": {
+      "summary": "第一種・第二種低層住居専用地域、風致地区、特別緑地保全地区、生産緑地地区(市長指定を除く)のほか、市民農園、文化財、公園、官公署・学校等の建造物と敷地、社寺境域などは禁止地域。橋・街路樹・電柱等の物件も禁止物件。",
+      "labels": [
+        "第一種低層住居専用地域",
+        "第二種低層住居専用地域",
+        "風致地区",
+        "特別緑地保全地区",
+        "生産緑地地区"
+      ],
+      "citations": [
+        {
+          "source": "条例",
+          "article": "第4条第1号",
+          "quote": "第一種低層住居専用地域、第二種低層住居専用地域、風致地区、特別緑地保全地区又は生産緑地地区",
+          "quote_verified": true
+        }
+      ],
+      "confidence": 0.85
+    }
+  },
+  "extraction_notes": [
+    "自家広告の基準は別表第1(許可基準)、別表第2(適用除外)、別表第3(第8条第5項許可)に分かれる。許可不要は別表第2を採用",
+    "別表第2の禁止地域等以外の壁面広告は5分の1(商業系10分の3)で絶対面積上限なし",
+    "独立広告は別表第1で自家広告60㎡以下だが別表第2は10㎡以下。許可不要の基準として後者を採用",
+    "点検は許可・更新申請に結びつく義務で、自家用への適用は原文から断定できず null",
+    "点検の周期は原文に無く null",
+    "禁止地域での別表第2基準は用途地域区分を特定しないため zone_labels は空"
+  ],
+  "citation_check": {
+    "total": 23,
+    "verified": 23
+  },
+  "usage": {
+    "input_tokens": 79017,
+    "output_tokens": 9678,
+    "attempts": 2,
+    "attempt_errors": [
+      "Expecting ',' delimiter: line 1 column 7102 (char 7101)"
+    ],
+    "usd": 0.2548
+  }
+}

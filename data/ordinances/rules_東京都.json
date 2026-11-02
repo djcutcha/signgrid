@@ -1,0 +1,295 @@
+{
+  "schema_version": 1,
+  "ordinance_key": "東京都",
+  "status": "AI抽出の第1版(検算前)",
+  "model": "claude-sonnet-5-5",
+  "effort": "medium",
+  "extracted_at": "2026-11-02T14:37:49+09:00",
+  "sources": [
+    {
+      "role": "条例",
+      "file": "東京都.txt",
+      "bytes": 98365,
+      "mtime": "2026-10-20"
+    },
+    {
+      "role": "施行規則",
+      "file": "東京都_屋外広告物条例施行規則.txt",
+      "bytes": 155691,
+      "mtime": "2026-10-20"
+    }
+  ],
+  "rules": {
+    "self_use": {
+      "definition": "自己の氏名、名称、店名若しくは商標又は自己の事業若しくは営業の内容を表示するため、自己の住所、事業所、営業所又は作業場に表示する広告物等",
+      "exempt_from_permit": true,
+      "standards": [
+        {
+          "kind": "全種類",
+          "zone": "other",
+          "zone_note": "第一種低層住居専用地域、第二種低層住居専用地域、第一種中高層住居専用地域、第二種中高層住居専用地域、田園住居地域、風致地区、特別緑地保全地区、自然公園特別地域、第一種文教地区、条例第六条第三号の地域等(別表第二の一から六の項)",
+          "zone_labels": [
+            "第一種低層住居専用地域",
+            "第二種低層住居専用地域",
+            "第一種中高層住居専用地域",
+            "第二種中高層住居専用地域",
+            "田園住居地域",
+            "風致地区",
+            "特別緑地保全地区",
+            "自然公園特別地域",
+            "第一種文教地区"
+          ],
+          "area_max_m2": 5,
+          "area_basis": "total",
+          "height_max_m": null,
+          "ground_clearance_min_m": null,
+          "conditions": "屋上へ取り付けない。壁面から突出させない(一の項)。ネオン管不使用(一の項)。路線用地から展望できるものは光源点滅不可・赤色光不可。二〜六の項は禁止事項が別(一の項と一部異なる)。",
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "第12条第1項第4号",
+              "quote": "別表第二の上欄に掲げる地域地区等の区分に応じて同表の中欄に定める禁止事項に抵触せず、かつ、当該区分に応じて同表の下欄に定める広告物等の表示面積の範囲内であること。",
+              "quote_verified": true
+            },
+            {
+              "source": "施行規則",
+              "article": "別表第二",
+              "quote": "一 上欄一から六までに掲げる地域地区等 合計が五平方メートル以下",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.6
+        },
+        {
+          "kind": "全種類",
+          "zone": "other",
+          "zone_note": "条例第六条第四号及び第五号の規定により定められた地域(文化財・歴史的建造物周辺。別表第二の七の項)など、上記以外の地域地区等",
+          "zone_labels": [
+            "文化財周辺"
+          ],
+          "area_max_m2": 10,
+          "area_basis": "total",
+          "height_max_m": null,
+          "ground_clearance_min_m": null,
+          "conditions": "屋上へ取り付けない。光源を使用しない。色彩はマンセル値の彩度制限あり(一広告物の三分の一以下の面積は超過可)。路線用地から展望できるものは点滅光・赤色光・露出ネオン管不可。",
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第二",
+              "quote": "二 一以外に掲げる地域地区等 合計が十平方メートル以下",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.5
+        },
+        {
+          "kind": "全種類",
+          "zone": "other",
+          "zone_note": "第二種文教地区、第一種住居地域から工業専用地域まで、都市計画法の用途地域以外の地域、十に掲げる地域内の景観地区・美観地区、条例第六条第十二号の地域(別表第二の九〜十三の項)",
+          "zone_labels": [
+            "第二種文教地区",
+            "第一種住居地域",
+            "第二種住居地域",
+            "準住居地域",
+            "近隣商業地域",
+            "商業地域",
+            "準工業地域",
+            "工業地域",
+            "工業専用地域",
+            "景観地区",
+            "都市計画区域外"
+          ],
+          "area_max_m2": 10,
+          "area_basis": "total",
+          "height_max_m": null,
+          "ground_clearance_min_m": null,
+          "conditions": "路線用地から展望できるものは光源点滅不可・赤色光不可・露出ネオン管不可(九の項は点滅・赤色のみ)。十一〜十三の項は屋上取付不可等。面積欄が空に見える区域は残り全部を指す行で10㎡と解釈した。",
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第二",
+              "quote": "二 一以外に掲げる地域地区等 合計が十平方メートル以下",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.4
+        },
+        {
+          "kind": "全種類",
+          "zone": "all",
+          "zone_note": null,
+          "zone_labels": [],
+          "area_max_m2": null,
+          "area_basis": "unspecified",
+          "height_max_m": null,
+          "ground_clearance_min_m": null,
+          "conditions": "橋・高架道路等や石垣等の禁止物件から突出させない(全域・別表第二の八の項は合計5㎡以下)。",
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第二",
+              "quote": "条例第七条第一項第一号及び第七号に掲げる物件から突出させないこと。",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.4
+        }
+      ],
+      "prohibited_zone_permit": {
+        "required": "permit_possible",
+        "summary": "自己の氏名・名称・店名・商標を自己の事業所等に表示する広告物等は、知事の許可を受ければ規則の基準により禁止区域でも表示可。基準は表示面積の合計20㎡以下(学校・病院は50㎡以下)等。",
+        "citations": [
+          {
+            "source": "条例",
+            "article": "第15条第1号",
+            "quote": "自己の氏名、名称、店名又は商標を表示するため、自己の住所、事業所、営業所又は作業場に表示する広告物等",
+            "quote_verified": true
+          },
+          {
+            "source": "施行規則",
+            "article": "第14条第1項第1号",
+            "quote": "表示面積(第十二条第四号に掲げる広告物等の表示面積を含む。)の合計が二十平方メートル(学校及び病院に係る広告物等については、五十平方メートル)以下であること。",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.8
+      }
+    },
+    "permit_required_types": [
+      {
+        "kind": "全種類の広告物(許可区域内)",
+        "area_threshold_m2": null,
+        "height_threshold_m": null,
+        "ground_clearance_threshold_m": null,
+        "description": "特別区・市・町の区域や道路・鉄道沿い等の許可区域に広告物を表示・設置するには知事の許可が必要。第13条・第14条の適用除外に当たるものを除く。",
+        "citations": [
+          {
+            "source": "条例",
+            "article": "第8条",
+            "quote": "広告物を表示し、又は広告物を掲出する物件を設置しようとする者は、知事の許可を受けなければならない。",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "permit_term": {
+      "default_years": 2,
+      "items": [
+        {
+          "kind": "広告塔・広告板・アーチ・装飾街路灯・プロジェクションマッピング",
+          "years": 2,
+          "condition": "二年以内",
+          "is_maximum": true,
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第一",
+              "quote": "広告塔 広告板 アーチ 装飾街路灯 プロジェクションマッピング",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.8
+        },
+        {
+          "kind": "小型広告板・電柱又は街路灯柱の利用広告・標識利用広告・宣伝車・車体利用広告",
+          "years": 1,
+          "condition": "一年以内",
+          "is_maximum": true,
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第一",
+              "quote": "小型広告板 電柱又は街路灯柱の利用広告 標識利用広告 宣伝車 車体利用広告",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.8
+        },
+        {
+          "kind": "はり紙・はり札等・広告旗・立看板等・アドバルーン・広告幕・店頭装飾",
+          "years": 0.0833,
+          "condition": "一月以内",
+          "is_maximum": true,
+          "citations": [
+            {
+              "source": "施行規則",
+              "article": "別表第一",
+              "quote": "はり紙 はり札等 広告旗 立看板等 アドバルーン 広告幕 店頭装飾",
+              "quote_verified": true
+            }
+          ],
+          "confidence": 0.6
+        }
+      ]
+    },
+    "inspection": {
+      "required": "conditional",
+      "conditions": [
+        {
+          "description": "継続許可の申請時、現に許可を受けている広告物等が広告塔・広告板・アーチ・装飾街路灯である場合は屋外広告物安全点検報告書の添付が必要",
+          "area_min_m2": null,
+          "height_min_m": null,
+          "ground_clearance_min_m": null
+        }
+      ],
+      "applies_to_self_use": null,
+      "qualification": null,
+      "form": "別記第二号様式 屋外広告物安全点検報告書",
+      "interval_years": null,
+      "citations": [
+        {
+          "source": "施行規則",
+          "article": "第1条第3項",
+          "quote": "別記第二号様式による屋外広告物安全点検報告書を添付しなければならない。",
+          "quote_verified": true
+        }
+      ],
+      "confidence": 0.5
+    },
+    "prohibited_zones": {
+      "summary": "低層・中高層住居専用地域、田園住居地域、特別緑地保全地区、風致地区、景観地区の指定区域、保安林、文化財周辺、墓地・社寺境域、公園・河川、自然公園特別地域、学校・病院等の敷地、道路・鉄道路線用地等。橋・街路樹・信号機等の物件も禁止。知事指定による除外あり。",
+      "labels": [
+        "第一種低層住居専用地域",
+        "第二種低層住居専用地域",
+        "第一種中高層住居専用地域",
+        "第二種中高層住居専用地域",
+        "田園住居地域",
+        "特別緑地保全地区",
+        "風致地区",
+        "景観地区",
+        "自然公園特別地域",
+        "文化財周辺",
+        "道路・鉄道沿い"
+      ],
+      "citations": [
+        {
+          "source": "条例",
+          "article": "第6条第1号",
+          "quote": "第一種低層住居専用地域、第二種低層住居専用地域、第一種中高層住居専用地域、第二種中高層住居専用地域及び田園住居地域並びに同項第十二号の規定により定められた都市緑地法",
+          "quote_verified": true
+        }
+      ],
+      "confidence": 0.8
+    }
+  },
+  "extraction_notes": [
+    "別表第二は表が崩れており、区域と面積の対応は推測を含む(信頼度低)。",
+    "面積欄の「一以外」は一〜六の項以外の全区域と解釈したが、八の項は5㎡以下の別基準。",
+    "第十三条第五号の自家用広告物は別表第二の基準内で許可不要と読んだ。",
+    "自家用の高さ・地上高の数値基準は別表第三に多数あるが、種類別のため未展開。",
+    "点検の周期・資格・自家用への適用は原文に見当たらず、安全点検報告書の添付のみ確認。",
+    "許可期間は一月以内を約0.083年で換算した。"
+  ],
+  "citation_check": {
+    "total": 13,
+    "verified": 13
+  },
+  "usage": {
+    "input_tokens": 74557,
+    "output_tokens": 3393,
+    "attempts": 1,
+    "attempt_errors": [],
+    "usd": 0.183
+  }
+}
