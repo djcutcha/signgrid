@@ -122,6 +122,15 @@ class JudgeFromRangeTest(unittest.TestCase):
         self.assertEqual(r["inspection_required"], "不要")
         self.assertEqual(len(r["citations"]), 1)  # 重複は1件にまとめる
 
+    def test_range_returns_four_duties(self):
+        # 実際の規則で、範囲の両端が同じ結論の義務はそのまま、分かれる義務は 要実測
+        r = judge_from_range(self.est([2800, 3600], [800, 1000]), "埼玉県さいたま市大宮区桜木町1-1-1")
+        for k in ("maintenance_duty", "inspection_duty", "qualified_inspector", "report_duty", "duties"):
+            self.assertIn(k, r)
+        self.assertEqual(set(r["duties"]), {"maintenance", "inspection", "qualified", "report"})
+        self.assertEqual(r["maintenance_duty"], "要")
+        self.assertEqual(r["duties"]["maintenance"]["value"], r["maintenance_duty"])
+
     def test_both_ends_exceed(self):
         r = judge_from_range(self.est([6000, 7000], [2000, 2500], w=6500, h=2200), "東京都", fake_judge(10))
         self.assertEqual(r["permit"], "要")

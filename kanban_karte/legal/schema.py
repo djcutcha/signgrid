@@ -23,7 +23,13 @@ STATUS_SECOND_PREFIX = "第2版(手元の正解と照合済み"
 
 ZONES = ("all", "permit_zone", "prohibited_zone", "other")
 AREA_BASES = ("per_face", "total", "per_sign", "unspecified")
-INSPECTION_REQUIRED = ("yes", "no", "conditional", "unknown")
+INSPECTION_REQUIRED = ("yes", "no", "conditional", "unknown")   # 旧 inspection(互換のために残す)
+# 4つの義務(管理する / 点検する / 有資格者に点検させる / 行政へ報告する)。掛かり方は条例ごとに違う
+MAINTENANCE_REQUIRED = ("yes", "no", "unknown")
+INSPECTION_DUTY_REQUIRED = ("yes", "conditional", "no", "unknown")
+QUALIFIED_REQUIRED = ("duty", "effort", "no", "unknown")        # duty=義務 / effort=努力義務
+REPORT_REQUIRED = ("yes", "conditional", "no", "unknown")
+DUTY_KEYS = ("maintenance_duty", "inspection_duty", "qualified_inspector", "report_duty")
 SOURCES = ("条例", "施行規則")
 MAX_QUOTE_CHARS = 100
 
@@ -35,6 +41,43 @@ ZONE_VOCAB = (
     "自然公園特別地域", "第一種文教地区", "第二種文教地区", "景観地区", "文化財周辺", "市街化調整区域",
     "都市計画区域外", "道路・鉄道沿い", "その他",
 )
+
+# 4つの義務に共通の conditions(その義務が掛かる物の絞り込み)。条件が無ければ空の値のまま
+CONDITIONS_SHAPE = ('{"area_min_m2": 数値|null, "height_min_m": 数値|null(上端の高さ等), "height_min_inclusive": true|false(以上なら true、超えるなら false), '
+                    '"ground_clearance_min_m": 数値|null, "permit_required_only": true|false(許可・更新を要する物だけが対象なら true), '
+                    '"kinds": ["対象の種類(限るときだけ)"], "excluded_kinds": ["対象外の種類"], "note": "数値で表せない条件(文)|null"}')
+
+# 4つの義務の JSON の形(rules に直接入る。義務だけの再抽出にも使う)
+_DUTIES_BODY = """"maintenance_duty": {   // 管理義務: 補修その他必要な管理を行い、良好な状態に保持する義務(点検とは別)
+    "required": "yes | no | unknown",
+    "subject": "義務を負う者(原文の主語のまま。例: 広告物の表示者等、所有者等)|null",
+    "conditions": {CONDITIONS_SHAPE},
+    "citations": [引用, ...], "confidence": 0〜1
+  },
+  "inspection_duty": {   // 点検する義務: 劣化・損傷の状況を点検する(させる)義務。誰が点検するかは問わない
+    "required": "yes | conditional | no | unknown",   // conditional= 規模・高さ・種類の条件に該当すると義務。no= 義務を置いていない
+    "absent_in_text": true|false,   // no のうち、原文にそれらしい条文が見当たらないだけのとき true(原文が「義務なし」と書いているときは false)
+    "interval_years": 数値|null,    // 周期(年)。原文に周期が無ければ null
+    "subject": "義務を負う者(原文の主語のまま)|null",
+    "exclusions": ["点検の義務が掛からない物(原文のまま。種類・設置後の期間・他法令による点検 等を1件ずつ)"],
+    "conditions": {CONDITIONS_SHAPE},
+    "citations": [引用, ...], "confidence": 0〜1
+  },
+  "qualified_inspector": {   // 有資格者に点検させる義務。点検する義務とは別に、点検を資格者にさせなければならないか
+    "required": "duty | effort | no | unknown",   // duty=義務 / effort=努力義務(させるよう努める)。義務の層と努力義務の層が両方あるときは duty
+    "conditions": {CONDITIONS_SHAPE},   // duty の層の対象(例: 上端 4m 超かつ許可を要する物 -> height_min_m=4, height_min_inclusive=false, permit_required_only=true)
+    "effort": null | {"conditions": {CONDITIONS_SHAPE}, "citations": [引用, ...]},   // duty の層に当たらない物のうち努力義務が掛かる層(例: 上端 4m 超なら許可不要でも)。無ければ null。required が effort のときは null にして conditions に書く
+    "qualification": "点検できる者の資格(原文のまま)|null",
+    "citations": [引用, ...], "confidence": 0〜1
+  },
+  "report_duty": {   // 行政へ点検結果を報告・提出する義務
+    "required": "yes | conditional | no | unknown",
+    "trigger": "報告・提出するとき(例: 許可・更新の申請時)|null",
+    "form": "様式(様式第何号、名称)|null",
+    "permit_required_only": true|false,   // 許可・更新を受ける物だけが対象か(許可不要の物には掛からないか)
+    "conditions": {CONDITIONS_SHAPE},   // permit_required_only は上と同じ値
+    "citations": [引用, ...], "confidence": 0〜1
+  },"""
 
 # プロンプトに貼る、期待する出力の形(値は説明)
 _RULES_SHAPE_TMPL = """{
@@ -73,19 +116,14 @@ _RULES_SHAPE_TMPL = """{
     "default_years": 数値|null,   // 許可期間の標準(年)。上限が書いてあるだけなら上限
     "items": [ {"kind": "種類", "years": 数値, "condition": "文|null", "is_maximum": true|false, "citations": [引用, ...], "confidence": 0〜1} ]
   },
-  "inspection": {   // 安全点検(有資格者による点検)と報告の義務
-    "required": "yes | no | conditional | unknown",   // conditional= 規模・高さ等の条件に該当すると義務
-    "conditions": [ {"description": "どのような広告物に義務があるか(文)", "area_min_m2": 数値|null, "height_min_m": 数値|null, "ground_clearance_min_m": 数値|null} ],
-    "applies_to_self_use": true|false|null,
-    "qualification": "点検できる資格(例: 屋外広告士・点検技士 等。原文のまま)|null",
-    "form": "報告の様式(様式第何号、名称)|null",
-    "interval_years": 数値|null,   // 点検・報告の周期(年)
-    "citations": [引用, ...], "confidence": 0〜1
-  },
+  {DUTIES_BODY}
   "prohibited_zones": {"summary": "禁止区域・禁止物件の概要(文のみ。200字以内)", "labels": ["禁止区域になる用途地域・地区を上の語から選んで列挙(知事・市長の指定による除外があっても列挙し、summary に書く)"], "citations": [引用, ...], "confidence": 0〜1}
 }"""
 
-RULES_SHAPE = _RULES_SHAPE_TMPL.replace("{ZONE_VOCAB_JOINED}", " / ".join(ZONE_VOCAB))
+DUTIES_SHAPE = "{\n  " + _DUTIES_BODY.replace("{CONDITIONS_SHAPE}", CONDITIONS_SHAPE) + "\n}"
+RULES_SHAPE = (_RULES_SHAPE_TMPL.replace("{DUTIES_BODY}", _DUTIES_BODY)
+               .replace("{ZONE_VOCAB_JOINED}", " / ".join(ZONE_VOCAB))
+               .replace("{CONDITIONS_SHAPE}", CONDITIONS_SHAPE))
 
 CITATION_SHAPE = '{"source": "条例|施行規則", "article": "第6条第1項第3号", "quote": "原文の抜粋(連続した100字以内・原文のまま)"}'
 
@@ -128,6 +166,78 @@ def _citations(errs, path, d, required=True):
             errs.append(f"{p}.quote がない")
         elif len(q) > MAX_QUOTE_CHARS:
             errs.append(f"{p}.quote が {MAX_QUOTE_CHARS} 字を超える({len(q)}字)")
+
+
+def has_duties(rules: dict) -> bool:
+    """4つの義務の形で持っているか(False なら旧 inspection だけ)。"""
+    return isinstance(rules, dict) and any(k in rules for k in DUTY_KEYS)
+
+
+def validate_conditions(errs, path, c):
+    """義務の conditions(掛かる物の絞り込み)の検査。path は conditions 自身の位置。"""
+    if not isinstance(c, dict):
+        errs.append(f"{path} はオブジェクト")
+        return
+    for k in ("area_min_m2", "height_min_m", "ground_clearance_min_m"):
+        _num_or_none(errs, path, c, k)
+    if not isinstance(c.get("permit_required_only"), bool):
+        errs.append(f"{path}.permit_required_only は true/false")
+    if "height_min_inclusive" in c and not isinstance(c["height_min_inclusive"], bool):
+        errs.append(f"{path}.height_min_inclusive は true/false")
+    for k in ("kinds", "excluded_kinds"):
+        v = c.get(k, [])
+        if not isinstance(v, list) or any(not isinstance(x, str) for x in v):
+            errs.append(f"{path}.{k} は文字列の配列")
+
+
+def validate_duties(rules: dict) -> list[str]:
+    """4つの義務(maintenance_duty / inspection_duty / qualified_inspector / report_duty)の検査。"""
+    errs: list[str] = []
+    for k in DUTY_KEYS:
+        if not isinstance(rules.get(k), dict):
+            errs.append(f"{k} がない")
+    if errs:
+        return errs
+    md, idt, qi, rd = (rules[k] for k in DUTY_KEYS)
+
+    def need(path, d, allowed):
+        if d.get("required") not in allowed:
+            errs.append(f"{path}.required は {allowed}")
+
+    need("maintenance_duty", md, MAINTENANCE_REQUIRED)
+    validate_conditions(errs, "maintenance_duty.conditions", md.get("conditions"))
+    _citations(errs, "maintenance_duty", md, required=md.get("required") == "yes")
+    _conf(errs, "maintenance_duty", md)
+
+    need("inspection_duty", idt, INSPECTION_DUTY_REQUIRED)
+    _num_or_none(errs, "inspection_duty", idt, "interval_years")
+    if not isinstance(idt.get("absent_in_text", False), bool):
+        errs.append("inspection_duty.absent_in_text は true/false")
+    if not isinstance(idt.get("exclusions", []), list):
+        errs.append("inspection_duty.exclusions は配列")
+    validate_conditions(errs, "inspection_duty.conditions", idt.get("conditions"))
+    _citations(errs, "inspection_duty", idt, required=idt.get("required") in ("yes", "conditional"))
+    _conf(errs, "inspection_duty", idt)
+
+    need("qualified_inspector", qi, QUALIFIED_REQUIRED)
+    validate_conditions(errs, "qualified_inspector.conditions", qi.get("conditions"))
+    eff = qi.get("effort")
+    if eff is not None:
+        if not isinstance(eff, dict):
+            errs.append("qualified_inspector.effort はオブジェクトか null")
+        else:
+            validate_conditions(errs, "qualified_inspector.effort.conditions", eff.get("conditions"))
+            _citations(errs, "qualified_inspector.effort", eff)
+    _citations(errs, "qualified_inspector", qi, required=qi.get("required") in ("duty", "effort"))
+    _conf(errs, "qualified_inspector", qi)
+
+    need("report_duty", rd, REPORT_REQUIRED)
+    if not isinstance(rd.get("permit_required_only"), bool):
+        errs.append("report_duty.permit_required_only は true/false")
+    validate_conditions(errs, "report_duty.conditions", rd.get("conditions"))
+    _citations(errs, "report_duty", rd, required=rd.get("required") in ("yes", "conditional"))
+    _conf(errs, "report_duty", rd)
+    return errs
 
 
 def validate_permit_standards(items) -> list[str]:
@@ -208,8 +318,12 @@ def validate_rules(rules: dict) -> list[str]:
                     errs.append(f"{p}.years は数値")
                 _citations(errs, p, it)
                 _conf(errs, p, it)
+    if has_duties(rules):
+        errs += validate_duties(rules)   # 4つの義務。旧 inspection は無くてもよい(あれば下で検査)
     ins = rules.get("inspection")
-    if not isinstance(ins, dict):
+    if ins is None and has_duties(rules):
+        pass
+    elif not isinstance(ins, dict):
         errs.append("inspection がない")
     else:
         if ins.get("required") not in INSPECTION_REQUIRED:

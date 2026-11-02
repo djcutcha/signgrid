@@ -125,7 +125,7 @@ dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
 .side-col{position:sticky;top:60px}
 .sum-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
 .rank-box{text-align:right;flex:none}
-.kv{display:grid;grid-template-columns:5.5em 1fr;gap:2px 10px;font-size:13px;margin-top:6px}
+.kv{display:grid;grid-template-columns:6.8em 1fr;gap:2px 10px;font-size:13px;margin-top:6px}
 .kv .k{color:var(--muted)}
 .items-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px}
 .items-head h2{margin:0}
@@ -240,7 +240,7 @@ dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
 .area{font-size:20px;font-weight:700}
 .owner label.num.wide{margin-top:4px}
 .three{list-style:none;margin:0;padding:0}
-.three li{display:grid;grid-template-columns:4.2em minmax(0,1fr);gap:8px;align-items:start;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.three li{display:grid;grid-template-columns:6.2em minmax(0,1fr);gap:8px;align-items:start;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
 .three li:last-child{border-bottom:0}
 .three .chip{justify-self:start}
 .three .k{color:var(--muted);font-size:12.5px;padding-top:2px}

@@ -3,16 +3,16 @@
 "use strict";
 (function () {
   const { el } = KK;
+  const DUTY_NOTE = "管理・点検・有資格者・行政への報告は、それぞれ別の義務です。条例ごとに掛かり方が違うので、許可が不要でも義務がある場合があります。";
 
-  // 点検の行の文言は法規役の値に従う(盛らない)
-  function inspectLine(r) {
-    if (r.permit_required === "不要" && r.inspection_required === "不要") return "点検の義務はありません";
-    if (r.permit_required === "不要" && r.inspection_required === "要実測") {
-      return "条例の点検報告は許可を受けた看板が対象。この看板は対象外のため、誰も点検していない可能性があります";
+  // 点検まわりの4行(管理 / 点検 / 有資格者 / 行政への報告)は法規役の duties の文言のまま(盛らない)。
+  // 旧形式の規則(duties が空)のときだけ、旧『点検』の値を1行で出す
+  function dutyLines(r) {
+    const es = KK.dutyEntries(r.duties);
+    if (!es.length) {
+      return [el("li", { class: "line-duty" }, el("span", { class: "k", text: "点検" }), el("span", { text: `点検の義務: ${r.inspection_required}(旧形式の規則。再抽出が要ります)` }))];
     }
-    if (r.permit_required === "不要") return "許可は不要ですが、条例の写しでは点検の義務が「要」とされています";
-    if (r.permit_required === "要") return `許可が要ります${r.permit_term_years ? `(許可の期限は ${r.permit_term_years} 年以内)` : ""}。点検の義務: ${r.inspection_required}`;
-    return "実測や区域の確認が要ります。点検の義務: 要実測";
+    return es.map((e) => el("li", { class: "line-duty" }, el("span", { class: "k", text: e.title }), el("span", { text: e.text })));
   }
 
   function placeLine(place) {
@@ -25,12 +25,11 @@
     const exempt = r.is_self_use_exempt;
     const line1 = exempt === true ? `自家用 ${area}(自家用の許可不要の基準に収まります)`
       : exempt === false ? `自家用 ${area}(自家用の基準を超えます)` : `自家用 ${area}(基準に収まるか決められません)`;
-    const line3 = inspectLine(r);
     return [
       el("li", { class: "line-use" }, el("span", { class: "k", text: "自家用" }), el("span", { text: line1 })),
       placeLine(place),
       el("li", { class: "line-permit" }, el("span", { class: "k", text: "許可" }), KK.permitChip(r.permit_required)),
-      el("li", { class: "line-inspect" }, el("span", { class: "k", text: "点検" }), el("span", { text: line3 })),
+      ...dutyLines(r),
     ];
   }
 
@@ -41,6 +40,7 @@
       el("h2", { text: "調べた結果" }),
       el("ul", { class: "three" }, threeLines(r, null, r.place)),
       r.notes && r.notes.length ? el("ul", { class: "legal-notes" }, r.notes.map((n) => el("li", { class: "sub", text: n }))) : null,
+      el("p", { class: "sub", text: DUTY_NOTE }),
       el("h3", { text: `根拠条文 ${(r.citations || []).length} 件${r.ordinance_key ? `(${r.ordinance_key}の条例)` : ""}` }),
       KK.citations(r.citations),
       el("p", { class: "sub", text: "根拠は条例の写しから機械が抜いたものです。安全の判定ではありません。" }),
@@ -54,7 +54,7 @@
     const m = (mm) => (mm / 1000).toFixed(2).replace(/\.?0+$/, "");
     const refs = (e.references || []).filter((r) => r.name);
     const legal = { permit_required: j.permit, inspection_required: j.inspection_required, is_self_use_exempt: j.is_self_use_exempt,
-      permit_term_years: j.permit_term_years };
+      permit_term_years: j.permit_term_years, duties: j.duties };
     const areaText = j.area_low === j.area_high ? `${j.area_mid.toFixed(1)} ㎡` : `${j.area_mid.toFixed(1)} ㎡(${j.area_low.toFixed(1)}〜${j.area_high.toFixed(1)} ㎡)`;
     return el("section", { class: "card owner-result owner-estimate", "aria-live": "polite" },
       el("h2", { text: "写真から推定した大きさ" }),

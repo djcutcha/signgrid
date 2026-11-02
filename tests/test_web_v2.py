@@ -22,6 +22,24 @@ class LegalTest(WebTest):
         for k in api.LEGAL_KEYS:
             self.assertIn(k, L)
 
+    def test_legal_has_four_duties(self):
+        L = self.req("/api/signs/demo-001")[1]["legal"]
+        for k in ("maintenance_duty", "inspection_duty", "qualified_inspector", "report_duty", "inspection_interval_years", "duties"):
+            self.assertIn(k, L)
+        self.assertEqual(set(L["duties"]), {"maintenance", "inspection", "qualified", "report"})
+        self.assertEqual([L["duties"][k]["title"] for k in ("maintenance", "inspection", "qualified", "report")],
+                         ["管理", "点検", "有資格者", "行政への報告"])
+        self.assertEqual(L["inspection_required"], L["report_duty"])
+        self.assertIn("東京都条例 第20条", L["duties"]["maintenance"]["text"])
+
+    def test_static_no_longer_claims_nobody_inspects(self):
+        from pathlib import Path
+        static = Path(api.__file__).parent / "static"
+        for f in static.glob("*.js"):
+            self.assertNotIn("誰も点検していない", f.read_text(encoding="utf-8"), f.name)
+        self.assertIn("dutyEntries", (static / "owner.js").read_text(encoding="utf-8"))
+        self.assertIn("dutyEntries", (static / "karte.js").read_text(encoding="utf-8"))
+
     def test_summary_keeps_permit_required(self):
         _, signs, _ = self.req("/api/signs")
         self.assertTrue(all("permit_required" in s for s in signs))

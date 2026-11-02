@@ -223,30 +223,6 @@
         }
       ]
     },
-    "inspection": {
-      "required": "conditional",
-      "conditions": [
-        {
-          "description": "継続許可の申請時、現に許可を受けている広告物等が広告塔・広告板・アーチ・装飾街路灯である場合は屋外広告物安全点検報告書の添付が必要",
-          "area_min_m2": null,
-          "height_min_m": null,
-          "ground_clearance_min_m": null
-        }
-      ],
-      "applies_to_self_use": null,
-      "qualification": null,
-      "form": "別記第二号様式 屋外広告物安全点検報告書",
-      "interval_years": null,
-      "citations": [
-        {
-          "source": "施行規則",
-          "article": "第1条第3項",
-          "quote": "別記第二号様式による屋外広告物安全点検報告書を添付しなければならない。",
-          "quote_verified": true
-        }
-      ],
-      "confidence": 0.5
-    },
     "prohibited_zones": {
       "summary": "低層・中高層住居専用地域、田園住居地域、特別緑地保全地区、風致地区、景観地区の指定区域、保安林、文化財周辺、墓地・社寺境域、公園・河川、自然公園特別地域、学校・病院等の敷地、道路・鉄道路線用地等。橋・街路樹・信号機等の物件も禁止。知事指定による除外あり。",
       "labels": [
@@ -786,7 +762,108 @@
         ],
         "confidence": 0.85
       }
-    ]
+    ],
+    "maintenance_duty": {
+      "required": "yes",
+      "subject": "広告物の表示者等(広告主、広告主から委託を受けて広告物等を表示し、若しくは設置する者若しくは広告物等の所有者、占有者その他当該広告物等について権原を有する者又は当該広告物等の管理者)",
+      "conditions": {
+        "area_min_m2": null,
+        "height_min_m": null,
+        "height_min_inclusive": false,
+        "ground_clearance_min_m": null,
+        "permit_required_only": false,
+        "kinds": [],
+        "excluded_kinds": [],
+        "note": "広告物等全般が対象。許可の有無による限定なし"
+      },
+      "citations": [
+        {
+          "source": "条例",
+          "article": "第20条",
+          "quote": "広告主、広告主から委託を受けて広告物等を表示し、若しくは設置する者若しくは広告物等の所有者、占有者その他当該広告物等について権原を有する者",
+          "quote_verified": true
+        },
+        {
+          "source": "条例",
+          "article": "第20条",
+          "quote": "広告物等に関し、補修その他必要な管理を行い、良好な状態に保持しなければならない。",
+          "quote_verified": true
+        }
+      ],
+      "confidence": 0.95
+    },
+    "inspection_duty": {
+      "required": "no",
+      "absent_in_text": true,
+      "interval_years": null,
+      "subject": null,
+      "exclusions": [],
+      "conditions": {
+        "area_min_m2": null,
+        "height_min_m": null,
+        "height_min_inclusive": false,
+        "ground_clearance_min_m": null,
+        "permit_required_only": false,
+        "kinds": [],
+        "excluded_kinds": [],
+        "note": "点検を行う・させる義務を定める条文は見当たらない。施行規則第1条第3項の安全点検報告書の添付義務はあるが、点検義務そのものの明文はない"
+      },
+      "citations": [],
+      "confidence": 0.6
+    },
+    "qualified_inspector": {
+      "required": "no",
+      "conditions": {
+        "area_min_m2": null,
+        "height_min_m": null,
+        "height_min_inclusive": false,
+        "ground_clearance_min_m": null,
+        "permit_required_only": false,
+        "kinds": [],
+        "excluded_kinds": [],
+        "note": "有資格者に点検させる旨の条文は見当たらない"
+      },
+      "effort": null,
+      "qualification": null,
+      "citations": [],
+      "confidence": 0.7
+    },
+    "report_duty": {
+      "required": "conditional",
+      "trigger": "条例第27条第1項(変更・改造・移転)又は第2項(継続)の許可を受ける場合の許可申請時",
+      "form": "別記第二号様式 屋外広告物安全点検報告書",
+      "permit_required_only": true,
+      "conditions": {
+        "area_min_m2": null,
+        "height_min_m": null,
+        "height_min_inclusive": false,
+        "ground_clearance_min_m": null,
+        "permit_required_only": true,
+        "kinds": [
+          "広告塔",
+          "広告板",
+          "アーチ",
+          "装飾街路灯"
+        ],
+        "excluded_kinds": [],
+        "note": "現に許可を受けている広告物等が広告塔、広告板、アーチ及び装飾街路灯である場合に限り、許可申請書に添付"
+      },
+      "citations": [
+        {
+          "source": "施行規則",
+          "article": "第1条第3項",
+          "quote": "条例第二十七条第一項又は第二項の規定による許可を受ける場合",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第1条第3項",
+          "quote": "(現に許可を受けている広告物等が広告塔、広告板、アーチ及び装飾街路灯である場合に限る。)にあつては別記第二号様式による屋外広告物安全点検報告書を添付しなければならない。",
+          "quote_verified": true
+        }
+      ],
+      "confidence": 0.9
+    }
   },
   "extraction_notes": [
     "別表第二は表が崩れており、区域と面積の対応は推測を含む(信頼度低)。",
@@ -797,8 +874,8 @@
     "許可期間は一月以内を約0.083年で換算した。"
   ],
   "citation_check": {
-    "total": 13,
-    "verified": 13
+    "total": 43,
+    "verified": 43
   },
   "usage": {
     "input_tokens": 74557,
@@ -839,5 +916,29 @@
       "permit_term.items[2](はり紙・はり札等・広告旗・立看板等・アドバルーン・広告幕・店頭装飾).years"
     ],
     "method": "数値の存在照合(正解ファイルに同じ値が在るか。区域・種類までは見ない)"
+  },
+  "duties_extraction": {
+    "model": "claude-opus-5-5",
+    "extracted_at": "2026-11-02T20:26:30+09:00",
+    "notes": [
+      "点検義務の明文はないが、施行規則第1条第3項で変更・継続許可時に安全点検報告書の添付が必要なため、実務上は点検が前提となる。原文に義務規定がないためinspection_dutyはnoとした",
+      "条例第25条・施行規則第2条・第3条の屋外広告物管理者(建築士、電気工事士、電気主任技術者、登録試験合格者)は管理者の設置義務であり、点検を有資格者にさせる義務とは書かれていないためqualified_inspectorはnoとした",
+      "屋外広告物管理者の設置対象は高さ4m超又は表示面積10㎡超の広告塔・広告板、アーチ、装飾街路灯で、許可に係るものに限られる",
+      "施行規則第8条第3号・第4号は許可条件として補強・補修を定めるが許可物件に限られる。管理義務は条例第20条により許可不要の自家用広告物等にも掛かる",
+      "施行規則第1条第3項と別記第二号様式は令和7年規則第11号で改正され令和8年4月1日施行。原文は同日施行版である",
+      "安全点検報告書の様式の内容(点検者・点検項目)は原文に記載がなく、点検周期も原文に記載がない"
+    ],
+    "citation_check": {
+      "total": 4,
+      "verified": 4
+    },
+    "usage": {
+      "input_tokens": 75156,
+      "output_tokens": 3372,
+      "attempts": 1,
+      "attempt_errors": [],
+      "model": "claude-opus-5-5",
+      "usd": 0.3681
+    }
   }
 }

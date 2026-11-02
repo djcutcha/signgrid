@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "ordinance_key": "埼玉県",
-  "status": "第2版(手元の正解と照合済み、一致 15/20)",
+  "status": "第2版(手元の正解と照合済み、一致 15/21)",
   "model": "claude-sonnet-5-5",
   "effort": "medium",
   "extracted_at": "2026-11-02T14:35:07+09:00",
@@ -367,36 +367,6 @@
         }
       ]
     },
-    "inspection": {
-      "required": "conditional",
-      "conditions": [
-        {
-          "description": "許可を要する広告物等のうち上端の高さが地上から4mを超えるものは有資格者による点検が必要(点検不要広告物等を除く)。4m以下は点検義務があるが資格者点検は努力義務",
-          "area_min_m2": null,
-          "height_min_m": 4,
-          "ground_clearance_min_m": null
-        }
-      ],
-      "applies_to_self_use": null,
-      "qualification": "条例第二十五条第一項第二号から第五号までのいずれかに該当する者、屋外広告物点検技能講習を修了した者等",
-      "form": "様式第一号の二 屋外広告物等点検報告書",
-      "interval_years": 3,
-      "citations": [
-        {
-          "source": "施行規則",
-          "article": "第10条の4第3項",
-          "quote": "上端の高さが地上から四メートルを超えるもので、かつ、条例第六条第一項若しくは条例第七条第五項の許可",
-          "quote_verified": true
-        },
-        {
-          "source": "施行規則",
-          "article": "第10条の4第1項",
-          "quote": "三年を超えない期間ごとに行わなければならない。",
-          "quote_verified": true
-        }
-      ],
-      "confidence": 0.7
-    },
     "prohibited_zones": {
       "summary": "第一種・第二種低層住居専用地域、田園住居地域、風致地区、特別緑地保全地区、生産緑地地区(知事指定区域を除く)のほか、文化財、保安林、公園、官公署・学校等の建造物と敷地、社寺境域等。橋、街路樹、電柱等の物件にも表示禁止。",
       "labels": [
@@ -417,6 +387,255 @@
         }
       ],
       "confidence": 0.85
+    },
+    "maintenance_duty": {
+      "required": "yes",
+      "subject": "広告物を表示し、又は掲出物件を設置する者（管理する者が置かれているときは、その者。）",
+      "conditions": {
+        "area_min_m2": null,
+        "height_min_m": null,
+        "height_min_inclusive": false,
+        "ground_clearance_min_m": null,
+        "permit_required_only": false,
+        "kinds": [],
+        "excluded_kinds": [],
+        "note": "許可に係る広告物等で上端の高さが地上から4メートルのものを表示・設置する者は、管理する者を置かなければならない（条例第14条第2項、施行規則第10条の3）"
+      },
+      "citations": [
+        {
+          "source": "条例",
+          "article": "第14条第1項",
+          "quote": "広告物を表示し、又は掲出物件を設置する者（管理する者が置かれているときは、その者。次条第一項において同じ。）は、",
+          "quote_verified": true
+        },
+        {
+          "source": "条例",
+          "article": "第14条第1項",
+          "quote": "これらに関し補修その他必要な管理を怠らないようにし、良好な状態に保持しなければならない。",
+          "quote_verified": true
+        },
+        {
+          "source": "条例",
+          "article": "第14条第2項",
+          "quote": "この条例の規定による許可に係る広告物又は掲出物件で規則で定める基準を超えるものを表示し、又は設置する者は、これらを管理する者を置かなければならない。",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第10条の3",
+          "quote": "条例第十四条第二項に規定する規則で定める基準は、上端の高さが地上から四メートルとする。",
+          "quote_verified": true
+        }
+      ],
+      "confidence": 0.9
+    },
+    "inspection_duty": {
+      "required": "yes",
+      "absent_in_text": false,
+      "interval_years": 3,
+      "subject": "広告物を表示し、又は掲出物件を設置する者",
+      "exclusions": [
+        "はり紙、はり札、広告旗若しくは立看板又はこれらを掲出する物件",
+        "広告幕（つり下げを含む。）(掲出物件を除く。）",
+        "アドバルーン",
+        "壁面に描かれた広告物",
+        "条例第七条第一項第二号並びに同条第二項第三号、第四号（広告物を掲出する物件を除く。）、第五号及び第七号から第九号までに掲げる広告物又は掲出物件",
+        "法令の規定により条例第十四条の二第一項本文の点検と同程度以上の点検を実施することとされている広告物又は掲出物件",
+        "広告塔、広告板その他主として広告物を掲出する目的で設置された物件のうち、設置した日から三月以内であるもの",
+        "広告塔、広告板その他主として広告物を掲出する目的で設置された物件のうち、建築基準法第八十八条第一項において準用する同法第七条第五項又は第七条の二第五項の規定による検査済証の交付の日から一年以内であるもの",
+        "表示する広告物のみに変更又は改造を行うもの"
+      ],
+      "conditions": {
+        "area_min_m2": null,
+        "height_min_m": null,
+        "height_min_inclusive": false,
+        "ground_clearance_min_m": null,
+        "permit_required_only": false,
+        "kinds": [],
+        "excluded_kinds": [
+          "はり紙",
+          "はり札",
+          "広告旗",
+          "立看板",
+          "広告幕（つり下げを含む。）",
+          "アドバルーン",
+          "壁面に描かれた広告物"
+        ],
+        "note": "許可（既設物件への広告物掲出に限る）・許可期間の更新・変更等の許可を受けようとする者は、申請日前3月以内に点検を行う（施行規則第10条の4第1項ただし書）"
+      },
+      "citations": [
+        {
+          "source": "条例",
+          "article": "第14条の2第1項",
+          "quote": "広告物を表示し、又は掲出物件を設置する者は、規則で定めるところにより、定期に、当該広告物又は掲出物件の損傷、腐食その他の劣化の状況について点検を行わなければならない。",
+          "quote_verified": true
+        },
+        {
+          "source": "条例",
+          "article": "第14条の2第1項",
+          "quote": "ただし、人に危害を与え、又は他の物件を損傷するおそれのない広告物又は掲出物件等として規則で定めるもの（第四項において「点検不要広告物等」という。）については、この限りでない。",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第10条の4第1項",
+          "quote": "条例第十四条の二第一項本文の点検は、別表第四に掲げる点検の箇所及び項目について、三年を超えない期間ごとに行わなければならない。",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第10条の4第2項第1号",
+          "quote": "はり紙、はり札、広告旗若しくは立看板又はこれらを掲出する物件",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第10条の4第2項第6号",
+          "quote": "法令の規定により条例第十四条の二第一項本文の点検と同程度以上の点検を実施することとされている広告物又は掲出物件",
+          "quote_verified": true
+        }
+      ],
+      "confidence": 0.9
+    },
+    "qualified_inspector": {
+      "required": "duty",
+      "conditions": {
+        "area_min_m2": null,
+        "height_min_m": 4,
+        "height_min_inclusive": false,
+        "ground_clearance_min_m": null,
+        "permit_required_only": true,
+        "kinds": [],
+        "excluded_kinds": [
+          "はり紙",
+          "はり札",
+          "広告旗",
+          "立看板",
+          "広告幕（つり下げを含む。）",
+          "アドバルーン",
+          "壁面に描かれた広告物"
+        ],
+        "note": "上端の高さが地上から4メートルを超え、かつ、許可・許可期間の更新・変更等の許可を要するもの（点検不要広告物等を除く）"
+      },
+      "effort": {
+        "conditions": {
+          "area_min_m2": null,
+          "height_min_m": 4,
+          "height_min_inclusive": false,
+          "ground_clearance_min_m": null,
+          "permit_required_only": false,
+          "kinds": [],
+          "excluded_kinds": [
+            "はり紙",
+            "はり札",
+            "広告旗",
+            "立看板",
+            "広告幕（つり下げを含む。）",
+            "アドバルーン",
+            "壁面に描かれた広告物"
+          ],
+          "note": "上端の高さが地上から4メートルを超えるもののうち資格者点検義務広告物等を除くもの（許可不要の物を含む）"
+        },
+        "citations": [
+          {
+            "source": "条例",
+            "article": "第14条の2第3項",
+            "quote": "第一項本文の点検のうち規則で定める広告物又は掲出物件（資格者点検義務広告物等を除く。）に係るものについては、広告物等点検資格者に行わせるよう努めなければならない。",
+            "quote_verified": true
+          },
+          {
+            "source": "施行規則",
+            "article": "第10条の4第5項",
+            "quote": "条例第十四条の二第三項に規定する規則で定める広告物又は掲出物件は、上端の高さが地上から四メートルを超えるものとする。",
+            "quote_verified": true
+          }
+        ]
+      },
+      "qualification": "法第十条第二項第三号イに規定する者その他規則で定める資格を有する者（条例第二十五条第一項第二号から第五号までのいずれかに該当する者、第十五条第二項各号のいずれかに該当する者、一般社団法人日本屋外広告業団体連合会又は公益社団法人日本サイン協会が行う屋外広告物点検技能講習を修了した者）",
+      "citations": [
+        {
+          "source": "条例",
+          "article": "第14条の2第2項",
+          "quote": "法第十条第二項第三号イに規定する者その他規則で定める資格を有する者（次項において「広告物等点検資格者」という。）に行わせなければならない。",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第10条の4第3項",
+          "quote": "上端の高さが地上から四メートルを超えるもので、かつ、条例第六条第一項若しくは条例第七条第五項の許可",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第10条の4第4項第1号",
+          "quote": "条例第二十五条第一項第二号から第五号までのいずれかに該当する者",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第10条の4第4項第2号",
+          "quote": "第十五条第二項各号のいずれかに該当する者",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第10条の4第4項第3号",
+          "quote": "一般社団法人日本屋外広告業団体連合会又は公益社団法人日本サイン協会が行う屋外広告物点検技能講習を修了した者",
+          "quote_verified": true
+        }
+      ],
+      "confidence": 0.9
+    },
+    "report_duty": {
+      "required": "yes",
+      "trigger": "条例第6条第1項若しくは第7条第5項の許可（既に設置されている物件に広告物を掲出する場合に限る）、許可の期間の更新又は第12条第1項の変更等の許可の申請時",
+      "form": "様式第一号の二 屋外広告物等点検報告書",
+      "permit_required_only": true,
+      "conditions": {
+        "area_min_m2": null,
+        "height_min_m": null,
+        "height_min_inclusive": false,
+        "ground_clearance_min_m": null,
+        "permit_required_only": true,
+        "kinds": [],
+        "excluded_kinds": [
+          "はり紙",
+          "はり札",
+          "広告旗",
+          "立看板",
+          "広告幕（つり下げを含む。）",
+          "アドバルーン",
+          "壁面に描かれた広告物"
+        ],
+        "note": "点検不要広告物等について許可又は許可の期間の更新を受けようとする者を除く。点検は申請日前3月以内に行う。報告は所轄所長に提出"
+      },
+      "citations": [
+        {
+          "source": "条例",
+          "article": "第14条の2第4項",
+          "quote": "第六条第一項若しくは第七条第五項の許可（既に設置されている物件に広告物を掲出する場合に限る。）",
+          "quote_verified": true
+        },
+        {
+          "source": "条例",
+          "article": "第14条の2第4項",
+          "quote": "規則で定めるところにより、第一項の点検の結果を知事に報告しなければならない。",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第10条の4第6項",
+          "quote": "条例第十四条の二第四項に規定する報告は、様式第一号の二の屋外広告物等点検報告書を所轄所長に提出して行うものとする。",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第2条第1項第5号イ",
+          "quote": "様式第一号の二の屋外広告物等点検報告書",
+          "quote_verified": true
+        }
+      ],
+      "confidence": 0.85
     }
   },
   "extraction_notes": [
@@ -427,8 +646,8 @@
     "条例第7条第2項第2号(管理上の必要表示、1個2㎡以下)は自家用の定義外のため省略"
   ],
   "citation_check": {
-    "total": 21,
-    "verified": 21
+    "total": 39,
+    "verified": 39
   },
   "usage": {
     "input_tokens": 101541,
@@ -441,21 +660,47 @@
   },
   "verification": {
     "matched": 15,
-    "total": 20,
+    "total": 21,
     "mismatch_items": [
       "permit_term.default_years",
       "permit_term.items[0](全種類(上限)).years",
       "permit_term.items[2](広告幕(つり下げを含む。)及びアドバルーン).years",
-      "inspection.interval_years",
-      "inspection.conditions[0].height_min_m"
+      "inspection_duty.interval_years",
+      "qualified_inspector.conditions.height_min_m",
+      "qualified_inspector.effort.conditions.height_min_m"
     ],
     "mismatch_only_in_source": [
       "permit_term.default_years",
       "permit_term.items[0](全種類(上限)).years",
       "permit_term.items[2](広告幕(つり下げを含む。)及びアドバルーン).years",
-      "inspection.interval_years",
-      "inspection.conditions[0].height_min_m"
+      "inspection_duty.interval_years",
+      "qualified_inspector.conditions.height_min_m",
+      "qualified_inspector.effort.conditions.height_min_m"
     ],
     "method": "数値の存在照合(正解ファイルに同じ値が在るか。区域・種類までは見ない)"
+  },
+  "duties_extraction": {
+    "model": "claude-opus-5-5",
+    "extracted_at": "2026-11-02T20:28:01+09:00",
+    "notes": [
+      "自家用広告物（条例第7条第2項第1号）は第4条・第6条の適用除外だが、第14条・第14条の2は除外されていないため管理・点検義務は掛かると読んだ。",
+      "点検不要広告物等の第5号は条例第7条第2項第3号等の物を除外するが、同項第1号（自家用広告物）は含まれていない。",
+      "施行規則第10条の4第2項第7号は柱書とイ・ロを結合して記載したため、厳密には原文の連続した文言ではない。",
+      "点検の義務は規模の条件がなく除外列挙方式のため required を yes とした。",
+      "報告義務は申請時の手続に連動し種類限定がないため yes とし、許可・更新の申請者のみが対象なので permit_required_only を true とした。",
+      "条例第14条第2項の管理者設置基準は「上端の高さが地上から四メートル」とあるのみで、超える・以上の別は原文から明確でない。"
+    ],
+    "citation_check": {
+      "total": 20,
+      "verified": 20
+    },
+    "usage": {
+      "input_tokens": 49292,
+      "output_tokens": 6352,
+      "attempts": 1,
+      "attempt_errors": [],
+      "model": "claude-opus-5-5",
+      "usd": 0.3242
+    }
   }
 }

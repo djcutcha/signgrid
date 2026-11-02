@@ -267,36 +267,6 @@
         }
       ]
     },
-    "inspection": {
-      "required": "yes",
-      "conditions": [
-        {
-          "description": "許可を要する広告物・掲出物件の所有者等。はり紙・立看板・広告幕等の軽易なものは除外。",
-          "area_min_m2": null,
-          "height_min_m": null,
-          "ground_clearance_min_m": null
-        }
-      ],
-      "applies_to_self_use": null,
-      "qualification": "屋外広告士その他規則で定める者(一級・二級建築士、電気主任技術者等)",
-      "form": "様式第11号 屋外広告物等点検報告書",
-      "interval_years": null,
-      "citations": [
-        {
-          "source": "条例",
-          "article": "第18条の2第1項",
-          "quote": "劣化及び損傷の状況の点検をさせなければならない。",
-          "quote_verified": true
-        },
-        {
-          "source": "施行規則",
-          "article": "第16条の3第1号",
-          "quote": "はり紙、はり札、広告旗、立看板、広告幕(つりさげを含む。)、置き看板、アドバルーンその他これらに類する軽易な広告物",
-          "quote_verified": true
-        }
-      ],
-      "confidence": 0.6
-    },
     "prohibited_zones": {
       "summary": "第1種・第2種低層住居専用地域、風致地区、生産緑地地区、市民農園、文化財、都市公園、官公署・学校等の建造物と敷地、社寺・墓地などで広告物の表示は禁止。市長指定の道路・鉄道区間や河川等も含む。",
       "labels": [
@@ -316,6 +286,210 @@
         }
       ],
       "confidence": 0.85
+    },
+    "maintenance_duty": {
+      "required": "yes",
+      "subject": "広告物を表示し、若しくは掲出物件を設置する者(管理する者が置かれているときは、その者)又は広告物若しくは掲出物件の所有者若しくは占有者(広告物の所有者等)",
+      "conditions": {
+        "area_min_m2": null,
+        "height_min_m": null,
+        "height_min_inclusive": false,
+        "ground_clearance_min_m": null,
+        "permit_required_only": false,
+        "kinds": [],
+        "excluded_kinds": [],
+        "note": "第7条の適用除外は第3条から第6条まで等に限られ、第18条第1項は除外されていない"
+      },
+      "citations": [
+        {
+          "source": "条例",
+          "article": "第18条第1項",
+          "quote": "又は広告物若しくは掲出物件の所有者若しくは占有者",
+          "quote_verified": true
+        },
+        {
+          "source": "条例",
+          "article": "第18条第1項",
+          "quote": "は、これらに関し補修その他必要な管理を怠らないようにし、良好な状態に保持しなければならない。",
+          "quote_verified": true
+        }
+      ],
+      "confidence": 0.95
+    },
+    "inspection_duty": {
+      "required": "yes",
+      "absent_in_text": false,
+      "interval_years": null,
+      "subject": "広告物の所有者等",
+      "exclusions": [
+        "はり紙、はり札、広告旗、立看板、広告幕(つりさげを含む。)、置き看板、アドバルーンその他これらに類する軽易な広告物",
+        "条例第7条第1項、第2項及び第6項に掲げる広告物又は掲出物件で、法令の規定により条例第18条の2第1項の点検と同程度の点検を実施することとされているもの",
+        "前2号に掲げるもののほか、市長が条例第18条の2第1項の規定による点検の必要がないと認めるもの"
+      ],
+      "conditions": {
+        "area_min_m2": null,
+        "height_min_m": null,
+        "height_min_inclusive": false,
+        "ground_clearance_min_m": null,
+        "permit_required_only": false,
+        "kinds": [],
+        "excluded_kinds": [
+          "はり紙",
+          "はり札",
+          "広告旗",
+          "立看板",
+          "広告幕",
+          "置き看板",
+          "アドバルーン"
+        ],
+        "note": "主語は広告物の所有者等で、許可不要の自家用広告物も対象。点検項目は規則第16条に定める基礎部、上部構造、支持部、取付部等"
+      },
+      "citations": [
+        {
+          "source": "条例",
+          "article": "第18条の2第1項",
+          "quote": "広告物の所有者等は、その所有し、又は占有する広告物又は掲出物件について、規則で定めるところにより、法第10条第2項第3号イに掲げる者",
+          "quote_verified": true
+        },
+        {
+          "source": "条例",
+          "article": "第18条の2第1項",
+          "quote": "その他これと同等以上の知識を有するものとして規則で定める者に、当該広告物又は掲出物件の本体、接合部、支持部分等の劣化及び損傷の状況の点検をさせなければならない。",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第16条の3第1号",
+          "quote": "はり紙、はり札、広告旗、立看板、広告幕(つりさげを含む。)、置き看板、アドバルーンその他これらに類する軽易な広告物",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第16条の3第2号",
+          "quote": "条例第7条第1項、第2項及び第6項に掲げる広告物又は掲出物件で、法令の規定により条例第18条の2第1項の点検と同程度の点検を実施することとされているもの",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第16条の3第3号",
+          "quote": "前2号に掲げるもののほか、市長が条例第18条の2第1項の規定による点検の必要がないと認めるもの",
+          "quote_verified": true
+        }
+      ],
+      "confidence": 0.9
+    },
+    "qualified_inspector": {
+      "required": "duty",
+      "conditions": {
+        "area_min_m2": null,
+        "height_min_m": null,
+        "height_min_inclusive": false,
+        "ground_clearance_min_m": null,
+        "permit_required_only": false,
+        "kinds": [],
+        "excluded_kinds": [
+          "はり紙",
+          "はり札",
+          "広告旗",
+          "立看板",
+          "広告幕",
+          "置き看板",
+          "アドバルーン"
+        ],
+        "note": "点検の義務と一体。条例第18条第2項により管理する者が置かれているときはその者が点検し報告書を作成する"
+      },
+      "effort": null,
+      "qualification": "法第10条第2項第3号イに掲げる者(屋外広告士)その他これと同等以上の知識を有するものとして規則で定める者(条例第29条第1項第2号から第5号までに掲げる者、事業者団体の点検技能講習の修了者、一級建築士又は二級建築士、第一種から第三種までの電気主任技術者、市長が認める者)",
+      "citations": [
+        {
+          "source": "条例",
+          "article": "第18条の2第1項",
+          "quote": "その他これと同等以上の知識を有するものとして規則で定める者に、当該広告物又は掲出物件の本体、接合部、支持部分等の劣化及び損傷の状況の点検をさせなければならない。",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第16条の2",
+          "quote": "条例第18条の2第1項の規則で定める者は、次に掲げる者とする。",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第16条の4第2項",
+          "quote": "前項の報告書は、条例第18条第2項の規定により管理する者が置かれているときは、その者が点検し、作成するものとする。",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第9条第1項第4号",
+          "quote": "点検者が屋外広告士又は第16条の2各号のいずれかに該当する者であることを証する書面又はその写し",
+          "quote_verified": true
+        }
+      ],
+      "confidence": 0.9
+    },
+    "report_duty": {
+      "required": "yes",
+      "trigger": "許可又は許可の更新の申請時(市長がその必要がないと認めるときを除く)",
+      "form": "屋外広告物等点検報告書(様式第11号)",
+      "permit_required_only": true,
+      "conditions": {
+        "area_min_m2": null,
+        "height_min_m": null,
+        "height_min_inclusive": false,
+        "ground_clearance_min_m": null,
+        "permit_required_only": true,
+        "kinds": [],
+        "excluded_kinds": [
+          "はり紙",
+          "はり札",
+          "広告旗",
+          "立看板",
+          "広告幕",
+          "置き看板",
+          "アドバルーン"
+        ],
+        "note": "報告書は提出する日前3月以内に作成したものに限る。点検の適用除外に当たる物は報告書の添付を要しない。別に市長は安全管理上必要なとき安全点検と報告を求めることができる(第4項)"
+      },
+      "citations": [
+        {
+          "source": "条例",
+          "article": "第18条の2第2項",
+          "quote": "この条例の規定による許可又は許可の更新の申請をしようとする者は、",
+          "quote_verified": true
+        },
+        {
+          "source": "条例",
+          "article": "第18条の2第2項",
+          "quote": "の規定による点検の結果を市長に提出しなければならない。",
+          "quote_verified": true
+        },
+        {
+          "source": "条例",
+          "article": "第18条の2第2項",
+          "quote": "ただし、市長がその必要がないと認めるときは、この限りでない。",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第3条第1項第6号",
+          "quote": "第16条の4第1項に規定する報告書(提出する日前3月以内に作成したものに限る。)",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第9条第1項第3号",
+          "quote": "第16条の4第1項に規定する報告書(提出する日前3月以内に作成したものに限る。)。",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第16条の4第1項",
+          "quote": "条例第18条の2第4項に規定する報告は、屋外広告物等点検報告書(様式第11号)を市長に提出して行うものとする。",
+          "quote_verified": true
+        }
+      ],
+      "confidence": 0.85
     }
   },
   "extraction_notes": [
@@ -325,8 +499,8 @@
     "自家用広告物が点検対象かは明記が無く null とした。"
   ],
   "citation_check": {
-    "total": 16,
-    "verified": 16
+    "total": 31,
+    "verified": 31
   },
   "usage": {
     "input_tokens": 46486,
@@ -359,5 +533,29 @@
       "permit_term.items[2](はり紙・はり札・広告旗・立看板).years"
     ],
     "method": "数値の存在照合(正解ファイルに同じ値が在るか。区域・種類までは見ない)"
+  },
+  "duties_extraction": {
+    "model": "claude-opus-5-5",
+    "extracted_at": "2026-11-02T20:30:47+09:00",
+    "notes": [
+      "点検の周期は原文に無いため null。許可期間は最長3年で、許可・更新の申請時に3月以内の報告書を出すため、事実上その都度点検となる。",
+      "規則第16条の4第1項は条例第18条の2第4項の報告と書くが、規則第3条・第9条が同項の報告書を許可・更新申請に添付させるため、様式第11号を第2項の提出様式と読んだ。",
+      "条例第18条の2第4項の原文は「提出物件」と書かれており、「掲出物件」の誤記と思われるが原文のまま扱った。",
+      "条例第18条の2第2項から第4項までは附則により平成30年4月1日施行、第1項は平成29年12月1日施行。",
+      "第7条第2項の自家用広告物は第3条・第6条の適用除外だが、第18条・第18条の2は除外されていないため、管理・点検義務は許可不要の物にも掛かると読んだ。",
+      "管理する者の設置義務(条例第18条第2項)は許可に係る物で上端が地上4mを超える物が対象。点検義務そのものに高さ要件は無い。"
+    ],
+    "citation_check": {
+      "total": 17,
+      "verified": 17
+    },
+    "usage": {
+      "input_tokens": 47193,
+      "output_tokens": 5215,
+      "attempts": 1,
+      "attempt_errors": [],
+      "model": "claude-opus-5-5",
+      "usd": 0.2931
+    }
   }
 }
