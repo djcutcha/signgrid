@@ -145,7 +145,7 @@ class LogTest(unittest.TestCase):
              "limit_per_source": 30, "seed": 0, "model": "m", "effort": "low", "overall": o,
              "usage": {"signs_with_usage": 10, "input_tokens": 123456, "cost_usd": 0.5}}
         row = run_eval.log_row(r, "テスト", 6)
-        self.assertEqual(row.count("|"), 14)
+        self.assertEqual(row.count("|"), 15)
         for want in ("2026-11-03", "limit=30 seed=0", "写真6枚まで", "50.0%", "看板1/項目3", "123,456", "$0.50", "low"):
             self.assertIn(want, row)
         with tempfile.TemporaryDirectory() as d:

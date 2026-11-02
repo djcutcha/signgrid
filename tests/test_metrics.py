@@ -135,5 +135,32 @@ class DatasetHelperTest(unittest.TestCase):
         self.assertEqual(dataset._scan_pages(""), [])
 
 
+class ActionBreakdownTest(unittest.TestCase):
+    def test_action_class(self):
+        f = metrics.action_class
+        self.assertIsNone(f(2, {"外装": 3}))                      # 要対応でない
+        self.assertEqual(f(3, None), "a")                         # 内訳なし
+        self.assertEqual(f(4, {}), "a")
+        self.assertEqual(f(3, {"外装": 2, "基礎": 1}), "b")       # 内訳はあるが 3 以上なし
+        self.assertEqual(f(3, {"外装": 3, "基礎": 1}), "c")
+        self.assertEqual(f(3, {"球切れ・点灯": 3, "外装": 2}), "d")
+        self.assertEqual(f(4, {"電気設備": 4, "内部の腐食": 3}), "d")
+        self.assertEqual(f(3, {"電気設備": 3, "外装": 3}), "c")   # 写真可の要対応項目が 1 つでもあれば c
+
+    def test_breakdown_and_compute(self):
+        rows = [(3, None, 1), (3, {"外装": 2}, 2), (3, {"外装": 3}, 2), (4, {"外装": 4}, 4),
+                (3, {"球切れ": 3}, 1), (2, {"外装": 2}, 3), (3, {"外装": 3}, None)]
+        b = metrics.action_breakdown(rows)
+        self.assertEqual(b["counts"], {"a": 1, "b": 1, "c": 3, "d": 1})
+        self.assertEqual(b["missed"], {"a": 1, "b": 1, "c": 2, "d": 1})
+        self.assertAlmostEqual(b["photo_miss_rate"], 2 / 3)
+        items = [EvalItem("xlsx_karte", f"s{i}", ["p"], t, ij, "eval") for i, (t, ij, _) in enumerate(rows)]
+        pairs = [(it, Prediction(p)) for it, (_, _, p) in zip(items, rows)]
+        self.assertEqual(metrics.compute(pairs)["action_breakdown"], b)
+
+    def test_breakdown_empty(self):
+        self.assertIsNone(metrics.action_breakdown([])["photo_miss_rate"])
+
+
 if __name__ == "__main__":
     unittest.main()
