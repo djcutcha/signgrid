@@ -86,6 +86,9 @@ def _judge(key: str, pref: str, city: str | None, use: str, area: float | None, 
 
 
 # 母数の内訳(区分ごとの Counter のキー)
+# 要実測の主因(先に当たった物を1つ): 寸法なし → 区分なし(用途地域の外・座標化できず・GIS なし) → 規則側(寸法も区分もあるのに基準が割れる)
+MEASURE_REASONS = ("寸法なし", "区分なし", "規則側")
+
 SELF_EXEMPT, PERMIT, MEASURE, USE_UNKNOWN = "自家用・許可不要(把握外)", "許可要", "要実測", "用途不明"
 
 
@@ -104,6 +107,8 @@ class GroupStat:
     with_place: int = 0                                    # 区分(用途地域)を judge に渡せた件数
     base_outcome: Counter = field(default_factory=Counter)  # 区分を渡さなかった場合の内訳(区分なしの集計 = 前回の表)
     base_unknown_as_self: Counter = field(default_factory=Counter)
+    measure_reason: Counter = field(default_factory=Counter)  # 自家用で『要実測』になった主因(MEASURE_REASONS)
+    measure_reason_unknown: Counter = field(default_factory=Counter)  # 用途不明を自家用と仮定した『要実測』の主因
 
 
 @dataclass
@@ -184,13 +189,27 @@ def run(db_path: str | Path, agency_words: tuple[str, ...] | None = None, rows=N
             g.outcome[USE_UNKNOWN] += 1
             g.base_unknown_as_self[r0] += 1
             g.base_outcome[USE_UNKNOWN] += 1
+            if r == "要実測":
+                g.measure_reason_unknown[_measure_reason(e.area_m2, place, placer is not None)] += 1
         else:
             g.outcome[_bucket(e.use, r)] += 1
             g.base_outcome[_bucket(e.use, r0)] += 1
             g.detail[("自家用:" if e.use == SELF else "一般:") + r] += 1
+            if e.use == SELF and r == "要実測":
+                g.measure_reason[_measure_reason(e.area_m2, place, placer is not None)] += 1
     if con:
         con.close()
     return rep
+
+
+def _measure_reason(area_m2, place, zoning_enabled: bool) -> str:
+    """自家用の『要実測』の主因を1つに決める。寸法が無ければ『寸法なし』、区分(用途地域)を渡せていなければ『区分なし』
+    (--with-zoning なしの集計では全部ここ)、両方あるのに決まらなければ『規則側』(基準が種類・区域で割れる、数値化されていない)。"""
+    if area_m2 is None:
+        return MEASURE_REASONS[0]
+    if not zoning_enabled or place is None:
+        return MEASURE_REASONS[1]
+    return MEASURE_REASONS[2]
 
 
 def _bucket(use: str, r: str) -> str:
@@ -222,6 +241,8 @@ def totals(rep: Report) -> GroupStat:
         t.with_place += g.with_place
         t.base_outcome.update(g.base_outcome)
         t.base_unknown_as_self.update(g.base_unknown_as_self)
+        t.measure_reason.update(g.measure_reason)
+        t.measure_reason_unknown.update(g.measure_reason_unknown)
     return t
 
 
@@ -247,6 +268,18 @@ def _render_zoning(rep: Report, t: GroupStat) -> list[str]:
         o, b = g.outcome, g.base_outcome
         L.append(f"| {name} | {g.base} | {b[SELF_EXEMPT]} → {o[SELF_EXEMPT]} | {b[PERMIT]} → {o[PERMIT]} | "
                  f"{b[MEASURE]} → {o[MEASURE]} | {g.base_unknown_as_self['不要']} → {g.unknown_as_self['不要']} |")
+    L.append("")
+    L.append("### 要実測の内訳(主因を1つ。自家用 / 用途不明を自家用と仮定)")
+    L.append("")
+    L.append("寸法なし= 指示書の仕様文から W×H が取れない。区分なし= 用途地域の外(市街化調整区域等)・座標化できず・GIS にその自治体が無い。"
+             "規則側= 寸法も用途地域もあるのに基準が割れる(埼玉県系の条例は許可区域の壁面・突出しの基準が比率や文言で数値化されていない等)。")
+    L.append("")
+    L.append("| 自治体 | 自家用・要実測 | " + " | ".join(MEASURE_REASONS) + " | 用途不明・要実測 | " + " | ".join(MEASURE_REASONS) + " |")
+    L.append("|---|---:|" + "---:|" * (2 * len(MEASURE_REASONS) + 1))
+    for name in (*GROUPS, "合計"):
+        g = t if name == "合計" else rep.groups.get(name, GroupStat())
+        L.append(f"| {name} | {sum(g.measure_reason.values())} | " + " | ".join(str(g.measure_reason[k]) for k in MEASURE_REASONS)
+                 + f" | {sum(g.measure_reason_unknown.values())} | " + " | ".join(str(g.measure_reason_unknown[k]) for k in MEASURE_REASONS) + " |")
     L.append("")
     L.append("### 座標化と用途地域の取れ方(母数の指示書ごと)")
     L.append("")
