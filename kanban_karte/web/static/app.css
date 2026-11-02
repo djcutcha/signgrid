@@ -288,3 +288,9 @@ dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
 .owner-estimate .est-size{font-size:18px;font-weight:600;margin:4px 0}
 .owner-estimate h2+.three,.owner-estimate .est-size+.sub{margin-top:4px}
 .owner-estimate h2:not(:first-child){margin-top:16px}
+
+/* 聞き返し */
+.clarify{border-left:4px solid var(--accent)}
+.clarify-q{font-size:15px;font-weight:600;margin:4px 0 8px}
+.clarify input{width:100%;box-sizing:border-box}
+@media (max-width:760px){ .clarify input{font-size:16px} }

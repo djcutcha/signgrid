@@ -138,7 +138,7 @@ class Ledger:
         # 規則の承認の列(古い台帳に足す。ALTER の ADD COLUMN は CHECK を付けても既存行は既定値 candidate になる)
         rule_cols = {r[1] for r in self.conn.execute("PRAGMA table_info(rules)")}
         for col, ddl in (("status", "TEXT NOT NULL DEFAULT 'candidate' CHECK (status IN ('candidate', 'approved', 'rejected'))"),
-                         ("approved_by", "TEXT"), ("approved_at", "TEXT"), ("resolution", "TEXT")):
+                         ("approved_by", "TEXT"), ("approved_at", "TEXT"), ("resolution", "TEXT"), ("structured", "TEXT")):
             if col not in rule_cols:
                 self.conn.execute(f"ALTER TABLE rules ADD COLUMN {col} {ddl}")
         self.conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -263,13 +263,21 @@ class Ledger:
 
     # ---- 規則(有資格者の訂正から育つ) ----
     def add_rule(self, text: str, source: str | None = None, conflicts_with: list[int] | None = None,
-                 status: str = "candidate") -> int:
+                 status: str = "candidate", structured: dict | None = None) -> int:
         if status not in RULE_STATUSES:
             raise ValueError(f"規則の status は {RULE_STATUSES} のどれか: {status!r}")
-        cur = self.conn.execute("INSERT INTO rules(text, source, conflicts_with, status) VALUES (?,?,?,?)",
-                                (text, source, json.dumps(conflicts_with or []), status))
+        cur = self.conn.execute(
+            "INSERT INTO rules(text, source, conflicts_with, status, structured) VALUES (?,?,?,?,?)",
+            (text, source, json.dumps(conflicts_with or []), status,
+             None if structured is None else json.dumps(structured, ensure_ascii=False)))
         self.conn.commit()
         return cur.lastrowid
+
+    def update_rule(self, rule_id: int, text: str, structured: dict, conflicts_with: list[int]) -> None:
+        """規則の文・構造・矛盾の相手を書き直す(聞き返しの答えを受けたとき)。承認の状態は変えない。"""
+        self.conn.execute("UPDATE rules SET text=?, structured=?, conflicts_with=? WHERE id=?",
+                          (text, json.dumps(structured, ensure_ascii=False), json.dumps(conflicts_with), rule_id))
+        self.conn.commit()
 
     def list_rules(self, status: str | None = None) -> list[sqlite3.Row]:
         if status is None:

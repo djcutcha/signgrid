@@ -96,7 +96,9 @@ CREATE TABLE IF NOT EXISTS rules (
     status        TEXT NOT NULL DEFAULT 'candidate' CHECK (status IN ('candidate', 'approved', 'rejected')),
     approved_by   TEXT,                 -- 承認・却下した有資格者の呼び名
     approved_at   TEXT,
-    resolution    TEXT                  -- 矛盾の解き方のメモ(どちらを残し、なぜか)
+    resolution    TEXT,                 -- 矛盾の解き方のメモ(どちらを残し、なぜか)
+    -- 規則の構造(聞き返しの答えで直す): JSON {item, finding, condition:{range,degree,text,photos}|null, result, draft, question, answer}
+    structured    TEXT
 );
 
 -- 有資格者の訂正(下書きとの差分)。1行=1回の訂正。確定後は訂正できない(pipeline/review.py)

@@ -24,6 +24,7 @@ from ..output.common import RANK_LABEL, size_text, unjudged_item_keys
 from ..output.client_a_form import write_client_a
 from ..output.tokyo_form import write_tokyo_form
 from ..pipeline import draft as draft_mod
+from ..pipeline import clarify as clarify_mod
 from ..pipeline import review as review_mod
 
 OUTPUTS = {"tokyo": ("東京都 第2号様式", write_tokyo_form), "client-a": ("客先A型", write_client_a)}
@@ -138,7 +139,14 @@ def sign_detail(ledger: Ledger, sign_id: str, placer=None) -> dict:
     return d
 
 
-def correct(ledger: Ledger, sign_id: str, body: dict, placer=None) -> dict:
+def default_clarifier(sample: bool):
+    """聞き返し役。見本データ・鍵なしは固定の聞き返し文(API を呼ばない)、鍵があれば Sonnet 5.5。"""
+    if sample or not can_draft():
+        return clarify_mod.FixedClarifier()
+    return clarify_mod.ClaudeClarifier()
+
+
+def correct(ledger: Ledger, sign_id: str, body: dict, placer=None, clarifier=None) -> dict:
     s = ledger.get_sign(sign_id)
     if s is None:
         raise ApiError(404, f"看板 {sign_id} が台帳にありません")
@@ -152,7 +160,26 @@ def correct(ledger: Ledger, sign_id: str, body: dict, placer=None) -> dict:
     d = sign_detail(ledger, sign_id, placer)
     d["changed"] = c is not None
     d["rule_id"] = c.rule_id if c else None
+    # 所見が短い・条件が無いときだけ、1問聞き返す(答えなくても規則は所見のまま候補に積んである)
+    d["clarify"] = None
+    if c and c.rule_id and clarifier is not None and clarify_mod.needs_question(body.get("note")):
+        r = ledger.get_rule(c.rule_id)
+        if r["status"] == "candidate":
+            q, who = clarify_mod.ask_question(clarifier, clarify_mod.context_of(ledger, sign_id, c, body.get("note")))
+            d["clarify"] = {"rule_id": c.rule_id, "question": q, "asked_by": who, "item": c.item}
     return d
+
+
+def rule_answer(ledger: Ledger, rule_id: int, body: dict, clarifier=None) -> dict:
+    """聞き返しの答え → 候補の規則の文と構造を直す。空・「分からない」は何も変えない。"""
+    try:
+        clarify_mod.apply_answer(ledger, rule_id, str(body.get("question", "")), str(body.get("answer", "")),
+                                 str(body.get("by", "")), clarifier or clarify_mod.FixedClarifier())
+    except LookupError as e:
+        raise ApiError(404, str(e))
+    except ValueError as e:
+        raise ApiError(400 if "要ります" in str(e) else 409, str(e))
+    return _rule_json(ledger, rule_id)
 
 
 def finalize(ledger: Ledger, sign_id: str, body: dict, placer=None) -> dict:
@@ -241,7 +268,7 @@ def rules(ledger: Ledger) -> list[dict]:
     return [{"id": r["id"], "text": r["text"], "source": r["source"], "created": r["created"],
              "conflicts_with": json.loads(r["conflicts_with"] or "[]"), "conflicts": review_mod.conflict_partners(ledger, r["id"]),
              "status": r["status"], "approved_by": r["approved_by"], "approved_at": r["approved_at"],
-             "resolution": r["resolution"]} for r in ledger.list_rules()]
+             "resolution": r["resolution"], "structured": json.loads(r["structured"] or "null")} for r in ledger.list_rules()]
 
 
 def _rule_json(ledger: Ledger, rule_id: int) -> dict:

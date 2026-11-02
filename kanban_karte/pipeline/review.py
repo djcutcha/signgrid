@@ -74,23 +74,59 @@ def finding_text(note: str | None, evidence: dict | None) -> str | None:
     return t or None
 
 
-def rule_text(key: str, finding: str | None, new: str, old: str | None) -> tuple[str, str]:
-    """(規則の文, 矛盾の判定に使う頭の部分)。顧客名・店名は入らない(項目名と所見と区分だけ)。"""
+def rule_text(key: str, finding: str | None, new: str, old: str | None, condition: str | None = None) -> tuple[str, str]:
+    """(規則の文, 矛盾の判定に使う頭の部分)。顧客名・店名は入らない(項目名と所見と条件と区分だけ)。
+    condition = 聞き返しで得た条件(範囲・程度)。写真番号は看板ごとの番号なので文に入れない。"""
     label = f"{key} {ITEM_TEXT[key]}"
     if finding:
-        head = f"{label}: 「{finding}」は"
+        head = f"{label}: 「{finding}」{f'({condition})' if condition else ''}は"
         return f"{head}{new}(下書きは{old or '判断できず'})", head
     head = f"{label}: 有資格者は"
     return f"{head}{new}と判定(下書きは{old or '判断できず'})", ""
 
 
-def _add_rule(ledger: Ledger, text: str, head: str, source: str) -> int:
+_RULE_RE = re.compile(r"^(.*は)(?:良好|経過観察|要改善|対象外)\(下書きは")
+
+
+def rule_head(text: str) -> str:
+    """規則の文の頭(項目・所見・条件まで)。所見の無い規則は ''(矛盾の対象にしない)。"""
+    m = _RULE_RE.match(text)
+    return m[1] if m and "「" in m[1] else ""
+
+
+def structure_of(key: str, finding: str | None, new: str, old: str | None, condition: dict | None = None,
+                 question: str | None = None, answer: str | None = None) -> dict:
+    """規則の構造 {item, finding, condition, result, draft, question, answer}。condition = {range, degree, text, photos}。"""
+    return {"item": key, "finding": finding, "condition": condition, "result": new, "draft": old,
+            "question": question, "answer": answer}
+
+
+def _add_rule(ledger: Ledger, text: str, head: str, source: str, structured: dict | None = None) -> int:
     rules = ledger.list_rules()
     for r in rules:
         if r["text"] == text:
             return r["id"]  # 同じ規則は積み直さない
     conflicts = [r["id"] for r in rules if head and r["status"] != "rejected" and r["text"].startswith(head)]
-    return ledger.add_rule(text, source, conflicts)
+    return ledger.add_rule(text, source, conflicts, structured=structured)
+
+
+def reconflict(ledger: Ledger, rule_id: int, text: str) -> list[int]:
+    """文を直した規則の矛盾の相手を引き直す。自分の conflicts_with を返し、自分を指す他の規則の古い印を外す。"""
+    head, mine = rule_head(text), []
+    for r in ledger.list_rules():
+        if r["id"] == rule_id:
+            continue
+        same = bool(head) and r["status"] != "rejected" and rule_head(r["text"]) == head and r["text"] != text
+        if same and r["id"] < rule_id:
+            mine.append(r["id"])
+        theirs = json.loads(r["conflicts_with"] or "[]")
+        if rule_id in theirs and not same:
+            ledger.conn.execute("UPDATE rules SET conflicts_with=? WHERE id=?",
+                                (json.dumps([i for i in theirs if i != rule_id]), r["id"]))
+        elif same and r["id"] > rule_id and rule_id not in theirs:
+            ledger.conn.execute("UPDATE rules SET conflicts_with=? WHERE id=?", (json.dumps([*theirs, rule_id]), r["id"]))
+    ledger.conn.commit()
+    return mine
 
 
 # ---- 規則の承認(候補 → 承認/却下)。下書きに効くのは承認だけ ----
@@ -174,8 +210,9 @@ def apply_correction(ledger: Ledger, sign_id: str, item: str, new_value, by: str
         s.items[key] = new
         if s.rank != 4:  # 4(即時対応)は項目の区分では表せない。変えるのはランクの訂正で
             s.rank = _rank_of(s.items) or s.rank
-        text, head = rule_text(key, finding_text(note, s.evidence.get(key)), new, old)
-        rule_id = _add_rule(ledger, text, head, f"{sign_id} / {by.strip()}")
+        finding = finding_text(note, s.evidence.get(key))
+        text, head = rule_text(key, finding, new, old)
+        rule_id = _add_rule(ledger, text, head, f"{sign_id} / {by.strip()}", structure_of(key, finding, new, old))
     ledger.upsert_sign(s)
     cid = ledger.add_correction(sign_id, key, old, new, by.strip(), rank_before=before, rank_after=s.rank,
                                 note=note, rule_id=rule_id)
