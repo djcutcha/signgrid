@@ -6,6 +6,8 @@
 rules(規則と出力)、intake(受付)、gov(行政。gov.make_sample の見本の束を入れる)、owner(オーナー。見本の寸法で「調べる」まで)、owner-saitama(同、埼玉県の住所・全高 5m)、
 owner-estimate(オーナーの「寸法を推定」後。推定役は固定値の見本で、API は呼ばない)。
 karte-edit 以降は台帳を書き換えるので、一時の台帳でだけ行う(見本の JSON は変わらない)。
+workflow = 一周のデモ(docs/WORKFLOW.md): 下書き→訂正→聞き返し→規則候補→矛盾→承認→次の下書きで効く、の7枚(workflow-1-draft …)。
+台帳を大きく書き換えるので、他の場面と混ぜず `--only workflow` のときだけ撮る。判定役は固定値の見本(承認済みの規則に従う偽物)で、API は呼ばない。
 """
 from __future__ import annotations
 
@@ -18,6 +20,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from kanban_karte.dim.estimator import DimEstimate  # noqa: E402
+from kanban_karte.eval.judge import Judge, Prediction  # noqa: E402
+from kanban_karte.pipeline.draft import FORM_ITEMS  # noqa: E402
 from kanban_karte.gov import make_sample as gov_sample  # noqa: E402
 from kanban_karte.gov.batch_intake import intake as gov_intake  # noqa: E402
 from kanban_karte.web import api as web_api  # noqa: E402
@@ -35,6 +39,30 @@ class SampleEstimator:
                            [{"name": "ドア(出入口の扉)", "assumed_mm": 2000, "how": "入口の扉の高さを物差しにした"},
                             {"name": "コンクリートブロック", "assumed_mm": 190, "how": "段数を数えた"}],
                            False, "mid", "板面だけを測った(支柱・取付金具は含めない)。", "sample", {})
+
+
+RESULT_NUM = {"良好": 1, "経過観察": 2, "要改善": 3}
+KEY_TO_FORM = {v: k for k, v in FORM_ITEMS.items()}
+
+
+class SampleJudge(Judge):
+    """一周のデモ用の固定値の判定役(API は呼ばない)。取付部-1 は経過観察と下書きし、承認済みの規則に
+    「<項目> …「赤錆」…は<区分>」があれば、その区分に従う。実際の判定ではない。"""
+    name = "sample"
+
+    def __init__(self, rules):
+        self.rules = rules
+
+    def judge(self, item):
+        key, result, ev = "取付部-1", "経過観察", "写真2で支柱の根元に赤錆。部分的に見える。"
+        for r in self.rules:
+            if r.split(" ", 1)[0] == key and "「赤錆」" in r:
+                result = next(v for v in ("要改善", "経過観察", "良好") if f"は{v}(下書きは" in r)
+                ev = f"写真2で支柱の根元に赤錆。承認済みの規則に従い{result}とした。"
+        name = KEY_TO_FORM[key]
+        return Prediction(RESULT_NUM[result], {name: RESULT_NUM[result]}, 0.6,
+                          raw={"reasons": ["見本の下書き(固定値)。"], "item_notes": {name: {"evidence": ev, "needs_onsite": False}}},
+                          usage={"cost_usd": 0.0})
 
 
 def shoot(page, base: str, out: Path, tag: str, hash_: str, name: str, full=True, wait: str | None = None):
@@ -63,7 +91,7 @@ def seed_extra(db: Path, tmp: Path) -> None:
         gov_intake(lg.conn, tmp / "gov" / "photos")
 
 
-def run(page, base, out, tag, only):
+def run(page, base, out, tag, only, db=None):
     def want(k):
         return only is None or k in only
 
@@ -123,6 +151,8 @@ def run(page, base, out, tag, only):
         page.evaluate("window.scrollTo(0, 0)")
         page.screenshot(path=str(out / f"owner-estimate-{tag}.png"), full_page=True)
         print(out / f"owner-estimate-{tag}.png")
+    if only is not None and "workflow" in only:
+        workflow(page, base, out, tag, db)
     if want("karte-edit") or want("karte-confirmed"):
         page.goto(f"{base}/#/sign/{SIGN}")
         page.wait_for_selector("main .karte")
@@ -152,6 +182,67 @@ def run(page, base, out, tag, only):
         shoot(page, base, out, tag, "/rules", "rules", wait="main .rules")
 
 
+def workflow(page, base, out, tag, db):
+    """写真→下書き→訂正→聞き返し→規則候補→矛盾→承認→次の下書きで効く。--sample の固定データで一周する。"""
+    from kanban_karte.ledger import Ledger, Sign
+
+    def snap(name, full=True):
+        page.wait_for_timeout(300)
+        page.evaluate("window.scrollTo(0, 0)")
+        path = out / f"workflow-{name}-{tag}.png"
+        page.screenshot(path=str(path), full_page=full)
+        print(path)
+
+    def correct(sign, value, note, answer):
+        page.goto(f"{base}/#/sign/{sign}")
+        page.wait_for_selector("main .karte")
+        page.fill("#by", "見本 太郎")
+        page.click('.item[data-key="取付部-1"] .item-head')
+        page.fill("#note", note)
+        page.click(f".item.open .seg button:has-text('{value}')")
+        page.wait_for_selector(".clarify")
+        return answer
+
+    with Ledger(db) as lg:  # 次の下書きの材料: 同じ写真で、まだ下書きのない看板
+        b = lg.add_bundle("/scan/見本_次の現場.pdf", "sample-sha-next", 3)
+        lg.set_bundle(b, status="classified", site_id="demo-site-1")
+        lg.upsert_sign(Sign(id="demo-next", site_id="demo-site-1", name="袖看板(次の現場)", type="袖", size_w=900, size_h=600,
+                            photos=lg.get_sign("demo-001").photos[:3], source_bundle=b))
+
+    page.goto(f"{base}/#/sign/demo-001")                                    # 1 写真→下書き
+    page.wait_for_selector("main .karte")
+    snap("1-draft")
+    correct("demo-001", "要改善", "赤錆", None)                              # 2 訂正→聞き返しの1問
+    snap("2-clarify")
+    page.fill("#clarify-answer", "全周に回っている。写真3で見える")           # 3 答える→規則候補
+    page.click("button:has-text('答える')")
+    page.wait_for_selector(".notice:has-text('規則候補')")
+    snap("3-candidate")
+    correct("demo-002", "経過観察", "赤錆", None)                            # 別の看板で、同じ所見に別の区分
+    page.fill("#clarify-answer", "全周に回っている")
+    page.click("button:has-text('答える')")
+    page.wait_for_selector(".notice:has-text('規則候補')")
+    page.goto(f"{base}/#/rules")                                            # 4 矛盾を知らせる
+    page.wait_for_selector(".conflict-pair")
+    snap("4-conflict")
+    page.request.post(f"{base}/api/bundles/{b}/draft", data={})              # 5 承認前: 候補は下書きに効かない
+    page.goto(f"{base}/#/sign/demo-next")
+    page.wait_for_selector("main .karte")
+    snap("5-not-yet")
+    page.goto(f"{base}/#/rules")                                            # 6 どちらを残すか→承認
+    page.wait_for_selector(".conflict-pair")
+    page.fill(".conflict-pair .reason", "全周に回っている赤錆は、支柱の断面が減るので要改善")
+    page.fill("#rule-by", "見本 太郎")
+    page.click(".conflict-pair .rule >> nth=0 >> button:has-text('こちらを残す')")
+    page.wait_for_selector(".rule.st-approved")
+    snap("6-approved")
+    page.request.post(f"{base}/api/bundles/{b}/draft", data={})              # 7 承認済みの規則が次の下書きに効く
+    page.goto(f"{base}/#/sign/demo-next")
+    page.wait_for_selector("main .karte")
+    page.wait_for_timeout(300)
+    snap("7-effect")
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="docs/img")
@@ -171,14 +262,15 @@ def main(argv=None) -> int:
                 db = Path(td) / "l.sqlite"
                 seed_sample(db)
                 seed_extra(db, Path(td))
-                srv = make_server(App(db, SAMPLE_JSON.parent, sample=True, estimator_factory=SampleEstimator), "127.0.0.1", 0)
+                srv = make_server(App(db, SAMPLE_JSON.parent, sample=True, estimator_factory=SampleEstimator,
+                                      judge_factory=SampleJudge), "127.0.0.1", 0)
                 base = f"http://127.0.0.1:{srv.server_address[1]}"
                 threading.Thread(target=srv.serve_forever, daemon=True).start()
                 ctx = browser.new_context(viewport=vp, device_scale_factor=2 if tag == "sp" else 1, locale="ja-JP",
                                           has_touch=tag == "sp", is_mobile=tag == "sp")
                 page = ctx.new_page()
                 try:
-                    run(page, base, out, tag, only)
+                    run(page, base, out, tag, only, db)
                 finally:
                     ctx.close()
                     srv.shutdown()
