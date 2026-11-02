@@ -56,6 +56,31 @@ class LegalTest(WebTest):
         L = api.legal_judgement("東京都新宿区西新宿2-8-1", None, "self", 7.0)
         self.assertEqual(L["place"]["status"], "none")
 
+    def test_height_put_and_pass_to_judge(self):
+        put = lambda body, sid="demo-001": self.req(f"/api/signs/{sid}/height", body, method="PUT")
+        self.assertEqual(self.req("/api/signs/demo-001")[1]["height_m"], None)
+        self.assertEqual(put({"height_m": 4.5})[0], 400)                     # by が要る
+        st, d, _ = put({"height_m": 4.5, "by": "テスト"})
+        self.assertEqual((st, d["height_m"]), (200, 4.5))
+        self.assertEqual(self.req("/api/signs/demo-001")[1]["height_m"], 4.5)
+        for bad in ("x", 0, -1, 100, True):
+            self.assertEqual(put({"height_m": bad, "by": "t"})[0], 400, bad)
+        self.assertEqual(put({"height_m": 1, "by": "t"}, "nope")[0], 404)
+        self.assertEqual(self.req("/api/signs/demo-001/height", {"height_m": 1, "by": "t"})[0], 405)   # POST は不可
+        self.assertEqual(self.req("/api/owner/judge", {"address": "東京都豊島区", "area_m2": 1}, method="PUT")[0], 405)
+        self.assertIsNone(put({"height_m": None, "by": "テスト"})[1]["height_m"])          # 消せる
+
+    def test_sign_legal_passes_height(self):
+        from kanban_karte.ledger.db import Sign
+        seen = {}
+        orig = api.judge_at
+        api.judge_at = lambda *a, **k: seen.update(k) or orig(*a, **k)
+        try:
+            api.sign_legal(Sign(id="x", address="東京都豊島区", is_self_use=True, size_w=1000, size_h=1000, height_m=3.2), None)
+        finally:
+            api.judge_at = orig
+        self.assertEqual(seen["height_m"], 3.2)
+
     def test_legal_error_is_caught(self):
         orig = api.judge_at
         api.judge_at = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("壊れた"))

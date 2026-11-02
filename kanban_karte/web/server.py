@@ -34,6 +34,7 @@ MEDIA_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
 
 SIGN = re.compile(r"^/api/signs/([^/]+)$")
 SIGN_ACT = re.compile(r"^/api/signs/([^/]+)/(items|finalize)$")
+SIGN_HEIGHT = re.compile(r"^/api/signs/([^/]+)/height$")
 BUNDLE_DRAFT = re.compile(r"^/api/bundles/(\d+)/draft$")
 OUTPUT = re.compile(r"^/api/sites/([^/]+)/output/([a-z-]+)\.xlsx$")
 
@@ -150,6 +151,9 @@ def make_handler(app: App):
             except api.ApiError as e:
                 self._error(e.status, e.message)
 
+        def do_PUT(self):
+            self.do_POST()
+
         def do_POST(self):
             path = unquote(urlsplit(self.path).path)
             if (self.headers.get("Content-Type") or "").split(";")[0].strip() != "application/json":
@@ -164,15 +168,20 @@ def make_handler(app: App):
             except ValueError:
                 return self._error(400, "本文が JSON のオブジェクトではありません")
             try:
+                if (self.command == "PUT") != bool(SIGN_HEIGHT.match(path)):    # PUT は全高だけ。全高は PUT だけ
+                    return self._error(405, "この経路は " + ("PUT" if SIGN_HEIGHT.match(path) else "POST") + " で送ってください")
                 if path == "/api/owner/judge":  # 台帳を開かない・書かない
                     return self._json(api.owner_judge(body, app.placer))
                 if path == "/api/owner/estimate":  # 台帳を開かない・書かない。写真は保存しない
                     return self._json(api.owner_estimate(body, app.estimator_factory, app.placer))
                 with app.ledger() as ledger:
+                    m = SIGN_HEIGHT.match(path)
+                    if m:
+                        return self._json(api.set_height(ledger, m[1], body, app.placer))
                     m = SIGN_ACT.match(path)
                     if m:
                         fn = api.correct if m[2] == "items" else api.finalize
-                        return self._json(fn(ledger, m[1], body))
+                        return self._json(fn(ledger, m[1], body, app.placer))
                     m = BUNDLE_DRAFT.match(path)
                     if m:
                         return self._json(api.draft_bundle(ledger, int(m[1]), app.judge_factory))

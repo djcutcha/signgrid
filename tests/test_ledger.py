@@ -41,6 +41,10 @@ class SchemaTest(unittest.TestCase):
             with Ledger(p) as lg:
                 s = lg.get_sign("old")
                 self.assertEqual((s.rank, s.status, s.evidence), (2, "new", {}))
+                self.assertIsNone(s.height_m)        # 全高の列は ALTER で足され、無ければ NULL
+                s.height_m = 4.5
+                lg.upsert_sign(s)
+                self.assertEqual(lg.get_sign("old").height_m, 4.5)
 
     def test_newer_schema_refused(self):
         with tempfile.TemporaryDirectory() as d:

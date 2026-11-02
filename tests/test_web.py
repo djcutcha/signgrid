@@ -38,9 +38,9 @@ class WebTest(unittest.TestCase):
         cls.srv.server_close()
         cls.td.cleanup()
 
-    def req(self, path, body=None, ctype="application/json", raw=False):
+    def req(self, path, body=None, ctype="application/json", raw=False, method=None):
         data = None if body is None else json.dumps(body).encode()
-        r = urllib.request.Request(self.base + path, data=data, headers={"Content-Type": ctype} if data is not None else {})
+        r = urllib.request.Request(self.base + path, data=data, headers={"Content-Type": ctype} if data is not None else {}, method=method)
         try:
             with urllib.request.urlopen(r) as resp:
                 b = resp.read()

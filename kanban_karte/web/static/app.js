@@ -27,8 +27,8 @@ KK.el = function (tag, props, ...kids) {
   return e;
 };
 
-KK.api = async function (path, body) {
-  const opt = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+KK.api = async function (path, body, method = "POST") {
+  const opt = body === undefined ? {} : { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
   const r = await fetch(path, opt);
   if (!r.ok) {
     let msg = r.statusText;

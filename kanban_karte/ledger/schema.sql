@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS signs (
     evidence      TEXT NOT NULL DEFAULT '{}',   -- JSON {点検項目キー: {photos: [写真番号], text: 1文, needs_onsite: bool}}
     confirmed_at  TEXT,
     confirmed_by  TEXT,
+    height_m      REAL,                 -- 看板の全高(m、任意)。size は表示面の寸法
     created       TEXT NOT NULL DEFAULT (datetime('now')),
     updated       TEXT NOT NULL DEFAULT (datetime('now'))
 );

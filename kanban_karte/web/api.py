@@ -64,7 +64,7 @@ def _media_url(ledger: Ledger, p: str) -> str | None:
 
 
 def sign_summary(s: Sign) -> dict:
-    return {"id": s.id, "site_id": s.site_id, "name": s.name, "type": s.type, "size": size_text(s),
+    return {"id": s.id, "site_id": s.site_id, "name": s.name, "type": s.type, "size": size_text(s), "height_m": s.height_m,
             "is_self_use": s.is_self_use, "permit_required": s.permit_required,
             "permit_expires": s.permit_expires, "next_inspection": s.next_inspection,
             "rank": s.rank, "rank_label": RANK_LABEL.get(s.rank), "draft_rank": s.draft_rank,
@@ -109,7 +109,7 @@ def sign_legal(s: Sign, site, placer=None) -> dict:
     """看板の住所(無ければ現場の住所)・自家用か・寸法から、法規の判定と根拠条文。"""
     address = s.address or (site.address if site else None) or s.municipality or (site.municipality if site else None)
     use = "general" if s.is_self_use is False else "self"
-    return legal_judgement(address, None, use, sign_area_m2(s), s.type, placer)
+    return legal_judgement(address, None, use, sign_area_m2(s), s.type, placer, s.height_m)
 
 
 def sign_detail(ledger: Ledger, sign_id: str, placer=None) -> dict:
@@ -137,7 +137,7 @@ def sign_detail(ledger: Ledger, sign_id: str, placer=None) -> dict:
     return d
 
 
-def correct(ledger: Ledger, sign_id: str, body: dict) -> dict:
+def correct(ledger: Ledger, sign_id: str, body: dict, placer=None) -> dict:
     s = ledger.get_sign(sign_id)
     if s is None:
         raise ApiError(404, f"看板 {sign_id} が台帳にありません")
@@ -148,13 +148,13 @@ def correct(ledger: Ledger, sign_id: str, body: dict) -> dict:
                                         str(body.get("by", "")), body.get("note"))
     except ValueError as e:
         raise ApiError(400, str(e))
-    d = sign_detail(ledger, sign_id)
+    d = sign_detail(ledger, sign_id, placer)
     d["changed"] = c is not None
     d["rule_id"] = c.rule_id if c else None
     return d
 
 
-def finalize(ledger: Ledger, sign_id: str, body: dict) -> dict:
+def finalize(ledger: Ledger, sign_id: str, body: dict, placer=None) -> dict:
     s = ledger.get_sign(sign_id)
     if s is None:
         raise ApiError(404, f"看板 {sign_id} が台帳にありません")
@@ -164,7 +164,30 @@ def finalize(ledger: Ledger, sign_id: str, body: dict) -> dict:
         review_mod.finalize(ledger, sign_id, str(body.get("by", "")))
     except ValueError as e:
         raise ApiError(400, str(e))
-    return sign_detail(ledger, sign_id)
+    return sign_detail(ledger, sign_id, placer)
+
+
+def set_height(ledger: Ledger, sign_id: str, body: dict, placer=None) -> dict:
+    """看板の全高(m)を台帳に書く(null で消す)。法規の判定に渡る。点検の項目ではないので status は問わない。"""
+    s = ledger.get_sign(sign_id)
+    if s is None:
+        raise ApiError(404, f"看板 {sign_id} が台帳にありません")
+    if not str(body.get("by") or "").strip():
+        raise ApiError(400, "入力した人の名前を入れてください")
+    v = body.get("height_m")
+    if v in (None, ""):
+        h = None
+    else:
+        try:
+            h = float(v)
+        except (TypeError, ValueError):
+            raise ApiError(400, f"height_m は数値: {v!r}")
+        if isinstance(v, bool) or not 0 < h < 100:
+            raise ApiError(400, f"height_m は 0 より大きく 100 未満(m): {v!r}")
+        h = round(h, 2)
+    s.height_m = h
+    ledger.upsert_sign(s)
+    return sign_detail(ledger, sign_id, placer)
 
 
 # ---- 現場・束・規則 ----
