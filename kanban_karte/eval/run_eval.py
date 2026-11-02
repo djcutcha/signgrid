@@ -143,6 +143,8 @@ def run(judge, judge_name: str, source: str, limit: int | None, split: str, seed
             rec = {"source": s, "sign_id": it.sign_id, "split": it.split,
                    "rank_true": it.rank_true, "rank_pred": pr.rank_pred,
                    "confidence": pr.confidence}
+            if pr.item_judgments_pred is not None:  # 後処理(aggregate.py)で項目からランクを合成するため残す
+                rec["item_judgments_pred"] = pr.item_judgments_pred
             if pr.usage:
                 rec["usage"] = pr.usage
             if pr.rank_pred is None and isinstance(pr.raw, dict):
