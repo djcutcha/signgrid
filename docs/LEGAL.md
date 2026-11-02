@@ -85,6 +85,34 @@ Python から: `from kanban_karte.legal.judge import judge` → `judge("住所",
 
 最終版の4ファイルの抽出で $0.87、プロンプト調整の途中の実行を含む合計で約 $2.0(入力は `count_tokens` で事前に測れる: `extract --dry-run`)。料金は claude-api スキルの価格表(2026-10-06: Sonnet 5.5 入力 $2 / 出力 $10 per 1M)による概算。
 
+## 店舗名 → 住所(`store_address.py`)
+
+得意先住所は代理店経由だと看板の場所ではない(指示書の納品住所が入っているのは 29,034 件中 7 件)。店舗名(分かれば運営会社・都道府県)から公開情報で住所を引く。
+
+```
+python3 -m kanban_karte.legal.cli store-address "見本マート 架空店" [--operator 運営会社] [--prefecture 都道府県] [--ledger 台帳.sqlite] [--refresh] [--no-web] [--json]
+```
+
+1. **台帳** `sites` に同じ店舗名(空白・全半角を除いて一致)で住所があればそれ(確信度 1.0、API は呼ばない)。同名で住所が割れていれば 要確認。
+2. **キャッシュ** `data/private/store_address_cache.json`(未追跡)。キーは 店舗名|運営会社|都道府県。`--refresh` で引き直す。
+3. **Claude + web search**(サーバーツール `web_search_20250305`、1回 最大5検索)。公式の店舗一覧・店舗ページ、または地図サービスの公開ページを根拠にさせ、`address / source_url / source_kind / confidence / candidates[]` を JSON で返させる。
+4. **確信度 < 0.7 は『住所 要確認』**(住所は最有力の候補として残し、他の候補は `candidates`)。さらに、モデルが返した出典 URL が**実際の検索結果に無い**ときは確信度を 0.5 に頭打ちにして 要確認(URL の作り話を弾く)。
+
+費用は1件 $0.04〜0.10(トークン + 検索 $0.01/回)。テストは偽クライアント(実 API なし)。
+
+**手動確認(実 API、5件、合計 $0.41)**:
+
+| ケース | 結果 | 確信度 | 出典の種類 |
+|---|---|---|---|
+| 大手スーパーの店(会社・都道府県つき) | 確定 | 0.80 | other(店舗情報の掲載サイト。公式・地図は検索結果に出ず) |
+| 別の大手スーパーの店(会社つき) | 確定 | 0.95 | official_store_list(公式の店舗ページ。地図サービス・店舗情報サイトと一致) |
+| 宅配会社の営業所(都道府県つき) | 確定 | 0.85 | map_service(複数の地図サービスで一致。まとめサイトの別住所は古い情報として候補に回した) |
+| 同名の「中央店」が複数県にある店(会社のみ) | 要確認 | 0.30 | 公式一覧。北本・本庄・三郷の3候補が出て決められない |
+| 実在しない店名(近い名前の店はある) | 要確認 | 0.00 | なし。近い名前の店を候補に出しただけ |
+
+- 『確定』は住所が**公開情報で店舗名と一致した**という意味で、看板の場所そのものの確認ではない(店舗の駐車場・別棟の看板などは住所が違うことがある)。
+- 公式の店舗ページに店舗名完全一致の住所があるときだけ 0.9 以上になる。ポータルサイトだけだと 0.8 前後で、閾値(0.7)は超えるが公式ほど堅くない。確定の閾値を 0.85 に上げるかは本線の判断。
+
 ## 検算(第2版、2026-11-02)
 
 `python3 -m kanban_karte.legal.cli verify [--stamp]`(`verify.py`)。正解は手元の非公開データ(`data/private/sources.toml` の `[legal.verify]`)で、読むだけ。**値はこの repo にも出力にも書かない**(出力は件数と項目名だけ)。
@@ -126,8 +154,9 @@ Python から: `from kanban_karte.legal.judge import judge` → `judge("住所",
 | `kanban_karte/legal/schema.py` | 抽出結果の形と検査、区域の語彙 |
 | `kanban_karte/legal/judge.py` | 規則 → 判定 |
 | `kanban_karte/legal/verify.py` | 手元の正解との存在照合、status の第2版への更新 |
+| `kanban_karte/legal/store_address.py` | 店舗名 → 住所(台帳 → キャッシュ → web search) |
 | `kanban_karte/legal/table3_extract.py` | 東京都 別表第三だけの再抽出 |
-| `kanban_karte/legal/cli.py` | `judge` / `municipality` / `extract` / `verify` / `table3` |
+| `kanban_karte/legal/cli.py` | `judge` / `municipality` / `extract` / `verify` / `table3` / `store-address` |
 | `data/ordinances/` | 条例・施行規則の写し、MANIFEST.tsv、`rules_<自治体>.json` |
 | `requirements-legal.txt` | 追加依存(`anthropic==2.3.0`。judge と municipality は標準ライブラリのみ) |
 | `tests/test_legal_*.py` | 住所20例、判定の境界、スキーマ、抽出の流れ、CLI |

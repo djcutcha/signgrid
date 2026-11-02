@@ -4,6 +4,8 @@
   python3 -m kanban_karte.legal.cli municipality --address "埼玉県越谷市南越谷1-1"
   python3 -m kanban_karte.legal.cli extract --municipality 越谷市 [--dry-run] [--model ...] [--effort ...]
   python3 -m kanban_karte.legal.cli verify [--stamp]       # rules_*.json の数値を手元の正解と照合(件数と不一致の項目名だけ)
+  python3 -m kanban_karte.legal.cli store-address "見本マート 架空店" [--operator ..] [--prefecture ..] [--ledger 台帳.sqlite] [--refresh] [--no-web]
+                                                          # 店舗名 -> 住所(台帳 -> キャッシュ -> web search。API。1件 概算 $0.05〜0.1)
   python3 -m kanban_karte.legal.cli table3 [--dry-run]     # 東京都 別表第三だけを再抽出(API。概算 $0.2)
 
 extract は Anthropic API を呼ぶ(1自治体あたり概算 $0.1〜0.3)。--dry-run は count_tokens(課金なし)で入力の大きさと概算費用だけ出す。
@@ -15,6 +17,7 @@ import json
 import sys
 
 from . import rules_extract as RX
+from . import store_address as SA
 from . import table3_extract as T3
 from . import verify as VF
 from .judge import judge
@@ -100,6 +103,28 @@ def cmd_table3(a) -> int:
     return 0
 
 
+def cmd_store_address(a) -> int:
+    ledger = None
+    if a.ledger:
+        from ..ledger.db import Ledger
+        ledger = Ledger(a.ledger)
+    r = SA.lookup(a.store_name, a.operator, a.prefecture, ledger=ledger, refresh=a.refresh, web=not a.no_web)
+    if a.json:
+        print(json.dumps(r, ensure_ascii=False, indent=2))
+        return 0
+    print(f"{r['status']}  確信度 {r['confidence']}  (出所: {r['origin']}{' / ' + r['source_kind'] if r['source_kind'] else ''})")
+    print(f"  住所: {r['address'] or '(見つからず)'}")
+    if r["source_url"]:
+        print(f"  出典: {r['source_url']}")
+    for c in r["candidates"]:
+        print(f"  候補: {c['address']}  {c.get('source_url') or ''}  {c.get('note') or ''}")
+    if r.get("note"):
+        print(f"  注: {r['note']}")
+    if r.get("usd") is not None:
+        print(f"  費用: ${r['usd']:.3f}(検索 {r.get('searches', 0)} 回)")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="kanban_karte.legal.cli")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -136,6 +161,16 @@ def main(argv=None) -> int:
     t.add_argument("--effort", default=RX.DEFAULT_EFFORT, choices=["low", "medium", "high", "xhigh", "max"])
     t.add_argument("--dry-run", action="store_true", help="count_tokens だけ(課金なし)")
     t.set_defaults(fn=cmd_table3)
+
+    sa = sub.add_parser("store-address", help="店舗名 -> 住所(台帳 -> キャッシュ -> web search。API)")
+    sa.add_argument("store_name")
+    sa.add_argument("--operator", help="運営会社名(分かれば)")
+    sa.add_argument("--prefecture", help="都道府県(分かれば)")
+    sa.add_argument("--ledger", help="台帳の sqlite(sites に同名の現場があればそれを使う)")
+    sa.add_argument("--refresh", action="store_true", help="キャッシュを使わず引き直す")
+    sa.add_argument("--no-web", action="store_true", help="API を呼ばない(台帳とキャッシュだけ)")
+    sa.add_argument("--json", action="store_true")
+    sa.set_defaults(fn=cmd_store_address)
 
     a = ap.parse_args(argv)
     if a.cmd == "judge" and not (a.address or a.municipality):
