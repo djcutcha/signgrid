@@ -8,6 +8,8 @@
 - 写真が無い看板は status=needs_photos(rank なし)。確定済みの看板は上書きしない。
 - 束に看板がまだ無い(LINE の束)ときは、写真全部で1基の仮の看板を作る。本当の束ね(複数基に分ける)は
   有資格者が確認画面でやる前提。
+- only_missing=True(ガイド付き点検の看板用): 現場の答えのある項目は上書きせず、「分からない」と未回答の項目だけを写真から
+  下書きする(判定役にも、その項目だけを尋ねる)。「対象外」と答えた項目は触らない。既定(False)は従来どおり全項目。
 - 写真番号(evidence の photos)は看板の photos の並びの 1 始まり(判定役に送った順)。
 """
 from __future__ import annotations
@@ -17,7 +19,7 @@ from dataclasses import dataclass
 
 from ..eval.dataset import EvalItem
 from ..ledger.db import Ledger, Sign
-from ..ledger.items import _ITEMS, ITEM_KEYS
+from ..ledger.items import _ITEMS, ITEM_KEYS, RESULT_TO_RANK
 
 FORM_SOURCE = "xlsx_center"
 # 判定役に渡す項目名(客先Aの様式と同じ「④点検箇所-番号 原文」)→ 台帳のキー
@@ -74,11 +76,17 @@ def _evidence(raw) -> dict[str, dict]:
             for name, n in notes.items() if name in FORM_ITEMS}
 
 
-def eval_item_for(ledger: Ledger, sign: Sign) -> EvalItem:
+def missing_keys(sign: Sign) -> list[str]:
+    """ガイドの答えが無い項目(未回答・分からない)。items に値がある項目と、対象外と答えた項目は含めない。"""
+    return [k for k in ITEM_KEYS if k not in sign.items and (sign.evidence.get(k) or {}).get("guide") != "na"]
+
+
+def eval_item_for(ledger: Ledger, sign: Sign, only: list[str] | None = None) -> EvalItem:
+    names = list(FORM_ITEMS) if only is None else [n for n, k in FORM_ITEMS.items() if k in only]
     return EvalItem(source=FORM_SOURCE, sign_id=sign.id,
                     photo_paths=[str(ledger.resolve_path(p)) for p in sign.photos],
                     rank_true=None, item_judgments_true=None, split="eval",
-                    meta={"form_items": list(FORM_ITEMS), "sign_name": sign.name})
+                    meta={"form_items": names, "sign_name": sign.name})
 
 
 def apply_prediction(sign: Sign, pred) -> None:
@@ -94,29 +102,64 @@ def apply_prediction(sign: Sign, pred) -> None:
     sign.confirmed_at = sign.confirmed_by = None
 
 
-def draft_bundle(ledger: Ledger, bundle_id: int, judge) -> list[DraftResult]:
-    """束の看板すべてに下書きを書く。judge は Judge(ClaudeJudge か偽の判定役)。"""
+def apply_missing(sign: Sign, pred, keys: list[str]) -> None:
+    """判定役の結果のうち keys の項目だけを下書きにする(ガイドの答えのある項目は残す)。
+    看板全体のランクは、判定役の値と、答えを含む items から出した値の重いほう。"""
+    raw = pred.raw if isinstance(pred.raw, dict) else {}
+    ev = _evidence(raw)
+    for name, v in (pred.item_judgments_pred or {}).items():
+        k = FORM_ITEMS.get(name)
+        if k in keys and v in RANK_TO_RESULT:
+            sign.items[k] = RANK_TO_RESULT[v]
+    for k in keys:
+        if k in ev:
+            sign.evidence[k] = ev[k]
+    ranks = [r for r in (pred.rank_pred, _rank_of_items(sign.items)) if r is not None]
+    sign.rank = sign.draft_rank = max(ranks) if ranks else None
+    sign.confidence = pred.confidence
+    sign.remark = sign.remark or _remark(raw.get("reasons", []))
+    sign.status = "draft"
+
+
+def _rank_of_items(items: dict[str, str]) -> int | None:
+    ranks = [RESULT_TO_RANK[v] for v in items.values() if RESULT_TO_RANK.get(v) is not None]
+    return max(ranks) if ranks else None
+
+
+def draft_bundle(ledger: Ledger, bundle_id: int, judge, only_missing: bool = False) -> list[DraftResult]:
+    """束の看板すべてに下書きを書く。judge は Judge(ClaudeJudge か偽の判定役)。
+    only_missing=True は、答えのある項目を残し、未回答・分からないの項目だけを下書きする(ガイド付き点検)。"""
     ids = ensure_signs(ledger, bundle_id)
     results: list[DraftResult] = []
     todo: list[Sign] = []
+    todo_keys: dict[str, list[str]] = {}
     for sid in ids:
         s = ledger.get_sign(sid)
         if s.status == "confirmed":
             results.append(DraftResult(sid, "confirmed", s.rank))
-        elif not any(ledger.resolve_path(p).exists() for p in s.photos):
+        elif only_missing and not (keys := missing_keys(s)):
+            results.append(DraftResult(sid, "draft", s.rank, 0))  # 全項目に答えがある。判定役を呼ばない
+        elif only_missing and not any(ledger.resolve_path(p).exists() for p in s.photos):
+            results.append(DraftResult(sid, "draft", s.rank, len(missing_keys(s))))  # 写真が無い。答えは消さない
+        elif not only_missing and not any(ledger.resolve_path(p).exists() for p in s.photos):
             s.status, s.rank, s.draft_rank, s.items, s.evidence, s.confidence = "needs_photos", None, None, {}, {}, None
             ledger.upsert_sign(s)
             results.append(DraftResult(sid, "needs_photos"))
         else:
             todo.append(s)
-    preds = judge.judge_many([eval_item_for(ledger, s) for s in todo]) if todo else []
+            if only_missing:
+                todo_keys[s.id] = keys
+    preds = judge.judge_many([eval_item_for(ledger, s, todo_keys.get(s.id)) for s in todo]) if todo else []
     for s, pred in zip(todo, preds):
         cost = (pred.usage or {}).get("cost_usd")
         if pred.rank_pred is None:
             err = str((pred.raw or {}).get("error") or "判定できなかった(応答が不正・API エラー)")
             results.append(DraftResult(s.id, "error", cost_usd=cost, error=err))
             continue
-        apply_prediction(s, pred)
+        if only_missing:
+            apply_missing(s, pred, todo_keys[s.id])
+        else:
+            apply_prediction(s, pred)
         ledger.upsert_sign(s)
         results.append(DraftResult(s.id, "draft", s.rank, len(ITEM_KEYS) - len(s.items), cost))
     if not any(r.status == "error" for r in results):

@@ -62,6 +62,7 @@ class Sign:
     confirmed_at: str | None = None
     confirmed_by: str | None = None
     height_m: float | None = None  # 看板の全高(m)。size は表示面の寸法で、全高は別。法規の判定に渡す
+    draft_by: str | None = None    # 下書きの出どころ。ガイド付き点検は 'line_guide:<末尾4桁>'
 
     def validate(self) -> None:
         if self.status not in SIGN_STATUSES:
@@ -132,9 +133,12 @@ class Ledger:
         sign_cols = {r[1] for r in self.conn.execute("PRAGMA table_info(signs)")}
         for col, ddl in (("status", "TEXT NOT NULL DEFAULT 'new'"), ("draft_rank", "INTEGER"),
                          ("confidence", "REAL"), ("evidence", "TEXT NOT NULL DEFAULT '{}'"),
-                         ("confirmed_at", "TEXT"), ("confirmed_by", "TEXT"), ("height_m", "REAL")):
+                         ("confirmed_at", "TEXT"), ("confirmed_by", "TEXT"), ("height_m", "REAL"),
+                         ("draft_by", "TEXT")):
             if col not in sign_cols:
                 self.conn.execute(f"ALTER TABLE signs ADD COLUMN {col} {ddl}")
+        if "tag" not in {r[1] for r in self.conn.execute("PRAGMA table_info(pages)")}:
+            self.conn.execute("ALTER TABLE pages ADD COLUMN tag TEXT")  # ガイド付き点検: どの部位の写真か
         # 規則の承認の列(古い台帳に足す。ALTER の ADD COLUMN は CHECK を付けても既存行は既定値 candidate になる)
         rule_cols = {r[1] for r in self.conn.execute("PRAGMA table_info(rules)")}
         for col, ddl in (("status", "TEXT NOT NULL DEFAULT 'candidate' CHECK (status IN ('candidate', 'approved', 'rejected'))"),
@@ -252,6 +256,11 @@ class Ledger:
             raise ValueError(f"ページ種別は {PAGE_KINDS} のどれか: {kind!r}")
         self.conn.execute("UPDATE pages SET kind=?, kind_basis=? WHERE bundle_id=? AND page_no=?",
                           (kind, basis, bundle_id, page_no))
+        self.conn.commit()
+
+    def set_page_tag(self, bundle_id: int, page_no: int, tag: str | None) -> None:
+        """ガイド付き点検で、そのページがどの部位の写真か(overview / 部位名)を残す。"""
+        self.conn.execute("UPDATE pages SET tag=? WHERE bundle_id=? AND page_no=?", (tag, bundle_id, page_no))
         self.conn.commit()
 
     def list_pages(self, bundle_id: int) -> list[sqlite3.Row]:

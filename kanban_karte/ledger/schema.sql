@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS pages (
     width         INTEGER,
     height        INTEGER,
     dpi           REAL,                 -- 保存した画像の解像度(切り出しの検出が縮尺に使う)
+    tag           TEXT,                 -- ガイド付き点検(LINE)で、どの部位の写真か。overview(全景)/ 部位名。ALTER 済みの古い台帳は db.py が足す
     UNIQUE (bundle_id, page_no)
 );
 
@@ -78,6 +79,7 @@ CREATE TABLE IF NOT EXISTS signs (
     confirmed_at  TEXT,
     confirmed_by  TEXT,
     height_m      REAL,                 -- 看板の全高(m、任意)。size は表示面の寸法
+    draft_by      TEXT,                 -- 下書きの出どころ。ガイド付き点検は 'line_guide:<userId 末尾4桁>'(現場の人の答え。有資格者の確定とは別)
     created       TEXT NOT NULL DEFAULT (datetime('now')),
     updated       TEXT NOT NULL DEFAULT (datetime('now'))
 );
