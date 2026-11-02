@@ -80,7 +80,7 @@ table.plain td{padding:6px 10px;border-bottom:1px solid var(--line)}
 details.card summary{cursor:pointer;font-weight:600}
 
 /* 写真 */
-.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px}
+.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px}
 .photo{position:relative;padding:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--ph);cursor:zoom-in;aspect-ratio:4/3;display:block;width:100%}
 .photo img{width:100%;height:100%;object-fit:cover;display:block}
 .photo .no{position:absolute;left:4px;top:4px;background:rgba(0,0,0,.65);color:#fff;border-radius:999px;min-width:22px;height:22px;
@@ -114,4 +114,63 @@ dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
   .ledger .c-undec,.ledger .c-photos,.ledger .c-diff,.ledger .c-status{order:5}
   .ledger .c-status{flex:1 1 100%}
   select{font-size:18px}
+}
+
+/* カルテ */
+.crumb{margin:0 0 8px}
+.karte{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}
+.main-col,.side-col{min-width:0}
+.main-col>.card+.card,.side-col>.card+.card{margin-top:12px}
+.side-col{position:sticky;top:60px}
+.sum-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.rank-box{text-align:right;flex:none}
+.kv{display:grid;grid-template-columns:5.5em 1fr;gap:2px 10px;font-size:13px;margin-top:6px}
+.kv .k{color:var(--muted)}
+.items-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px}
+.items-head h2{margin:0}
+.by{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--fg2)}
+.by input{width:15em}
+.grp{font-size:12px;color:var(--muted);font-weight:700;margin:12px 0 2px;letter-spacing:.04em}
+.item{border-bottom:1px solid var(--line);padding:2px 0 6px}
+.item.yellow{background:var(--yellow-bg);border-left:4px solid var(--watch);padding-left:8px;margin-left:-12px;padding-right:4px}
+.item-head{display:grid;grid-template-columns:1.6em minmax(0,1fr) auto;gap:6px;align-items:center;padding:6px 0;cursor:pointer;min-height:40px}
+.item-head .no{color:var(--muted);font-size:12px}
+.item-head .val{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.item.open{background:var(--accent-soft);border-radius:8px}
+.item.yellow.open{background:var(--yellow-bg)}
+.tag{font-size:11px;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:0 7px;white-space:nowrap}
+.evidence{font-size:12.5px;color:var(--fg2);padding:0 0 2px 1.6em}
+.evidence .k{color:var(--muted)}
+.link{font:inherit;background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer}
+.editor{padding:6px 0 4px 1.6em}
+.editor input{width:100%;margin:8px 0 4px}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{flex:1 1 0;min-width:5.5em;min-height:40px;font:inherit;font-weight:700;font-size:13px;background:var(--surface);color:var(--fg2);border:2px solid var(--line);border-radius:8px;cursor:pointer;padding:6px 8px}
+.seg button.good{border-color:var(--good)} .seg button.watch{border-color:var(--watch)} .seg button.fix{border-color:var(--fix)} .seg button.na{border-color:var(--na)} .seg button.urgent{border-color:var(--urgent)}
+.seg button[aria-pressed=true].good{background:var(--good);color:#fff} .seg button[aria-pressed=true].watch{background:var(--watch);color:#1b1b1b}
+.seg button[aria-pressed=true].fix{background:var(--fix);color:#fff} .seg button[aria-pressed=true].na{background:var(--na);color:#fff} .seg button[aria-pressed=true].urgent{background:var(--urgent);color:#fff}
+.rank-edit{margin-top:14px}
+.rank-edit summary{cursor:pointer;font-size:12.5px;color:var(--fg2);padding:6px 0}
+.history{list-style:none;margin:0;padding:0}
+.history li{border-bottom:1px solid var(--line);padding:6px 0;font-size:13px}
+.history li:last-child{border-bottom:0}
+.btn.block{display:block;width:100%;padding:12px}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+.banner.confirmed{border-color:var(--accent);background:var(--accent-soft)}
+.banner.confirmed .btn{margin-top:8px}
+
+@media (max-width:900px){
+  .karte{grid-template-columns:minmax(0,1fr)}
+  .side-col{position:static}
+}
+@media (max-width:760px){
+  .by{width:100%} .by input{flex:1;width:auto;font-size:16px}
+  .sum-top{flex-direction:column}
+  .rank-box{text-align:left}
+  .item-head{grid-template-columns:1.4em minmax(0,1fr);min-height:44px}
+  .item-head .val{grid-column:2;justify-content:flex-start}
+  .seg button{min-height:46px;flex:1 1 40%}
+  .editor input{font-size:16px}
+  .card{padding:12px}
+  .item.yellow{margin-left:-8px}
 }

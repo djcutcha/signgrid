@@ -1,2 +1,185 @@
-// カルテ画面(次のコミットで実装)
-KK.views.karte = async function () { KK.setView(KK.el("p", { class: "muted", text: "準備中" })); };
+// カルテ画面: 写真・18項目(3段階+対象外、判断できずは黄色)・根拠・所見・法規。有資格者がマスをタップして直す(即 POST)。
+// 訂正は右側に履歴として出る。「確定して署名」で確定すると編集できない。
+"use strict";
+(function () {
+  const { el } = KK;
+  const BY_KEY = "kk_by";
+
+  function photosCard(d, hit) {
+    const tiles = d.photos.map((p) => el("button", {
+      type: "button", class: "photo" + (hit.has(p.n) ? " hit" : ""), "aria-label": `写真 ${p.n} を拡大`,
+      onclick: () => KK.lightbox.open(d.photos, p.n),
+    }, p.url ? el("img", { src: p.url, alt: `写真 ${p.n}`, loading: "lazy" }) : el("div", { class: "ph", text: "画像なし" }),
+      el("span", { class: "no", text: String(p.n) })));
+    return el("section", { class: "card" }, el("h2", { text: `写真 ${d.photos.length} 枚` }),
+      tiles.length ? el("div", { class: "photos" }, tiles) : el("p", { class: "notice warn", text: "写真がありません。下書きは作れません。" }));
+  }
+
+  // 根拠の文。「写真3」の語は押せる(その写真を拡大)
+  function evidenceLine(d, ev) {
+    if (!ev || !ev.text) return null;
+    const parts = ev.text.split(/(写真\s*\d+)/).map((t) => {
+      const m = /^写真\s*(\d+)$/.exec(t);
+      return m ? el("button", { type: "button", class: "link", onclick: (e) => { e.stopPropagation(); KK.lightbox.open(d.photos, +m[1]); } }, t) : t;
+    });
+    return el("div", { class: "evidence" }, el("span", { class: "k", text: "根拠 " }), parts,
+      ev.photos.length ? el("span", { class: "sub", text: ` (写真 ${ev.photos.join("・")})` }) : null);
+  }
+
+  function itemRow(d, it, state, rerender) {
+    const open = state.open === it.key;
+    const toggle = () => { state.open = open ? null : it.key; rerender(); };
+    const head = el("div", { class: "item-head", role: "button", tabindex: "0", "aria-expanded": String(open),
+      onclick: toggle, onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } } },
+      el("span", { class: "no", text: String(it.no) }), el("span", { class: "txt", text: it.text }),
+      el("span", { class: "val" },
+        it.value ? KK.resultChip(it.value) : el("span", { class: "chip q", text: "判断できず(要実測)" }),
+        it.value && it.yellow ? el("span", { class: "chip q", text: "要実測" }) : null,
+        it.corrected ? el("span", { class: "tag", text: "訂正済み" }) : null));
+    const kids = [head, evidenceLine(d, it.evidence)];
+    if (open) kids.push(editor(d, it, state, rerender));
+    return el("div", { class: "item" + (it.yellow ? " yellow" : "") + (open ? " open" : ""), dataset: { key: it.key } }, kids);
+  }
+
+  function editor(d, it, state, rerender) {
+    if (!d.editable) return el("div", { class: "editor" }, el("p", { class: "sub", text: "確定済みなので編集できません。" }));
+    const msg = el("div", { class: "notice err", role: "alert", hidden: true });
+    const note = el("input", { type: "text", id: "note", placeholder: "所見(任意。規則の文に使われます)", "aria-label": "所見", maxlength: 200 });
+    const pick = async (value) => {
+      const by = document.getElementById("by").value.trim();
+      if (!by) {
+        msg.hidden = false; msg.textContent = "訂正した人の名前を、上の「有資格者」に入れてください。";
+        document.getElementById("by").focus();
+        return;
+      }
+      try {
+        const r = await KK.api(`/api/signs/${encodeURIComponent(d.id)}/items`, { item: it.key, value, by, note: note.value.trim() || null });
+        state.open = null;
+        state.flash = r.changed ? null : "下書きと同じ値なので、記録していません。";
+        state.detail = r;
+        rerender();
+      } catch (e) { msg.hidden = false; msg.textContent = e.message; }
+    };
+    const seg = el("div", { class: "seg", role: "group", "aria-label": "区分" },
+      d.result_choices.map((v) => el("button", { type: "button", class: `${KK.RESULT_CLASS[v]}`, "aria-pressed": String(it.value === v), onclick: () => pick(v), text: v })));
+    return el("div", { class: "editor" }, seg, note, msg,
+      el("p", { class: "sub", text: "押すとすぐ台帳に記録されます。写真と見比べて、判断できるほうを選びます。" }));
+  }
+
+  function rankEditor(d, state, rerender) {
+    const msg = el("div", { class: "notice err", role: "alert", hidden: true });
+    const pick = async (n) => {
+      const by = document.getElementById("by").value.trim();
+      if (!by) { msg.hidden = false; msg.textContent = "訂正した人の名前を入れてください。"; document.getElementById("by").focus(); return; }
+      try { state.detail = await KK.api(`/api/signs/${encodeURIComponent(d.id)}/items`, { item: "rank", value: n, by }); rerender(); }
+      catch (e) { msg.hidden = false; msg.textContent = e.message; }
+    };
+    return el("details", { class: "rank-edit" }, el("summary", { text: "看板全体のランクを直す" }),
+      el("div", { class: "seg" }, [1, 2, 3, 4].map((n) => el("button", {
+        type: "button", class: KK.RANK_CLASS[n], "aria-pressed": String(d.rank === n), onclick: () => pick(n), text: KK.RANK[n] }))), msg);
+  }
+
+  function itemsCard(d, state, rerender) {
+    const groups = [];
+    for (const it of d.items) {
+      if (!groups.length || groups[groups.length - 1].name !== it.group) groups.push({ name: it.group, items: [] });
+      groups[groups.length - 1].items.push(it);
+    }
+    return el("section", { class: "card items-card" },
+      el("div", { class: "items-head" }, el("h2", { text: "点検 18 項目" }),
+        el("label", { class: "by" }, "有資格者 ", el("input", { id: "by", type: "text", autocomplete: "name", placeholder: "名前(訂正・署名に記録)", value: localStorage.getItem(BY_KEY) || "",
+          oninput: (e) => localStorage.setItem(BY_KEY, e.target.value.trim()), disabled: !d.editable || null }))),
+      d.yellow_count ? el("p", { class: "notice warn", text: d.editable ? `黄色の ${d.yellow_count} マスは、判断できない・確信が低いマスです。マスをタップして直します。` : `黄色だったマス ${d.yellow_count} 件は、確定時の内容のままです。` }) : null,
+      groups.map((g) => el("div", { class: "group" }, el("div", { class: "grp", text: g.name }), g.items.map((it) => itemRow(d, it, state, rerender)))),
+      d.editable ? rankEditor(d, state, rerender) : null);
+  }
+
+  function historyCard(d) {
+    const li = (c) => el("li", {},
+      el("div", { class: "h-top" }, el("b", { text: c.item === "rank" ? "看板全体のランク" : c.item_label }),
+        el("span", { class: "sub", text: ` ${KK.fmtTime(c.created)}` })),
+      el("div", {}, c.item === "rank" ? `${KK.RANK[c.old_value] || c.old_value || "—"} → ${KK.RANK[c.new_value]}` : `${c.old_value || "判断できず"} → ${c.new_value}`,
+        c.rank_before !== c.rank_after ? el("span", { class: "sub", text: `(ランク ${KK.RANK[c.rank_before] || "—"} → ${KK.RANK[c.rank_after] || "—"})` }) : null),
+      c.note ? el("div", { class: "sub", text: `所見: ${c.note}` }) : null,
+      el("div", { class: "sub", text: `${c.by}${c.rule_id ? ` / 規則候補 #${c.rule_id} を積んだ` : ""}` }));
+    return el("section", { class: "card" }, el("h2", { text: `訂正の履歴 ${d.corrections.length} 件` }),
+      d.corrections.length ? el("ol", { class: "history" }, d.corrections.slice().reverse().map(li))
+        : el("p", { class: "sub", text: "まだ訂正はありません。AI の下書きのままです。" }));
+  }
+
+  function legalCard(d) {
+    const kv = (k, v) => [el("span", { class: "k", text: k }), el("span", { text: v })];
+    return el("section", { class: "card" }, el("h2", { text: "法規" }),
+      el("div", { class: "kv" },
+        kv("自家用", KK.triText(d.is_self_use, "自家用(自分の店の名前)", "自家用でない")),
+        kv("許可", d.permit_required === null ? "—(未判定)" : d.permit_required ? `要${d.permit_expires ? `(期限 ${d.permit_expires})` : ""}` : "不要"),
+        kv("次回点検", d.next_inspection || "—"),
+        kv("場所", [d.address, d.municipality].filter(Boolean).join(" / ") || "—"),
+        kv("前回", d.prev_rank ? `判定 ${KK.RANK[d.prev_rank]}` : "—")));
+  }
+
+  function signCard(d, state, rerender) {
+    if (d.status === "confirmed") {
+      return el("section", { class: "card banner confirmed" }, el("h2", { text: "確定済み" }),
+        el("div", { class: "kv" }, el("span", { class: "k", text: "署名" }), el("span", { text: `有資格者: ${d.confirmed_by}` }),
+          el("span", { class: "k", text: "日時" }), el("span", { text: KK.fmtTime(d.confirmed_at) }),
+          el("span", { class: "k", text: "下書き" }), el("span", { text: d.draft_rank && d.draft_rank !== d.rank ? `${KK.RANK[d.draft_rank]} → ${KK.RANK[d.rank]}(有資格者が変更)` : "ランクは下書きのまま" })),
+        el("p", { class: "sub", text: "確定した内容は編集できません。" }),
+        el("a", { class: "btn ghost", href: "#/rules", text: "様式を出力する →" }));
+    }
+    if (d.status !== "draft") {
+      return el("section", { class: "card" }, el("h2", { text: "確認と署名" }),
+        el("p", { class: "notice warn", text: d.status === "needs_photos" ? "写真がないので、下書きを作れません。" : "まだ下書きがありません。" }));
+    }
+    const box = el("div", {});
+    const msg = el("div", { class: "notice err", role: "alert", hidden: true });
+    const showAsk = () => {
+      const by = document.getElementById("by").value.trim();
+      if (!by) { msg.hidden = false; msg.textContent = "署名する人の名前を、上の「有資格者」に入れてください。"; document.getElementById("by").focus(); return; }
+      msg.hidden = true;
+      box.replaceChildren(
+        el("p", { class: "notice warn" }, `「${by}」として、この看板のランク「${KK.RANK[d.rank] || "—"}」を確定します。` +
+          (d.yellow_count ? ` 黄色のマスが ${d.yellow_count} 件残っています。` : "")),
+        el("div", { class: "btn-row" },
+          el("button", { type: "button", class: "btn", onclick: async () => {
+            try { state.detail = await KK.api(`/api/signs/${encodeURIComponent(d.id)}/finalize`, { by }); state.open = null; rerender(); }
+            catch (e) { msg.hidden = false; msg.textContent = e.message; }
+          }, text: "確定する" }),
+          el("button", { type: "button", class: "btn ghost", onclick: () => box.replaceChildren(btn), text: "戻る" })));
+    };
+    const btn = el("button", { type: "button", class: "btn block", onclick: showAsk, text: "確定して署名" });
+    box.append(btn);
+    return el("section", { class: "card" }, el("h2", { text: "確認と署名" }),
+      el("p", { class: "sub", text: "AI は確定しません。直し終えたら、有資格者が確定して署名します。" }), box, msg);
+  }
+
+  function summaryCard(d) {
+    const draftNote = d.draft_rank && d.draft_rank !== d.rank ? ` (下書きは ${KK.RANK[d.draft_rank]})` : "";
+    return el("section", { class: "card summary" },
+      el("div", { class: "sum-top" }, el("div", {}, el("div", { class: "eyebrow", text: [d.site_name, d.id].filter(Boolean).join(" / ") }),
+        el("h1", { text: d.name || d.id }), el("div", { class: "sub", text: [d.type, d.size].filter(Boolean).join(" / ") })),
+        el("div", { class: "rank-box" }, KK.rankChip(d.rank, d.status),
+          el("div", { class: "sub", text: `${KK.STATUS[d.status] || d.status}${draftNote}` }))),
+      d.remark ? el("div", { class: "kv" }, el("span", { class: "k", text: "所見" }), el("span", { text: d.remark })) : null,
+      d.confidence !== null ? el("div", { class: "sub", text: `下書きの確信 ${Math.round(d.confidence * 100)}%` }) : null);
+  }
+
+  KK.views.karte = async function (id) {
+    const state = { open: null, flash: null, detail: await KK.api(`/api/signs/${encodeURIComponent(id)}`) };
+    const render = () => {
+      const y = window.scrollY;
+      const d = state.detail;
+      const hit = new Set();
+      if (state.open) (d.items.find((i) => i.key === state.open)?.evidence?.photos || []).forEach((n) => hit.add(n));
+      const back = d.site_id ? `#/?site=${encodeURIComponent(d.site_id)}` : "#/";
+      KK.setView(
+        el("p", { class: "crumb" }, el("a", { href: back, text: "← 台帳に戻る" })),
+        state.flash ? el("p", { class: "notice", role: "status", text: state.flash }) : null,
+        el("div", { class: "karte" },
+          el("div", { class: "main-col" }, summaryCard(d), photosCard(d, hit), itemsCard(d, state, render)),
+          el("div", { class: "side-col" }, signCard(d, state, render), historyCard(d), legalCard(d))));
+      window.scrollTo(0, y);
+    };
+    render();
+  };
+})();

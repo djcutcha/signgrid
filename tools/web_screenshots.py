@@ -43,15 +43,15 @@ def run(page, base, out, tag, only):
         page.wait_for_selector("main .karte")
         page.fill("#by", "見本 太郎")
         page.click(".item.yellow >> nth=0")
-        page.click(".item.open .seg button:has-text('経過観察')")
+        page.click(".item.open .seg button:has-text('良好')")
         page.wait_for_selector(".history li")
         page.wait_for_timeout(300)
         if want("karte-edit"):
             page.screenshot(path=str(out / f"karte-edit-{tag}.png"), full_page=True)
             print(out / f"karte-edit-{tag}.png")
     if want("karte-confirmed"):
-        page.click("text=確定して署名")
-        page.click("text=確定する")
+        page.click("button:has-text('確定して署名')")
+        page.click("button:has-text('確定する')")
         page.wait_for_selector(".banner.confirmed")
         page.wait_for_timeout(300)
         page.screenshot(path=str(out / f"karte-confirmed-{tag}.png"), full_page=True)
