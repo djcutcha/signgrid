@@ -35,12 +35,15 @@ class DirContentClient:
         self.replies.append((reply_token, text))
         if self.echo:
             print(f"[返信 {reply_token}] {text}", flush=True)
+            if quick_replies:
+                print("  [" + " / ".join(i["action"]["label"] for i in quick_replies) + "]", flush=True)
 
 
 @dataclass
 class Plan:
     deliveries: list[bytes] = field(default_factory=list)
     message_ids: list[str] = field(default_factory=list)
+    stats: dict = field(default_factory=dict)
 
 
 def _event(user_id: str, token: str, message: dict, ts: int) -> dict:
@@ -78,6 +81,77 @@ def build_deliveries(images: list[Path], content_dir: str | Path, *, user_id: st
             plan.deliveries.append(json.dumps({"destination": "Usimulated", "events": g},
                                               ensure_ascii=False).encode("utf-8"))
     return plan
+
+
+def _postback(user_id: str, token: str, data: str, ts: int) -> dict:
+    return {"type": "postback", "mode": "active", "timestamp": ts, "replyToken": token,
+            "source": {"type": "user", "userId": user_id}, "postback": {"data": data}}
+
+
+def build_guide_deliveries(plan_file: str | Path, content_dir: str | Path, *,
+                           user_id: str = "Usimulated0000000000000000000000", run_id: str | None = None) -> Plan:
+    """ガイド付き点検の台本(JSON)から、人が押す・送る順の配信を作る(1イベント=1配信。LINE の実際の返事の数と同じ)。
+
+    台本: {"job": "J-001", "signs": [{"name": "① 正面の袖看板", "overview": "photos/a.png",
+           "parts": [{"photos": ["photos/b.png"], "answers": ["a", "b", "unknown"]}, ...6部位]}]}
+    写真は台本のあるフォルダ基準。photos が空の部位は「この部位は無い」を押す(answers は書かない)。
+    Plan.stats に写真の枚数・押す回数・送る文の数。
+    """
+    from urllib.parse import urlencode
+    from .guide import MAX_PART_PHOTOS, PARTS
+
+    plan_file = Path(plan_file)
+    doc = json.loads(plan_file.read_text(encoding="utf-8"))
+    run_id = run_id or str(int(time.time()))
+    cdir = Path(content_dir)
+    cdir.mkdir(parents=True, exist_ok=True)
+    ts0 = int(time.time() * 1000)
+    out = Plan()
+    out.stats = {"photos": 0, "taps": 0, "texts": 0}
+    n = [0]
+
+    def push(ev_fn):
+        n[0] += 1
+        out.deliveries.append(json.dumps({"destination": "Usimulated", "events": [ev_fn(f"tok-g{run_id}-{n[0]:03d}", ts0 + n[0])]},
+                                         ensure_ascii=False).encode("utf-8"))
+
+    def tap(**data):
+        out.stats["taps"] += 1
+        push(lambda tok, ts: _postback(user_id, tok, urlencode({"act": "guide", **data}), ts))
+
+    def text(t):
+        out.stats["texts"] += 1
+        mid = f"sim{run_id}g{n[0] + 1:03d}"
+        push(lambda tok, ts: _event(user_id, tok, {"type": "text", "id": mid, "text": t}, ts))
+
+    def image(rel):
+        src = plan_file.parent / rel
+        mid = f"sim{run_id}g{n[0] + 1:03d}"
+        shutil.copyfile(src, cdir / f"{mid}{src.suffix.lower()}")
+        out.message_ids.append(mid)
+        out.stats["photos"] += 1
+        push(lambda tok, ts: _event(user_id, tok, {"type": "image", "id": mid, "contentProvider": {"type": "line"}}, ts))
+
+    tap(start=1)
+    if doc.get("job"):
+        tap(site=doc["job"])
+    for si, sg in enumerate(doc["signs"]):
+        text(sg["name"])
+        image(sg["overview"])
+        for pi, (part, items) in enumerate(PARTS):
+            spec = sg["parts"][pi]
+            photos = spec.get("photos", [])
+            if not photos:
+                tap(nopart=1, p=pi)
+                continue
+            for rel in photos[:MAX_PART_PHOTOS]:
+                image(rel)
+            if len(photos) < MAX_PART_PHOTOS:
+                tap(next=1, p=pi)
+            for (key, _), ans in zip(items, spec["answers"]):
+                tap(ans=ans, item=key)
+        tap(more=1) if si + 1 < len(doc["signs"]) else tap(end=1)
+    return out
 
 
 def post(url: str, secret: str, body: bytes, signature: str | None = None) -> int:

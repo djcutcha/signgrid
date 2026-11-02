@@ -18,7 +18,7 @@ from .address import AddressSearch
 from .client import HttpLineClient
 from .jobs import load_jobs
 from .richmenu import HEIGHT, WIDTH, apply as apply_richmenu, menu_json, render_image
-from .simulate import DirContentClient, build_deliveries, list_images, post, webhook_url
+from .simulate import DirContentClient, build_deliveries, build_guide_deliveries, list_images, post, webhook_url
 from .webhook import LineApp, make_server
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -63,13 +63,19 @@ def cmd_serve(a) -> int:
 
 
 def cmd_simulate(a) -> int:
-    images = list_images(a.images) if a.images else []
-    location = tuple(float(x) for x in a.location.split(",")) if a.location else None
-    if not images and not a.text and not location:
-        print("送る物が無い(--images / --text / --location)")
-        return 2
+    if a.guide:
+        plan = build_guide_deliveries(a.guide, Path(a.content_dir))
+        images, location = [], None
+    else:
+        images = list_images(a.images) if a.images else []
+        location = None
+    if not a.guide:
+        location = tuple(float(x) for x in a.location.split(",")) if a.location else None
+        if not images and not a.text and not location:
+            print("送る物が無い(--images / --text / --location / --guide)")
+            return 2
+        plan = build_deliveries(images, Path(a.content_dir), one_by_one=a.one_by_one, text=a.text, location=location)
     content_dir = Path(a.content_dir)
-    plan = build_deliveries(images, content_dir, one_by_one=a.one_by_one, text=a.text, location=location)
     if a.url:
         secret = os.environ.get("LINE_CHANNEL_SECRET", SIM_SECRET)
         url = webhook_url(a.url)
@@ -92,6 +98,11 @@ def cmd_simulate(a) -> int:
         for b in ledger.list_bundles():
             if b["file"].startswith("line://"):
                 print(f"束 {b['id']}: {b['file']} ページ{b['pages']} status={b['status']}")
+        if a.guide:
+            for sg in ledger.list_signs():
+                if (sg.draft_by or "").startswith("line_guide"):
+                    print(f"看板 {sg.id} 「{sg.name}」 draft_by={sg.draft_by} 写真{len(sg.photos)}枚 items={len(sg.items)}/18 rank={sg.rank}")
+            print("操作:", plan.stats)
     print(f"台帳={db} 受信箱={inbox}")
     return 0
 
@@ -128,6 +139,7 @@ def main(argv=None) -> int:
     m.add_argument("--images", help="送る画像のフォルダ")
     m.add_argument("--text", help="一緒に送るメモ")
     m.add_argument("--location", help="一緒に送る位置 '緯度,経度'")
+    m.add_argument("--guide", help="ガイド付き点検の台本(JSON)。現場選択→名前→全景→部位ごとの写真と答え、を順に送る")
     m.add_argument("--one-by-one", action="store_true", help="1イベントずつ別の配信にする(既定はまとめて1配信)")
     m.add_argument("--url", help="送り先(省略時は同じプロセスに仮のサーバを立てる)")
     m.add_argument("--content-dir", default=str(PRIVATE / "line_sim_content"), help="模擬の画像の置き場")

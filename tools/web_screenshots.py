@@ -6,6 +6,7 @@
 rules(規則と出力)、intake(受付)、gov(行政。gov.make_sample の見本の束を入れる)、owner(オーナー。見本の寸法で「調べる」まで)、owner-saitama(同、埼玉県の住所・全高 5m)、
 owner-estimate(オーナーの「寸法を推定」後。推定役は固定値の見本で、API は呼ばない)。
 karte-edit 以降は台帳を書き換えるので、一時の台帳でだけ行う(見本の JSON は変わらない)。
+guide = ガイド付き点検(docs/LINE.md)で作った看板のカルテ(guide-karte-pc/sp)。模擬 webhook で見本の台本を一周する。`--only guide` のときだけ撮る。
 workflow = 一周のデモ(docs/WORKFLOW.md): 下書き→訂正→聞き返し→規則候補→矛盾→承認→次の下書きで効く、の7枚(workflow-1-draft …)。
 台帳を大きく書き換えるので、他の場面と混ぜず `--only workflow` のときだけ撮る。判定役は固定値の見本(承認済みの規則に従う偽物)で、API は呼ばない。
 """
@@ -24,6 +25,7 @@ from kanban_karte.eval.judge import Judge, Prediction  # noqa: E402
 from kanban_karte.pipeline.draft import FORM_ITEMS  # noqa: E402
 from kanban_karte.gov import make_sample as gov_sample  # noqa: E402
 from kanban_karte.gov.batch_intake import intake as gov_intake  # noqa: E402
+from kanban_karte.intake.line.webhook import sign as web_sign  # noqa: E402
 from kanban_karte.web import api as web_api  # noqa: E402
 from kanban_karte.web.server import SAMPLE_JSON, App, make_server, seed_sample  # noqa: E402
 
@@ -153,6 +155,8 @@ def run(page, base, out, tag, only, db=None):
         print(out / f"owner-estimate-{tag}.png")
     if only is not None and "workflow" in only:
         workflow(page, base, out, tag, db)
+    if only is not None and "guide" in only:
+        guide_karte(page, base, out, tag, db)
     if want("karte-edit") or want("karte-confirmed"):
         page.goto(f"{base}/#/sign/{SIGN}")
         page.wait_for_selector("main .karte")
@@ -180,6 +184,41 @@ def run(page, base, out, tag, only, db=None):
         for v in ("要改善", "経過観察"):
             page.request.post(f"{base}/api/signs/demo-002/items", data={"item": "取付部-1", "value": v, "by": "見本 花子", "note": "根元に錆"})
         shoot(page, base, out, tag, "/rules", "rules", wait="main .rules")
+
+
+def guide_karte(page, base, out, tag, db):
+    """ガイド付き点検(LINE)で作った看板のカルテ。模擬 webhook で data/sample/guide_plan.json を一周し、「現場の回答(ガイド)」のバッジを撮る。
+    写真は見本の画像(無地)。LINE にも API にも繋がない。"""
+    import tempfile
+    from kanban_karte.intake.line.cli import SIM_SECRET
+    from kanban_karte.intake.line.simulate import DirContentClient, build_guide_deliveries
+    from kanban_karte.intake.line.webhook import LineApp
+    from kanban_karte.ledger import Ledger
+
+    plan_file = SAMPLE_JSON.parent / "guide_plan.json"
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        plan = build_guide_deliveries(plan_file, td / "content", run_id="shot")
+        app = LineApp(SIM_SECRET, DirContentClient(td / "content"), lambda: Ledger(db), td / "inbox")
+        for body in plan.deliveries:
+            code, res = app.handle(body, web_sign(SIM_SECRET, body))
+            assert code == 200 and not res.errors, res.errors if res else code
+        with Ledger(db) as lg:
+            sg = next(s for s in lg.list_signs() if (s.draft_by or "").startswith("line_guide"))
+            sg.photos = [f"photos/{Path(p).name}" for p in plan_photo_names(plan_file)]  # 受信箱は一時なので、見本の画像に差し替えて表示
+            lg.upsert_sign(sg)
+    shoot(page, base, out, tag, f"/sign/{sg.id}", "guide-karte", wait="main .karte")
+
+
+def plan_photo_names(plan_file):
+    import json
+    doc = json.loads(Path(plan_file).read_text(encoding="utf-8"))
+    names = []
+    for sg in doc["signs"]:
+        names.append(sg["overview"])
+        for p in sg["parts"]:
+            names += p.get("photos", [])
+    return names
 
 
 def workflow(page, base, out, tag, db):

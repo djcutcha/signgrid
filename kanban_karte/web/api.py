@@ -74,6 +74,9 @@ def sign_summary(s: Sign) -> dict:
             "last_inspected": s.last_inspected, "confirmed_by": s.confirmed_by, "confirmed_at": s.confirmed_at}
 
 
+GUIDE_BY = "line_guide"  # ガイド付き点検(LINE)の回答の by。有資格者の訂正と区別する
+
+
 def _correction(r, labels: dict[str, str]) -> dict:
     return {"id": r["id"], "item": r["item"], "item_label": labels.get(r["item"], "看板全体のランク"),
             "old_value": r["old_value"], "new_value": r["new_value"], "rank_before": r["rank_before"],
@@ -119,19 +122,23 @@ def sign_detail(ledger: Ledger, sign_id: str, placer=None) -> dict:
     if s is None:
         raise ApiError(404, f"看板 {sign_id} が台帳にありません")
     rows = ledger.list_corrections(sign_id)
-    corrected = {r["item"] for r in rows}
+    corrected = {r["item"] for r in rows if r["corrected_by"] != GUIDE_BY}  # 現場の回答(ガイド)は有資格者の訂正ではない
+    guided = {r["item"] for r in rows if r["corrected_by"] == GUIDE_BY}
     items = []
     for g, n, t in _ITEMS:
         key = f"{g}-{n}"
         ev = s.evidence.get(key)
         value = s.items.get(key)
-        yellow = key not in corrected and (value is None or bool(ev and ev.get("needs_onsite")))
+        guide = (ev or {}).get("guide")  # 現場の回答: a/b/c/unknown/na。AI が下書きし直した項目や、有資格者が直した項目では出さない
+        if guide in ("a", "b", "c") and (key in corrected or key not in guided):
+            guide = None
+        yellow = key not in corrected and guide != "na" and (value is None or bool(ev and ev.get("needs_onsite")))
         items.append({"key": key, "group": g, "no": n, "text": t, "value": value, "evidence": ev,
-                      "yellow": yellow, "corrected": key in corrected})
+                      "yellow": yellow, "corrected": key in corrected, "guide": guide if key not in corrected else None})
     site = ledger.get_site(s.site_id) if s.site_id else None
     d = sign_summary(s)
     d.update({"site_name": site.name if site else None, "address": s.address, "municipality": s.municipality,
-              "remark": s.remark, "items": items, "yellow_count": sum(i["yellow"] for i in items),
+              "remark": s.remark, "draft_by": s.draft_by, "items": items, "yellow_count": sum(i["yellow"] for i in items),
               "photos": [{"n": i + 1, "url": _media_url(ledger, p)} for i, p in enumerate(s.photos)],
               "corrections": [_correction(r, {i["key"]: f"{i['group']} {i['no']} {i['text']}" for i in items})
                               for r in rows],
