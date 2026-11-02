@@ -3,7 +3,8 @@
   python3 tools/web_screenshots.py [--out docs/img] [--only ledger,karte,...]
 
 撮る画面: ledger(台帳)、karte(カルテ)、karte-legal(カルテの法規カード)、karte-edit(黄色のマスを直した後)、karte-confirmed(確定後)、
-rules(規則と出力)、intake(受付)、gov(行政。gov.make_sample の見本の束を入れる)、owner(オーナー。見本の寸法で「調べる」まで)。
+rules(規則と出力)、intake(受付)、gov(行政。gov.make_sample の見本の束を入れる)、owner(オーナー。見本の寸法で「調べる」まで)、
+owner-estimate(オーナーの「寸法を推定」後。推定役は固定値の見本で、API は呼ばない)。
 karte-edit 以降は台帳を書き換えるので、一時の台帳でだけ行う(見本の JSON は変わらない)。
 """
 from __future__ import annotations
@@ -16,12 +17,24 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from kanban_karte.dim.estimator import DimEstimate  # noqa: E402
 from kanban_karte.gov import make_sample as gov_sample  # noqa: E402
 from kanban_karte.gov.batch_intake import intake as gov_intake  # noqa: E402
+from kanban_karte.web import api as web_api  # noqa: E402
 from kanban_karte.web.server import SAMPLE_JSON, App, make_server, seed_sample  # noqa: E402
 
 VIEWPORTS = {"pc": {"width": 1280, "height": 900}, "sp": {"width": 390, "height": 844}}
 SIGN = "demo-001"
+
+
+class SampleEstimator:
+    """スクリーンショット用の固定値(API は呼ばない)。実際の推定結果ではない。"""
+
+    def estimate(self, photos, target_name):
+        return DimEstimate(3200, 900, (2800, 3600), (800, 1000),
+                           [{"name": "ドア(出入口の扉)", "assumed_mm": 2000, "how": "入口の扉の高さを物差しにした"},
+                            {"name": "コンクリートブロック", "assumed_mm": 190, "how": "段数を数えた"}],
+                           False, "mid", "板面だけを測った(支柱・取付金具は含めない)。", "sample", {})
 
 
 def shoot(page, base: str, out: Path, tag: str, hash_: str, name: str, full=True, wait: str | None = None):
@@ -86,6 +99,17 @@ def run(page, base, out, tag, only):
         page.evaluate("window.scrollTo(0, 0)")
         page.screenshot(path=str(out / f"owner-{tag}.png"), full_page=True)
         print(out / f"owner-{tag}.png")
+    if want("owner-estimate"):
+        page.goto(f"{base}/#/owner")
+        page.wait_for_selector("main .owner")
+        page.set_input_files("#owner-photo", str(SAMPLE_JSON.parent / "photos" / "plain_a.png"))
+        page.fill("#owner-address", "東京都豊島区見本町1-2-3")
+        page.click("button:has-text('寸法を推定')")
+        page.wait_for_selector(".owner-estimate .cites li")
+        page.wait_for_timeout(600)
+        page.evaluate("window.scrollTo(0, 0)")
+        page.screenshot(path=str(out / f"owner-estimate-{tag}.png"), full_page=True)
+        print(out / f"owner-estimate-{tag}.png")
     if want("karte-edit") or want("karte-confirmed"):
         page.goto(f"{base}/#/sign/{SIGN}")
         page.wait_for_selector("main .karte")
@@ -125,6 +149,8 @@ def main(argv=None) -> int:
     out.mkdir(parents=True, exist_ok=True)
     from playwright.sync_api import sync_playwright
 
+    web_api.can_draft = lambda: True  # 見本の推定役を使うので、鍵が無くてもボタンを有効にして撮る
+
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
         for tag, vp in VIEWPORTS.items():
@@ -132,7 +158,7 @@ def main(argv=None) -> int:
                 db = Path(td) / "l.sqlite"
                 seed_sample(db)
                 seed_extra(db, Path(td))
-                srv = make_server(App(db, SAMPLE_JSON.parent, sample=True), "127.0.0.1", 0)
+                srv = make_server(App(db, SAMPLE_JSON.parent, sample=True, estimator_factory=SampleEstimator), "127.0.0.1", 0)
                 base = f"http://127.0.0.1:{srv.server_address[1]}"
                 threading.Thread(target=srv.serve_forever, daemon=True).start()
                 ctx = browser.new_context(viewport=vp, device_scale_factor=2 if tag == "sp" else 1, locale="ja-JP",
