@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -17,6 +18,7 @@ from ..ledger.db import Ledger, Sign
 from ..ledger.items import _ITEMS, ITEM_KEYS, RESULTS
 from ..gov.map import COLOR_NAME, COLORS, COLOR_MEANING, summarize, write_map
 from ..gov.match import WARN_DAYS, load_candidates, match_candidates
+from ..dim.estimator import DimEstimateError, DimEstimator, judge_from_range
 from ..legal.judge import judge as legal_judge
 from ..output.common import RANK_LABEL, size_text, unjudged_item_keys
 from ..output.client_a_form import write_client_a
@@ -47,7 +49,7 @@ def can_draft() -> bool:
 
 
 def meta(sample: bool) -> dict:
-    return {"sample": sample, "can_draft": can_draft(), "results": list(RESULTS),
+    return {"sample": sample, "can_draft": can_draft(), "can_estimate": can_draft(), "results": list(RESULTS),
             "rank_labels": {str(k): v for k, v in RANK_LABEL.items()},
             "items": [{"key": f"{g}-{n}", "group": g, "no": n, "text": t} for g, n, t in _ITEMS]}
 
@@ -304,6 +306,46 @@ def owner_judge(body: dict) -> dict:
     out = {k: d[k] for k in LEGAL_KEYS}
     out.update({"use": "self", "area_m2": area, "height_m": height, "address": address})
     return out
+
+
+MAX_ESTIMATE_PHOTOS = 2
+MAX_PHOTO_BYTES = 12_000_000
+
+
+def owner_estimate(body: dict, estimator_factory=None) -> dict:
+    """写真1〜2枚(base64)+住所(+看板の名前)→ 寸法の推定(範囲つき)と、範囲の両端での自家用の法規の判定。
+    写真は推定のために API へ送るだけで、保存しない。台帳は開かない。安全の判定(ランク・18項目)は出さない。"""
+    address = str(body.get("address") or "").strip()
+    if not address:
+        raise ApiError(400, "住所を入れてください")
+    raw = body.get("photos")
+    if not isinstance(raw, list) or not 1 <= len(raw) <= MAX_ESTIMATE_PHOTOS or not all(isinstance(x, str) for x in raw):
+        raise ApiError(400, f"photos は base64 の文字列を 1〜{MAX_ESTIMATE_PHOTOS} 枚")
+    photos = []
+    for x in raw:
+        try:
+            b = base64.b64decode(x.split(",", 1)[-1], validate=True)
+        except ValueError:
+            raise ApiError(400, "photos が base64 ではありません")
+        if not b or len(b) > MAX_PHOTO_BYTES:
+            raise ApiError(400, "写真が空か大きすぎます")
+        photos.append(b)
+    name = str(body.get("target_name") or "").strip()[:80] or None
+    if estimator_factory is None:
+        if not can_draft():
+            raise ApiError(503, "寸法の推定には ANTHROPIC_API_KEY が要ります(環境変数か .env)")
+        estimator_factory = DimEstimator
+    try:
+        est = estimator_factory().estimate(photos, name)
+    except DimEstimateError as e:
+        raise ApiError(502, f"寸法を推定できませんでした: {e}")
+    except Exception as e:  # 鍵の誤り・接続など
+        raise ApiError(502, f"寸法を推定できませんでした: {type(e).__name__}")
+    try:
+        j = judge_from_range(est, address)
+    except Exception as e:
+        raise ApiError(500, f"法規の判定ができませんでした: {type(e).__name__}: {e}")
+    return {"estimate": est.to_dict(), "judgement": j, "address": address}
 
 
 # ---- 様式の出力 ----
