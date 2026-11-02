@@ -6,6 +6,8 @@
   python3 -m kanban_karte.legal.cli verify [--stamp]       # rules_*.json の数値を手元の正解と照合(件数と不一致の項目名だけ)
   python3 -m kanban_karte.legal.cli store-address "見本マート 架空店" [--operator ..] [--prefecture ..] [--ledger 台帳.sqlite] [--refresh] [--no-web]
                                                           # 店舗名 -> 住所(台帳 -> キャッシュ -> web search。API。1件 概算 $0.05〜0.1)
+  python3 -m kanban_karte.legal.cli store-names [--db signjobz.db] [--since 2022-01-01]
+                                                          # 点検案件の件名から店舗名が何件取れるか(件数と割合だけ。API なし)
   python3 -m kanban_karte.legal.cli table3 [--dry-run]     # 東京都 別表第三だけを再抽出(API。概算 $0.2)
 
 extract は Anthropic API を呼ぶ(1自治体あたり概算 $0.1〜0.3)。--dry-run は count_tokens(課金なし)で入力の大きさと概算費用だけ出す。
@@ -18,6 +20,7 @@ import sys
 
 from . import rules_extract as RX
 from . import store_address as SA
+from . import store_names as SN
 from . import table3_extract as T3
 from . import verify as VF
 from .judge import judge
@@ -125,6 +128,16 @@ def cmd_store_address(a) -> int:
     return 0
 
 
+def cmd_store_names(a) -> int:
+    from pathlib import Path
+    subs = SN.inspection_subjects(Path(a.db).expanduser() if a.db else None, since=a.since)
+    r = SN.count_names(subs)
+    print(f"点検案件(受注日 {a.since} 以降、件名に『点検』)  {r['subjects']} 件")
+    print(f"店舗名が取れた: {r['matched']} 件({r['ratio'] * 100:.1f}%)  内訳: チェーン名つき {r['by_kind']['chain']} / 『◯◯店』型 {r['by_kind']['generic']}"
+          f"  (チェーン名の登録 {r['chains_configured']} 件)")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="kanban_karte.legal.cli")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -171,6 +184,11 @@ def main(argv=None) -> int:
     sa.add_argument("--no-web", action="store_true", help="API を呼ばない(台帳とキャッシュだけ)")
     sa.add_argument("--json", action="store_true")
     sa.set_defaults(fn=cmd_store_address)
+
+    sn = sub.add_parser("store-names", help="指示書の件名から店舗名が何件取れるか(件数と割合だけ)")
+    sn.add_argument("--db", help="SignJOBZ 複製の sqlite(既定は SN.DEFAULT_DB)")
+    sn.add_argument("--since", default="2022-01-01")
+    sn.set_defaults(fn=cmd_store_names)
 
     a = ap.parse_args(argv)
     if a.cmd == "judge" and not (a.address or a.municipality):

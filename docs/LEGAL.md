@@ -113,6 +113,23 @@ python3 -m kanban_karte.legal.cli store-address "見本マート 架空店" [--o
 - 『確定』は住所が**公開情報で店舗名と一致した**という意味で、看板の場所そのものの確認ではない(店舗の駐車場・別棟の看板などは住所が違うことがある)。
 - 公式の店舗ページに店舗名完全一致の住所があるときだけ 0.9 以上になる。ポータルサイトだけだと 0.8 前後で、閾値(0.7)は超えるが公式ほど堅くない。確定の閾値を 0.85 に上げるかは本線の判断。
 
+## 把握の数字の下ごしらえ: 件名から店舗名(`store_names.py`)
+
+```
+python3 -m kanban_karte.legal.cli store-names [--db signjobz.db] [--since 2022-01-01]
+```
+
+指示書の件名(SignJOBZ 複製 `r_shijisyo.sSHIJISYO`。読み取り専用で開く)から、店舗名らしい文字列を正規表現で抜く。母集団は **受注日が 2022-01-01 以降で件名に『点検』を含む 262 件**。店名に『店』が付かない件名が多い(チェーン名+地名+『点検』)ので、2通りで抜く。
+
+- **チェーン名つき**: チェーン名(`data/private/store_chains.txt`、1行1つ、未追跡。顧客名なのでコード・docs には書かない)+ 地名 + (店|営業所|支店|センター|校)? で、後ろが空白・改行・『点検』等の語・文末。地名が数字で始まる(日付・回数)ものは除く。
+- **『◯◯店』型**: チェーン名が分からなくても、2〜15 字 + 店|営業所|センター|校 で終わる語。
+
+結果(2026-11-02): 262 件中 **136 件(51.9%)** で店舗名が取れた(チェーン名つき 106、『◯◯店』型 30。チェーン名は 15 件登録)。チェーン名の登録なしの『◯◯店』型だけだと 81 件(30.9%)。
+
+- 取れなかった 126 件の大半は、ビル名・施設名・団体名・『屋上看板点検』のような件名で、店舗ではないので取れなくてよい。一方、チェーン名が登録に無い店(住宅・飲食・金融の支店など)は取りこぼす。チェーン名の登録を増やすと割合は上がる。
+- 『◯◯店』型は誤取りがありうる(事業所名・モデルルーム等)。取れた = 店舗名と確定、ではなく、住所引き(`store_address.py`)の候補という位置づけ。
+- 実際の住所引きは本線の GO 後。このコマンドは件数と割合だけ出し、名前は出さない。
+
 ## 検算(第2版、2026-11-02)
 
 `python3 -m kanban_karte.legal.cli verify [--stamp]`(`verify.py`)。正解は手元の非公開データ(`data/private/sources.toml` の `[legal.verify]`)で、読むだけ。**値はこの repo にも出力にも書かない**(出力は件数と項目名だけ)。
@@ -155,8 +172,9 @@ python3 -m kanban_karte.legal.cli store-address "見本マート 架空店" [--o
 | `kanban_karte/legal/judge.py` | 規則 → 判定 |
 | `kanban_karte/legal/verify.py` | 手元の正解との存在照合、status の第2版への更新 |
 | `kanban_karte/legal/store_address.py` | 店舗名 → 住所(台帳 → キャッシュ → web search) |
+| `kanban_karte/legal/store_names.py` | 指示書の件名から店舗名を抜く(件数だけ数える) |
 | `kanban_karte/legal/table3_extract.py` | 東京都 別表第三だけの再抽出 |
-| `kanban_karte/legal/cli.py` | `judge` / `municipality` / `extract` / `verify` / `table3` / `store-address` |
+| `kanban_karte/legal/cli.py` | `judge` / `municipality` / `extract` / `verify` / `table3` / `store-address` / `store-names` |
 | `data/ordinances/` | 条例・施行規則の写し、MANIFEST.tsv、`rules_<自治体>.json` |
 | `requirements-legal.txt` | 追加依存(`anthropic==2.3.0`。judge と municipality は標準ライブラリのみ) |
 | `tests/test_legal_*.py` | 住所20例、判定の境界、スキーマ、抽出の流れ、CLI |
