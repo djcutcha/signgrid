@@ -223,7 +223,7 @@ def judge_duties(R: dict, key: str | None, *, area, height, gc, permit: str, wor
         st, why = eval_conditions(qi.get("conditions"), **kw)
         lead = "有資格の屋外広告物管理者を置く義務"
         if st == "hit":
-            v, why, t = REQUIRED, "", f"{lead}: 要{_paren(qi.get('scope') or ctext, _refs_in(refs))}"
+            v, why, t = REQUIRED, "", f"{lead}: 要{_paren_why(qi.get('scope') or ctext, _refs_in(refs))}"
         elif st == "miss":
             v = NOT_REQUIRED
             why = "許可物件のみ" if why == "許可不要のため" else why
