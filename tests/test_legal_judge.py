@@ -230,11 +230,11 @@ class ExtractedRulesTest(unittest.TestCase):
         bad = copy.deepcopy(doc)
         bad["rules"]["self_use"]["standards"][0]["zone"] = "nowhere"
         bad["rules"]["permit_term"]["default_years"] = "3年"
-        bad["rules"]["inspection"]["required"] = "maybe"
+        bad["rules"]["report_duty"]["required"] = "maybe"
         bad["rules"]["prohibited_zones"]["citations"][0]["quote"] = "あ" * 101
         bad["status"] = "確定版"
         errs = "\n".join(S.validate_file(bad))
-        for frag in ("zone は", "default_years", "inspection.required", "100 字", "検算前"):
+        for frag in ("zone は", "default_years", "report_duty.required", "100 字", "検算前"):
             self.assertIn(frag, errs)
 
 

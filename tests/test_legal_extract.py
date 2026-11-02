@@ -118,11 +118,11 @@ class ExtractFlowTest(unittest.TestCase):
 
     def test_retry_on_schema_violation(self):
         bad = json.loads(self.good())
-        bad["rules"]["inspection"]["required"] = "maybe"
+        bad["rules"]["report_duty"]["required"] = "maybe"
         c = FakeClient([json.dumps(bad, ensure_ascii=False), self.good()])
         _, usage = RX.extract("越谷市", client=c)
         self.assertEqual(usage["attempts"], 2)
-        self.assertIn("inspection.required", usage["attempt_errors"][0])
+        self.assertIn("report_duty.required", usage["attempt_errors"][0])
 
     def test_gives_up_after_max_attempts(self):
         with self.assertRaises(RuntimeError):
@@ -153,3 +153,38 @@ class ExtractFlowTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExtractDutiesTest(unittest.TestCase):
+    """4つの義務だけの再抽出(偽クライアント)。他の規則は触らず、旧 inspection を外して混ぜる。"""
+
+    def duties_json(self):
+        rules = _rules_from_file("埼玉県")
+        d = {k: copy.deepcopy(rules[k]) for k in S.DUTY_KEYS}
+        for c in RX.iter_citations(d):
+            c.pop("quote_verified", None)
+        return json.dumps({"duties": d, "extraction_notes": ["メモ"]}, ensure_ascii=False)
+
+    def test_extract_and_merge(self):
+        c = FakeClient([self.duties_json()])
+        res, usage = RX.extract_duties("埼玉県", client=c)
+        self.assertEqual(usage["attempts"], 1)
+        self.assertEqual(res["citation_check"]["verified"], res["citation_check"]["total"])
+        self.assertEqual(c.calls[0]["model"], "claude-opus-5-5")
+        self.assertIn("maintenance_duty", c.calls[0]["system"])
+        self.assertNotIn("temperature", c.calls[0])
+        old = json.loads((RX.DATA_DIR / "rules_埼玉県.json").read_text(encoding="utf-8"))
+        old["rules"]["inspection"] = {"required": "yes"}  # 旧形式が残っていても外れる
+        before = copy.deepcopy(old["rules"]["self_use"])
+        doc = RX.merge_duties(old, res)
+        self.assertNotIn("inspection", doc["rules"])
+        self.assertEqual(doc["rules"]["self_use"], before)
+        self.assertEqual(S.validate_file(doc), [])
+
+    def test_retry_on_schema_violation(self):
+        bad = json.loads(self.duties_json())
+        bad["duties"]["qualified_inspector"]["required"] = "maybe"
+        c = FakeClient([json.dumps(bad, ensure_ascii=False), self.duties_json()])
+        _, usage = RX.extract_duties("埼玉県", client=c)
+        self.assertEqual(usage["attempts"], 2)
+        self.assertIn("qualified_inspector.required", usage["attempt_errors"][0])

@@ -99,6 +99,15 @@ def manifest(data_dir: Path | None = None) -> dict[str, dict]:
 
 # ---------- プロンプト ----------
 
+DUTY_GUIDE = """- 点検まわりの義務は、次の4つの別々の義務として読む。1つに畳まない。条例ごとに、どれが・誰に・どんな物に掛かるかが違う。
+  1. maintenance_duty(管理義務)= 補修その他必要な管理を行い、良好な状態に保持する義務。点検の義務ではない。主語(広告主・表示者・設置者・所有者・占有者・管理者 など)は原文のまま subject に書く。
+  2. inspection_duty(点検する義務)= 劣化・損傷の状況を点検する(点検をさせる)義務。「定期に点検を行わなければならない」「点検をさせなければならない」の類。周期があれば interval_years(例: 三年を超えない期間ごと -> 3)。点検の義務を除く物(はり紙・立看板・設置後の期間・他法令で同程度の点検をするもの 等)は exclusions に原文のまま1件ずつ、機械で絞れるものは conditions.excluded_kinds にも書く。
+  3. qualified_inspector(有資格者に点検させる義務)= 点検を屋外広告士など資格のある者にさせなければならない義務。required は duty(義務)/ effort(させるよう努める= 努力義務)/ no / unknown。「屋外広告士等に点検をさせなければならない」と書かれていれば、点検する義務と有資格者の義務が一体なので inspection_duty も qualified_inspector(duty)も yes/duty にする。義務の層(例: 上端が地上4mを超え、かつ許可を要する物)と努力義務の層(例: 上端4m超なら許可不要でも)が別の項に分かれるときは、required は duty、義務の層を conditions、努力義務の層を effort に書く。「超える」は height_min_inclusive を false、「以上」は true。
+  4. report_duty(報告義務)= 点検の結果を行政(知事・市長)に報告・提出する義務。どの手続のときか(許可・更新の申請時 など)を trigger に、様式を form に書く。
+- 4つの義務それぞれについて「許可を受けた(許可を要する)広告物だけに掛かるか、許可不要の自家用広告物にも掛かるか」を、条文の主語と文言から決めて conditions.permit_required_only に入れる(許可・更新の申請をする者だけが主語なら true、広告物を表示する者・所有者等が主語なら false)。自家用広告物が許可・禁止区域の規定の適用除外になっていても、管理や点検の規定まで除外されているとは限らない。原文で除外されているときだけ除外とする。
+- 4つの義務のどれも、原文に条文が見当たらなければ required は no にして absent_in_text を true にし、citations は空にする(推測で義務を作らない)。原文が「義務を置かない」と書いているときは absent_in_text は false。読み取れないときは unknown。
+- 特定の種類に限る義務(例: 許可の更新時に広告塔・広告板・アーチ・装飾街路灯に限り報告書を添付)は、required を conditional にして conditions.kinds に種類を原文の語で入れる。"""
+
 SYSTEM_PROMPT = f"""あなたは屋外広告物条例の読み取り担当です。与えられた条例と施行規則の原文だけを根拠に、看板の許可の要否を判定するための規則を JSON に抽出します。
 
 守ること:
@@ -107,7 +116,7 @@ SYSTEM_PROMPT = f"""あなたは屋外広告物条例の読み取り担当です
 - 引用 quote は原文から連続した100字以内をそのまま抜く(漢数字・かな・句読点を変えない。要約や言い換えをしない)。article は「第6条第1項第3号」のように条・項・号まで書く。source は「条例」か「施行規則」。
 - 自家用広告物 = 自己の氏名・名称・店名・商標・事業内容を、自己の住所・事業所・営業所・作業場に表示する広告物。条例の文言が違えば、その文言に従う。
 - 許可が要らない基準(面積・高さなど)が条例ではなく施行規則や別表にあるときは、そちらから取る。区域(許可区域・禁止区域・用途地域)や種類(壁面・屋上・突出し・広告塔等)で基準が違うときは standards を分けて複数件にする。
-- 点検は、有資格者による安全点検と、その結果の報告(点検報告)の義務。許可の条件や管理者の設置と結びついて書かれている場合がある。義務の根拠が原文に見当たらなければ required は "unknown"(「無い」と断定するのは、義務が無いと原文が書いているときだけ)。
+{DUTY_GUIDE}
 - 屋外広告業の登録・罰則・手数料・審議会の条文は対象外。
 - 基準が表(別表)で、区域の行と面積の列が分かれて平文に崩れていることがある。表の構造を読み取り、どの区域に何㎡が対応するかを zone_labels で明示する。読み取りに自信が無い対応は confidence を 0.5 未満にして extraction_notes に書く。
 - 面積欄が「一以外に掲げる地域 合計10平方メートル以下」のように残り全部を指す書き方のときは、残りの区域すべてを zone_labels に展開して数値を入れる(面積欄が空に見える区域でも、残り全部を指す行が別にあればその数値が適用される)。
@@ -117,6 +126,24 @@ SYSTEM_PROMPT = f"""あなたは屋外広告物条例の読み取り担当です
 
 {{
   "rules": {S.RULES_SHAPE},
+  "extraction_notes": ["読み取りに迷った点・原文だけでは決まらない点(最大8件、各100字以内)"]
+}}
+
+引用(citations の要素)の形: {S.CITATION_SHAPE}"""
+
+
+DUTIES_SYSTEM_PROMPT = f"""あなたは屋外広告物条例の読み取り担当です。与えられた条例と施行規則の原文だけを根拠に、看板の所有者・表示者に掛かる「管理・点検・有資格者・報告」の4つの義務を JSON に抽出します(許可の要否や基準の数値は対象外)。
+
+守ること:
+- 原文に書いてある値だけを使う。書いていない値は null。推測や一般知識で補わない。
+- 数値は m または ㎡ または 年 に直す(「四メートル」→4、「三年」→3)。
+- 引用 quote は原文から連続した100字以内をそのまま抜く(漢数字・かな・句読点を変えない。要約や言い換えをしない)。article は「第14条の2第1項」のように条・項・号まで書く。source は「条例」か「施行規則」。
+{DUTY_GUIDE}
+- JSON の文字列の中に半角のダブルクォート(")を書かない。括弧は「」を使う。改行も入れない。
+- 出力は JSON オブジェクト1つだけ。前後に説明文やコードフェンスを付けない。キーは次の形のとおり。
+
+{{
+  "duties": {S.DUTIES_SHAPE},
   "extraction_notes": ["読み取りに迷った点・原文だけでは決まらない点(最大8件、各100字以内)"]
 }}
 
@@ -230,8 +257,8 @@ def parse_json_object(text: str) -> dict:
     return obj
 
 
-def _call(client, model, effort, messages):
-    with client.messages.stream(model=model, max_tokens=MAX_TOKENS, system=SYSTEM_PROMPT,
+def _call(client, model, effort, messages, system=None):
+    with client.messages.stream(model=model, max_tokens=MAX_TOKENS, system=system or SYSTEM_PROMPT,
                                 messages=messages, output_config={"effort": effort}) as st:
         return st.get_final_message()
 
@@ -299,6 +326,61 @@ def extract(key: str, *, client=None, model: str = DEFAULT_MODEL, effort: str = 
              "usd": round(cost_usd(model, in_tok, out_tok), 4)}
     doc["usage"] = usage
     return doc, usage
+
+
+def extract_duties(key: str, *, client=None, model: str = "claude-opus-5-5", effort: str = DEFAULT_EFFORT,
+                   data_dir: Path | None = None, max_attempts: int = 2) -> tuple[dict, dict]:
+    """1自治体の4つの義務(maintenance_duty / inspection_duty / qualified_inspector / report_duty)だけを抽出する。
+    返す dict = {"duties": {4つ}, "extraction_notes": [...], "citation_check": {...}}。許可の基準など他の規則は触らない
+    (検算済みの数値を変えないため)。保存は merge_duties で既存の rules_<自治体>.json に混ぜる。"""
+    client = client or make_client()
+    texts = load_texts(key, data_dir)
+    messages = [{"role": "user", "content": build_user_message(key, texts)}]
+    in_tok = out_tok = 0
+    last_err = None
+    attempt_errors: list[str] = []
+    for attempt in range(max_attempts):
+        resp = _call(client, model, effort, messages, system=DUTIES_SYSTEM_PROMPT)
+        in_tok += resp.usage.input_tokens
+        out_tok += resp.usage.output_tokens
+        if resp.stop_reason == "refusal":
+            raise RuntimeError(f"モデルが応答を拒否した: {getattr(resp, 'stop_details', None)}")
+        text = "".join(b.text for b in resp.content if b.type == "text")
+        try:
+            if resp.stop_reason == "max_tokens":
+                raise ValueError("出力が max_tokens で途切れた")
+            obj = parse_json_object(text)
+            duties = obj.get("duties")
+            errs = S.validate_duties(duties) if isinstance(duties, dict) else ["duties がない"]
+            if errs:
+                raise ValueError("スキーマ不適合: " + " / ".join(errs[:12]))
+            break
+        except (ValueError, json.JSONDecodeError) as e:
+            last_err = str(e)
+            attempt_errors.append(last_err[:600])
+            messages = messages + [
+                {"role": "assistant", "content": text or "(空)"},
+                {"role": "user", "content": f"前の出力は使えません: {last_err}\n"
+                                            "同じ形式で、修正した JSON オブジェクト1つだけをもう一度出力してください。"}]
+    else:
+        raise RuntimeError(f"{key}: 義務の抽出に失敗({max_attempts}回): {last_err}")
+    duties = obj["duties"]
+    check = verify_citations(duties, texts)
+    usage = {"input_tokens": in_tok, "output_tokens": out_tok, "attempts": attempt + 1, "attempt_errors": attempt_errors,
+             "model": model, "usd": round(cost_usd(model, in_tok, out_tok), 4)}
+    return {"duties": duties, "extraction_notes": [str(n) for n in obj.get("extraction_notes", [])][:8],
+            "citation_check": check, "usage": usage}, usage
+
+
+def merge_duties(doc: dict, res: dict) -> dict:
+    """既存の rules_<自治体>.json(doc)に、extract_duties の結果の4つの義務を混ぜる。旧 inspection は外す。
+    status は変えない(数値の検算は verify --stamp で付け直す)。"""
+    rules = doc["rules"]
+    rules.pop("inspection", None)
+    rules.update(res["duties"])
+    doc["duties_extraction"] = {"model": res["usage"]["model"], "extracted_at": datetime.now(JST).isoformat(timespec="seconds"),
+                                "notes": res["extraction_notes"], "citation_check": res["citation_check"], "usage": res["usage"]}
+    return doc
 
 
 def save_rules(doc: dict, data_dir: Path | None = None) -> Path:

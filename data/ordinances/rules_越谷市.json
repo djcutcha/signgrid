@@ -410,36 +410,6 @@
         }
       ]
     },
-    "inspection": {
-      "required": "conditional",
-      "conditions": [
-        {
-          "description": "広告物の所有者等は屋外広告士等に点検させる義務がある。貼り紙・立看板・広告幕・アドバルーン等の軽易な広告物や、法令で同程度の点検がある広告物は除外。許可・更新申請時に点検結果を提出",
-          "area_min_m2": null,
-          "height_min_m": null,
-          "ground_clearance_min_m": null
-        }
-      ],
-      "applies_to_self_use": null,
-      "qualification": "屋外広告士その他これと同等以上の知識を有する者(条例第41条第1項第2号から第5号の者、事業者団体の点検技能講習修了者、市長が認める者)",
-      "form": "屋外広告物等点検報告書(第2号様式)",
-      "interval_years": null,
-      "citations": [
-        {
-          "source": "条例",
-          "article": "第18条の2第1項",
-          "quote": "規則で定めるところにより、法第10条第2項第3号イに掲げる者",
-          "quote_verified": true
-        },
-        {
-          "source": "施行規則",
-          "article": "第14条の4第1号",
-          "quote": "貼り紙、貼り札、広告旗、立看板、広告幕(つり下げを含む。)、置き看板、アドバルーンその他これらに類する軽易な広告物",
-          "quote_verified": true
-        }
-      ],
-      "confidence": 0.6
-    },
     "prohibited_zones": {
       "summary": "第一種・第二種低層住居専用地域、風致地区、特別緑地保全地区、生産緑地地区(市長指定を除く)のほか、市民農園、文化財、公園、官公署・学校等の建造物と敷地、社寺境域などは禁止地域。橋・街路樹・電柱等の物件も禁止物件。",
       "labels": [
@@ -454,6 +424,192 @@
           "source": "条例",
           "article": "第4条第1号",
           "quote": "第一種低層住居専用地域、第二種低層住居専用地域、風致地区、特別緑地保全地区又は生産緑地地区",
+          "quote_verified": true
+        }
+      ],
+      "confidence": 0.85
+    },
+    "maintenance_duty": {
+      "required": "yes",
+      "subject": "広告物の所有者等(広告物を表示し、若しくは掲出物件を設置する者(管理する者が置かれているときは、その者)又は広告物若しくは掲出物件の所有者若しくは占有者)",
+      "conditions": {
+        "area_min_m2": null,
+        "height_min_m": null,
+        "height_min_inclusive": false,
+        "ground_clearance_min_m": null,
+        "permit_required_only": false,
+        "kinds": [],
+        "excluded_kinds": [],
+        "note": "規模・種類の限定なし。許可に係る広告物等で上端の高さが地上から4メートルを超えるものには管理する者の設置義務(条例第18条第2項・規則第14条)が別にある"
+      },
+      "citations": [
+        {
+          "source": "条例",
+          "article": "第18条第1項",
+          "quote": "これらに関し補修、除却その他必要な管理を怠らないようにし、良好な状態に保持しなければならない。",
+          "quote_verified": true
+        }
+      ],
+      "confidence": 0.9
+    },
+    "inspection_duty": {
+      "required": "yes",
+      "absent_in_text": false,
+      "interval_years": null,
+      "subject": "広告物の所有者等",
+      "exclusions": [
+        "貼り紙、貼り札、広告旗、立看板、広告幕(つり下げを含む。)、置き看板、アドバルーンその他これらに類する軽易な広告物",
+        "条例第8条第1項、第2項及び第6項に掲げる広告物又は掲出物件で、法令の規定により条例第18条の2第1項の点検と同程度の点検を実施することとされているもの",
+        "前2号に掲げるもののほか、市長が条例第18条の2第1項の点検の必要がないと認めるもの"
+      ],
+      "conditions": {
+        "area_min_m2": null,
+        "height_min_m": null,
+        "height_min_inclusive": false,
+        "ground_clearance_min_m": null,
+        "permit_required_only": false,
+        "kinds": [],
+        "excluded_kinds": [
+          "貼り紙",
+          "貼り札",
+          "広告旗",
+          "立看板",
+          "広告幕",
+          "置き看板",
+          "アドバルーン"
+        ],
+        "note": "点検項目は基礎部、上部構造、支持部、取付部等の変形・腐食・緩み、広告版の変形・腐食・破損、照明装置の破損・変形等(規則第14条の2)。点検の周期の定めはない"
+      },
+      "citations": [
+        {
+          "source": "条例",
+          "article": "第18条の2第1項",
+          "quote": "広告物の所有者等は、その所有し、又は占有する広告物又は掲出物件について、規則で定めるところにより、法第10条第2項第3号イに掲げる者",
+          "quote_verified": true
+        },
+        {
+          "source": "条例",
+          "article": "第18条の2第1項",
+          "quote": "当該広告物又は掲出物件の本体、接合部、支持部分等の劣化及び損傷の状況の点検をさせなければならない。",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第14条の4第1号",
+          "quote": "貼り紙、貼り札、広告旗、立看板、広告幕(つり下げを含む。)、置き看板、アドバルーンその他これらに類する軽易な広告物",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第14条の4第2号",
+          "quote": "条例第8条第1項、第2項及び第6項に掲げる広告物又は掲出物件で、法令の規定により条例第18条の2第1項の点検と同程度の点検を実施することとされているもの",
+          "quote_verified": true
+        }
+      ],
+      "confidence": 0.85
+    },
+    "qualified_inspector": {
+      "required": "duty",
+      "conditions": {
+        "area_min_m2": null,
+        "height_min_m": null,
+        "height_min_inclusive": false,
+        "ground_clearance_min_m": null,
+        "permit_required_only": false,
+        "kinds": [],
+        "excluded_kinds": [
+          "貼り紙",
+          "貼り札",
+          "広告旗",
+          "立看板",
+          "広告幕",
+          "置き看板",
+          "アドバルーン"
+        ],
+        "note": "点検する義務と一体(屋外広告士等に点検をさせなければならない)。対象・除外は点検する義務と同じ"
+      },
+      "effort": null,
+      "qualification": "法第10条第2項第3号イに掲げる者(屋外広告士)その他これと同等以上の知識を有するものとして規則で定める者(条例第41条第1項第2号から第5号までに掲げる者、屋外広告業の事業者団体が公益目的事業として実施する点検に関する技能講習の修了者、市長が認める者)",
+      "citations": [
+        {
+          "source": "条例",
+          "article": "第18条の2第1項",
+          "quote": "その他これと同等以上の知識を有するものとして規則で定める者に、当該広告物又は掲出物件の本体、接合部、支持部分等の劣化及び損傷の状況の点検をさせなければならない。",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第14条の3第1号",
+          "quote": "条例第41条第1項第2号から第5号までに掲げる者",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第14条の3第2号",
+          "quote": "屋外広告業の事業者団体が公益目的事業として実施する広告物又は掲出物件の点検に関する技能講習の修了者",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第14条の3第3号",
+          "quote": "前2号に掲げる者のほか、広告物又は掲出物件の点検を実施するために必要な知識及び技術を有すると市長が認める者",
+          "quote_verified": true
+        }
+      ],
+      "confidence": 0.85
+    },
+    "report_duty": {
+      "required": "yes",
+      "trigger": "許可又は許可の期間の更新の申請時(新規許可は既設の物件に限り提出日前3月以内に作成した報告書。変更・改造許可の申請時にも報告書を添付、ただし表示する広告物のみの変更を除く)",
+      "form": "第2号様式 屋外広告物等点検報告書",
+      "permit_required_only": true,
+      "conditions": {
+        "area_min_m2": null,
+        "height_min_m": null,
+        "height_min_inclusive": false,
+        "ground_clearance_min_m": null,
+        "permit_required_only": true,
+        "kinds": [],
+        "excluded_kinds": [
+          "貼り紙",
+          "貼り札",
+          "広告旗",
+          "立看板",
+          "広告幕",
+          "置き看板",
+          "アドバルーン"
+        ],
+        "note": "点検の適用除外(規則第14条の4)に該当する物は報告書の添付を要しない。報告書には点検した物の状況を知り得る写真を添付。管理する者が置かれているときはその者が点検し作成する"
+      },
+      "citations": [
+        {
+          "source": "条例",
+          "article": "第18条の2第2項",
+          "quote": "この条例の規定による許可又は許可の期間の更新の申請をしようとする者は、",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第14条の5第1項",
+          "quote": "条例第18条の2第2項の規定による点検の結果の提出は、屋外広告物等点検報告書により行うものとする。",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第3条第1項第3号",
+          "quote": "既設の物件にあっては、提出する日前3月以内に作成した屋外広告物等点検報告書(第2号様式)(条例第18条の2第1項ただし書に該当する場合を除く。)",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第9条第1項第2号",
+          "quote": "屋外広告物等点検報告書",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第10条第1項",
+          "quote": "屋外広告物等点検報告書(変更又は改造が、表示する広告物のみに係る場合を除く。)を添付して、市長に提出しなければならない。",
           "quote_verified": true
         }
       ],
@@ -501,5 +657,29 @@
       "self_use.standards[12](広告塔・広告板(建造物から独立した広告)/prohibited_zone).height_max_m"
     ],
     "method": "数値の存在照合(正解ファイルに同じ値が在るか。区域・種類までは見ない)"
+  },
+  "duties_extraction": {
+    "model": "claude-opus-5-5",
+    "extracted_at": "2026-11-02T20:29:20+09:00",
+    "notes": [
+      "条例第18条の2第2項の原文は「前項」の語の前後で改行されているため、引用は改行前の部分のみとした。",
+      "点検する義務・有資格者の義務の主語は「広告物の所有者等」であり、条例第8条の適用除外は第4条から第7条等に限られ第18条の2を除外していないため、許可不要の自家用広告物にも掛かると読んだ。",
+      "点検の周期は原文に無いため null とした。実際の点検時期は許可・更新・変更の申請時の報告書作成と連動すると読める。",
+      "規則第14条の4第2号の除外は、条例第8条第1項・第2項・第6項の物で他法令により同程度の点検をするものに限られる。",
+      "条例第18条第2項・規則第14条により、許可に係る広告物等で上端の高さが地上から4メートルを超えるものは管理する者の設置が必要で、その者が点検・報告書作成を行う(規則第14条の5第2項)。",
+      "更新申請時には点検者が屋外広告士等であることを証する書面の添付も必要(規則第9条第1項第3号)。"
+    ],
+    "citation_check": {
+      "total": 14,
+      "verified": 14
+    },
+    "usage": {
+      "input_tokens": 37977,
+      "output_tokens": 4740,
+      "attempts": 1,
+      "attempt_errors": [],
+      "model": "claude-opus-5-5",
+      "usd": 0.2467
+    }
   }
 }

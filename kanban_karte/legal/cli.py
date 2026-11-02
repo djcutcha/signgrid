@@ -88,6 +88,46 @@ def cmd_extract(a) -> int:
     return 0
 
 
+def cmd_duties(a) -> int:
+    """4つの義務だけを再抽出(API)。--runs 回ずつ走らせ、結果を runs/duties_<自治体>_<n>.json に残す。
+    --apply のときだけ、1回目の結果を rules_<自治体>.json に混ぜる(揺れの確認は残した n 個を見比べる)。"""
+    keys = list(RX.ORDINANCE_FILES) if a.municipality == "all" else [a.municipality]
+    for k in keys:
+        if k not in RX.ORDINANCE_FILES:
+            print(f"未対応の自治体: {k}(対応: {list(RX.ORDINANCE_FILES)})", file=sys.stderr)
+            return 2
+    client = RX.make_client()
+    if a.dry_run:
+        tot = 0.0
+        for k in keys:
+            n = client.messages.count_tokens(model=a.model, system=RX.DUTIES_SYSTEM_PROMPT,
+                                             messages=[{"role": "user", "content": RX.build_user_message(k, RX.load_texts(k))}]).input_tokens
+            est = RX.cost_usd(a.model, n, 6000) * a.runs
+            tot += est
+            print(f"{k}: 入力 {n} トークン / {a.runs} 回で概算 ${est:.2f}(出力 6000 トークン仮定)")
+        print(f"合計概算 ${tot:.2f}(上限 ${a.budget})")
+        return 0
+    out_dir = RX.REPO_ROOT / "runs"
+    out_dir.mkdir(exist_ok=True)
+    spent = 0.0
+    for k in keys:
+        first = None
+        for n in range(1, a.runs + 1):
+            res, u = RX.extract_duties(k, client=client, model=a.model, effort=a.effort)
+            spent += u["usd"]
+            (out_dir / f"duties_{k}_{n}.json").write_text(json.dumps(res, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            cc = res["citation_check"]
+            print(f"{k} #{n}: 引用 {cc['verified']}/{cc['total']} 一致  ${u['usd']:.3f}  試行 {u['attempts']} 回  累計 ${spent:.2f}")
+            first = first or res
+            if spent > a.budget:
+                print(f"費用が上限 ${a.budget} を超えたので中断", file=sys.stderr)
+                return 3
+        if a.apply and first:
+            doc = RX.merge_duties(RX.load_rules(k), first)
+            print(f"  -> {RX.save_rules(doc)}")
+    return 0
+
+
 def cmd_verify(a) -> int:
     return VF.main(["--stamp"] if a.stamp else [])
 
@@ -164,6 +204,16 @@ def main(argv=None) -> int:
     e.add_argument("--effort", default=RX.DEFAULT_EFFORT, choices=["low", "medium", "high", "xhigh", "max"])
     e.add_argument("--dry-run", action="store_true", help="API は count_tokens だけ(課金なし)")
     e.set_defaults(fn=cmd_extract)
+
+    d = sub.add_parser("duties", help="管理・点検・有資格者・報告の4つの義務だけを再抽出(API)")
+    d.add_argument("--municipality", required=True, help="東京都/埼玉県/越谷市/さいたま市/all")
+    d.add_argument("--model", default="claude-opus-5-5")
+    d.add_argument("--effort", default=RX.DEFAULT_EFFORT, choices=["low", "medium", "high", "xhigh", "max"])
+    d.add_argument("--runs", type=int, default=2, help="自治体ごとの抽出回数(揺れの確認)")
+    d.add_argument("--budget", type=float, default=6.0, help="費用の上限 USD")
+    d.add_argument("--apply", action="store_true", help="1回目の結果を rules_<自治体>.json に混ぜる")
+    d.add_argument("--dry-run", action="store_true", help="count_tokens だけ(課金なし)")
+    d.set_defaults(fn=cmd_duties)
 
     v = sub.add_parser("verify", help="rules_*.json の数値を手元の正解と照合")
     v.add_argument("--stamp", action="store_true", help="status を第2版(照合済み、一致 x/y)に書き換える")
