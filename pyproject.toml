@@ -13,7 +13,8 @@ dependencies = ["anthropic==2.3.0", "numpy==2.5.4", "pillow==12.3.0", "pypdf==6.
 kanban-karte = "kanban_karte.cli:main"
 
 [tool.setuptools]
-packages = ["kanban_karte", "kanban_karte.eval", "kanban_karte.ledger", "kanban_karte.intake", "kanban_karte.legal"]
+packages = ["kanban_karte", "kanban_karte.eval", "kanban_karte.ledger", "kanban_karte.intake", "kanban_karte.legal", "kanban_karte.web"]
 
 [tool.setuptools.package-data]
 "kanban_karte.ledger" = ["schema.sql"]
+"kanban_karte.web" = ["static/*"]

@@ -45,9 +45,61 @@
         "その他-3": "対象外"
       },
       "remark": "支柱根元の腐食(写真3)。補修後に許可申請。表示面に退色。",
-      "photos": ["photos/plain_a.png", "photos/plain_b.png", "photos/plain_c.png", "photos/plain_d.png", "photos/plain_e.png", "photos/plain_f.png"],
+      "photos": [
+        "photos/plain_a.png",
+        "photos/plain_b.png",
+        "photos/plain_c.png",
+        "photos/plain_d.png",
+        "photos/plain_e.png",
+        "photos/plain_f.png"
+      ],
       "last_inspected": "2026-11-05",
-      "prev_rank": 1
+      "prev_rank": 1,
+      "status": "draft",
+      "draft_rank": 3,
+      "confidence": 0.62,
+      "evidence": {
+        "基礎部・上部構造-2": {
+          "photos": [
+            2
+          ],
+          "text": "写真2の基礎まわりにひび割れは見えない",
+          "needs_onsite": false
+        },
+        "基礎部・上部構造-3": {
+          "photos": [
+            3
+          ],
+          "text": "写真3の鉄骨の塗装の状態が逆光で読めない",
+          "needs_onsite": true
+        },
+        "支持部-1": {
+          "photos": [
+            3
+          ],
+          "text": "写真3の支柱根元に赤錆と腐食が広がっている",
+          "needs_onsite": false
+        },
+        "表示部-3": {
+          "photos": [],
+          "text": "底部は写真に写っておらず判断できない",
+          "needs_onsite": true
+        },
+        "表示部-4": {
+          "photos": [
+            4
+          ],
+          "text": "写真4の表示面に退色が見える",
+          "needs_onsite": false
+        },
+        "照明装置-1": {
+          "photos": [
+            5
+          ],
+          "text": "写真5で点灯していることを確認",
+          "needs_onsite": false
+        }
+      }
     },
     {
       "id": "demo-002",
@@ -71,9 +123,37 @@
         "照明装置-1": "良好"
       },
       "remark": "コーキングの劣化(経過観察)。",
-      "photos": ["photos/plain_b.png", "photos/plain_a.png", "photos/plain_f.png"],
+      "photos": [
+        "photos/plain_b.png",
+        "photos/plain_a.png",
+        "photos/plain_f.png"
+      ],
       "last_inspected": "2026-11-05",
-      "prev_rank": 2
+      "prev_rank": 2,
+      "status": "draft",
+      "draft_rank": 2,
+      "confidence": 0.55,
+      "evidence": {
+        "取付部-2": {
+          "photos": [
+            2
+          ],
+          "text": "写真2のコーキングに細かいひび割れがある",
+          "needs_onsite": false
+        },
+        "取付部-3": {
+          "photos": [],
+          "text": "取付対象の壁の裏側が写っていない",
+          "needs_onsite": true
+        },
+        "表示部-4": {
+          "photos": [
+            1
+          ],
+          "text": "写真1の表示面にわずかな変色",
+          "needs_onsite": false
+        }
+      }
     },
     {
       "id": "demo-003",
@@ -95,9 +175,26 @@
         "表示部-4": "良好"
       },
       "remark": "",
-      "photos": ["photos/plain_c.png", "photos/plain_d.png"],
+      "photos": [
+        "photos/plain_c.png",
+        "photos/plain_d.png"
+      ],
       "last_inspected": "2026-11-05",
-      "prev_rank": 1
+      "prev_rank": 1,
+      "status": "confirmed",
+      "draft_rank": 1,
+      "confidence": 0.9,
+      "confirmed_at": "2026-11-05T15:20:00",
+      "confirmed_by": "見本 太郎",
+      "evidence": {
+        "表示部-1": {
+          "photos": [
+            1
+          ],
+          "text": "写真1の面板に破損はない",
+          "needs_onsite": false
+        }
+      }
     }
   ]
 }
