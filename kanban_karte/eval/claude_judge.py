@@ -318,6 +318,54 @@ def select_examples(items: list[EvalItem], source: str, n: int, seed: int = 0,
     return sorted(chosen, key=lambda i: _h(seed, "order:" + i.sign_id))
 
 
+# 境界例示: (正解ランク, 優先する AI 予測, 理由の見出し)。上から順に 1 基ずつ選ぶ(6 基)
+BOUNDARY_PLAN = [
+    (1, 2, "ずれ(AI 2/正解 1)"), (1, 2, "ずれ(AI 2/正解 1)"),
+    (2, 1, "ずれ(AI 1/正解 2)"), (3, 2, "ずれ(正解 3、AI 2 を優先)"),
+    (1, 1, "正解どおり(1)"), (2, 2, "正解どおり(2)"),
+]
+
+
+def select_boundary_examples(items: list[EvalItem], source: str, pred: dict[str, int | None],
+                             seed: int = 0) -> list[tuple[EvalItem, dict]]:
+    """AI の予測と正解がずれた看板を優先した例示(BOUNDARY_PLAN)を選ぶ。pred は {sign_id: AI の予測ランク}。
+
+    - 候補は同じ様式の例示用(split="example")だけ。評価用は入れない。pred に無い看板は「ずれ」の候補にならない
+    - 優先の組(正解, AI 予測)が無ければ、同じ正解ランクの看板から従来の順(写真枚数→ハッシュ)で補う。
+      それも無ければ飛ばし、最後に 6 基に満たなければ従来の選び方(1,2,3,4,1,2...)で埋める
+    - 現場(group_key)は重ねない(未使用を先に取る)。返すのは (看板, {"pred", "true", "why"}) の並びで、
+      並べ順は従来どおりハッシュ順で混ぜる
+    """
+    cands = [i for i in items if i.source == source and i.split == "example"
+             and i.rank_true in (1, 2, 3, 4) and i.photo_paths]
+    key = lambda i: (len(i.photo_paths) < EXAMPLE_MIN_PHOTOS, _h(seed, i.sign_id))
+    chosen: list[tuple[EvalItem, str]] = []
+    used_groups: set = set()
+
+    def take(pool: list[EvalItem], why: str) -> bool:
+        pool = [i for i in sorted(pool, key=key) if i not in [c for c, _ in chosen]]
+        fresh = [i for i in pool if i.meta.get("group_key") not in used_groups]
+        pick = (fresh or pool or [None])[0]
+        if pick is None:
+            return False
+        chosen.append((pick, why))
+        used_groups.add(pick.meta.get("group_key"))
+        return True
+
+    for t, p, why in BOUNDARY_PLAN:
+        exact = [i for i in cands if i.rank_true == t and i.sign_id in pred and pred[i.sign_id] == p]
+        if not take(exact, why):
+            take([i for i in cands if i.rank_true == t], f"従来選択(正解{t}。{why}の該当なし)")
+    for r in [1, 2, 3, 4] + [1, 2] * EXAMPLE_MAX:  # 足りない分は従来の選び方で埋める
+        if len(chosen) >= len(BOUNDARY_PLAN):
+            break
+        take([i for i in cands if i.rank_true == r], f"従来選択(正解{r}。補充)")
+    out = [(i, {"pred": pred.get(i.sign_id), "true": i.rank_true,
+                "why": f"{why}: AI 予測 {pred.get(i.sign_id) if i.sign_id in pred else 'なし'} / 正解 {i.rank_true}"})
+           for i, why in chosen]
+    return sorted(out, key=lambda t: _h(seed, "order:" + t[0].sign_id))
+
+
 def spread(paths: list[str], k: int) -> list[str]:
     """paths から最大 k 枚を等間隔に選ぶ(順序は保つ)。"""
     if len(paths) <= k:
@@ -379,6 +427,7 @@ class ClaudeJudge(Judge):
                  effort: str | None = None, client=None, examples: int = 0, example_seed: int = 0,
                  guard: bool = False, rubric: bool = False,
                  example_mix: list[int] | None = None, example_why: bool = False,
+                 example_select: str = "rank", example_pred: dict | None = None,
                  rules: list[str] | None = None):
         self.model = model
         self.max_photos = max_photos
@@ -387,6 +436,16 @@ class ClaudeJudge(Judge):
         self.example_mix = list(example_mix) if example_mix else None  # 指定時は examples を無視
         self.n_examples = len(self.example_mix) if self.example_mix else max(0, min(examples, EXAMPLE_MAX))
         self.example_why = example_why
+        if example_select not in ("rank", "boundary"):
+            raise ValueError(f"unknown example_select: {example_select}")
+        if example_select == "boundary":
+            if not example_pred:
+                raise ValueError("--example-select boundary には --example-pred(例示側の予測)が要ります")
+            self.example_mix = None
+            self.n_examples = len(BOUNDARY_PLAN)
+        self.example_select = example_select
+        self.example_pred = dict(example_pred or {})
+        self.example_notes: dict[str, list[dict]] = {}  # source -> 例示の選定理由(boundary のとき)
         self.example_seed = example_seed
         self.guard = guard
         self.rubric = rubric
@@ -422,13 +481,19 @@ class ClaudeJudge(Judge):
         self._example_pool = list(items)
         self._examples.clear()
         self._example_blocks.clear()
+        self.example_notes.clear()
 
     def examples_for(self, source: str) -> list[EvalItem]:
         if not self.n_examples:
             return []
         if source not in self._examples:
-            self._examples[source] = select_examples(
-                self._example_pool, source, self.n_examples, self.example_seed, self.example_mix)
+            if self.example_select == "boundary":
+                sel = select_boundary_examples(self._example_pool, source, self.example_pred, self.example_seed)
+                self._examples[source] = [i for i, _ in sel]
+                self.example_notes[source] = [{"sign_id": i.sign_id, **n} for i, n in sel]
+            else:
+                self._examples[source] = select_examples(
+                    self._example_pool, source, self.n_examples, self.example_seed, self.example_mix)
         return self._examples[source]
 
     def example_blocks(self, source: str) -> list[dict]:

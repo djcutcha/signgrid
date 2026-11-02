@@ -194,7 +194,9 @@ def judge_config(judge, sources) -> dict:
     """結果 JSON に残す判定役の条件。例示に使った看板の sign_id も残す(どの看板を見せたかの記録)。"""
     n = getattr(judge, "n_examples", 0)
     return {"examples": n, "example_mix": getattr(judge, "example_mix", None),
-            "example_why": bool(getattr(judge, "example_why", False)), "guard": bool(getattr(judge, "guard", False)),
+            "example_why": bool(getattr(judge, "example_why", False)),
+            "example_select": getattr(judge, "example_select", "rank"),
+            "example_notes": getattr(judge, "example_notes", {}) if n else {}, "guard": bool(getattr(judge, "guard", False)),
             "rubric": bool(getattr(judge, "rubric", False)), "rules": list(getattr(judge, "rules", [])),
             "examples_used": {s: [e.sign_id for e in judge.examples_for(s)] for s in sources} if n else {},
             # 実際に使えた構成(要求した構成から、該当する例示用の看板が無いランクを省いたもの)
@@ -282,6 +284,8 @@ def log_row(r: dict, note: str = "", max_photos: int | None = None) -> str:
         cond += f" / 例示{n_ex}" if n_ex else " / ゼロショット"
         if (r.get("config") or {}).get("example_why"):
             cond += "(理由行つき)"
+        if (r.get("config") or {}).get("example_select") == "boundary":
+            cond += "(境界例示)"
         if (r.get("config") or {}).get("guard"):
             cond += " / 見逃し対策"
         if (r.get("config") or {}).get("rubric"):
@@ -340,6 +344,11 @@ def main(argv=None) -> int:
                         "該当ランクの看板が例示用に無ければその分は省き、使った構成を結果 JSON に記録")
     g.add_argument("--example-why", action="store_true",
                    help="各例示に「なぜそのランクか」の 1 行(項目別の正解から機械的に作る)を付ける")
+    g.add_argument("--example-select", choices=["rank", "boundary"], default="rank",
+                   help="例示の選び方。rank= ランク構成だけ(既定)。boundary= 例示側の予測(--example-pred)で"
+                        "AI の予測と正解がずれた看板を優先(6 基固定。--examples / --example-mix は無視)")
+    g.add_argument("--example-pred", default=None, metavar="JSON",
+                   help="--example-select boundary 用。例示側(split=example)を判定した結果 JSON(runs/…)")
     g.add_argument("--guard", action="store_true",
                    help="見逃し対策の指示を足し、項目ごとに evidence と needs_onsite(写真では判定できない= 判断できず)を出させる")
     g.add_argument("--rubric", action="store_true",
@@ -353,6 +362,15 @@ def main(argv=None) -> int:
     if a.judge == "claude":
         opts = {"max_photos": a.max_photos, "workers": a.workers, "effort": a.effort, "examples": a.examples, "guard": a.guard, "rubric": a.rubric,
                 "example_why": a.example_why}
+        if a.example_select == "boundary":
+            if not a.example_pred or not Path(a.example_pred).exists():
+                ap.error("--example-select boundary には存在する --example-pred が要ります")
+            recs = json.loads(Path(a.example_pred).read_text(encoding="utf-8"))["records"]
+            opts["example_pred"] = {r["sign_id"]: r["rank_pred"] for r in recs
+                                    if r.get("split") == "example" and r.get("rank_pred") is not None}
+            opts["example_select"] = "boundary"
+        elif a.example_pred:
+            ap.error("--example-pred は --example-select boundary のときだけ使えます")
         if a.example_mix:
             from .claude_judge import parse_mix
             try:
@@ -368,7 +386,7 @@ def main(argv=None) -> int:
                 ap.error(f"台帳がありません: {a.rules_from_db}")
             with Ledger(a.rules_from_db) as lg:
                 opts["rules"] = lg.recent_rules(RULES_MAX)
-    elif a.examples or a.guard or a.rubric or a.example_mix or a.example_why or a.rules_from_db:
+    elif a.examples or a.guard or a.rubric or a.example_mix or a.example_why or a.rules_from_db or a.example_select != "rank" or a.example_pred:
         ap.error("--examples / --example-mix / --example-why / --guard / --rubric / --rules-from-db は --judge claude のときだけ使えます")
     elif a.dry_run:
         ap.error("--dry-run は --judge claude のときだけ使えます")

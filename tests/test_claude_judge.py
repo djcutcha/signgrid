@@ -338,6 +338,49 @@ class ExamplesTest(unittest.TestCase):
         self.assertEqual(text.count("なぜこのランクか"), 3)
         self.assertNotIn("秘密の看板", text)
 
+    def _bpool(self):
+        pool, pred = [], {}
+        for t, pr, n in [(1, 2, 3), (2, 1, 2), (3, 2, 2), (1, 1, 2), (2, 2, 2), (4, 3, 1)]:
+            for g in range(n):
+                it = self._item("xlsx_center", t, "example", f"b{t}{pr}{g}")
+                pool.append(it)
+                pred[it.sign_id] = pr
+        ev = self._item("xlsx_center", 1, "eval", "ev")  # 評価用は予測があっても入れない
+        pool.append(ev)
+        pred[ev.sign_id] = 2
+        return pool, pred
+
+    def test_boundary_plan_and_reasons(self):
+        pool, pred = self._bpool()
+        sel = cj.select_boundary_examples(pool, "xlsx_center", pred)
+        self.assertEqual(len(sel), 6)
+        self.assertEqual(sorted((n["true"], n["pred"]) for _, n in sel),
+                         [(1, 1), (1, 2), (1, 2), (2, 1), (2, 2), (3, 2)])
+        self.assertTrue(all(i.split == "example" for i, _ in sel))
+        self.assertEqual(len({i.meta["group_key"] for i, _ in sel}), 6)
+        self.assertTrue(all("AI 予測" in n["why"] for _, n in sel))
+        self.assertEqual(sel, cj.select_boundary_examples(list(reversed(pool)), "xlsx_center", pred))
+
+    def test_boundary_falls_back_to_conventional(self):
+        pool, pred = self._bpool()
+        sel = cj.select_boundary_examples(pool, "xlsx_center", {})  # 予測が無ければ従来選択で 6 基
+        self.assertEqual(len(sel), 6)
+        self.assertTrue(all(n["pred"] is None and "従来選択" in n["why"] for _, n in sel))
+        self.assertEqual(cj.select_boundary_examples(pool, "paper_scan", pred), [])
+
+    def test_judge_boundary(self):
+        pool, pred = self._bpool()
+        with self.assertRaises(ValueError):
+            ClaudeJudge(client=FakeClient(['{"rank": 2}']), example_select="boundary")
+        j = ClaudeJudge(client=FakeClient(['{"rank": 2}']), example_select="boundary", example_pred=pred,
+                        example_mix=[1, 2])
+        self.assertEqual(j.n_examples, 6)
+        j.set_example_pool(pool)
+        text = " ".join(b.get("text", "") for b in j.example_blocks("xlsx_center"))
+        self.assertNotIn("AI 予測", text)
+        self.assertNotIn("秘密の看板", text)
+        self.assertEqual(len(j.example_notes["xlsx_center"]), 6)
+
     def test_blocks_cached_hidden_names_and_photo_cap(self):
         j = ClaudeJudge(client=FakeClient(['{"rank": 2}']), examples=6)
         j.set_example_pool(self._pool())
