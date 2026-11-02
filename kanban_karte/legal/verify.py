@@ -18,6 +18,7 @@ import tomllib
 import unicodedata
 from pathlib import Path
 
+from . import schema as S
 from .rules_extract import ORDINANCE_FILES, REPO_ROOT, load_rules, load_texts, rules_path
 
 DEFAULT_SOURCES = REPO_ROOT / "data" / "private" / "sources.toml"
@@ -106,12 +107,22 @@ def rule_numbers(rules: dict) -> list[tuple[str, str, float]]:
     add("permit_term.default_years", "years", pt.get("default_years"))
     for i, it in enumerate(pt["items"]):
         add(f"permit_term.items[{i}]({it.get('kind')}).years", "years", it.get("years"))
-    ins = rules["inspection"]
-    add("inspection.interval_years", "years", ins.get("interval_years"))
-    for i, c in enumerate(ins["conditions"]):
-        add(f"inspection.conditions[{i}].area_min_m2", "area", c.get("area_min_m2"))
-        add(f"inspection.conditions[{i}].height_min_m", "length", c.get("height_min_m"))
-        add(f"inspection.conditions[{i}].ground_clearance_min_m", "length", c.get("ground_clearance_min_m"))
+    ins = rules.get("inspection")  # 旧形式(4つの義務に分ける前)
+    if ins:
+        add("inspection.interval_years", "years", ins.get("interval_years"))
+        for i, c in enumerate(ins["conditions"]):
+            add(f"inspection.conditions[{i}].area_min_m2", "area", c.get("area_min_m2"))
+            add(f"inspection.conditions[{i}].height_min_m", "length", c.get("height_min_m"))
+            add(f"inspection.conditions[{i}].ground_clearance_min_m", "length", c.get("ground_clearance_min_m"))
+    add("inspection_duty.interval_years", "years", (rules.get("inspection_duty") or {}).get("interval_years"))
+    for dk in S.DUTY_KEYS:
+        node = rules.get(dk) or {}
+        conds = [("conditions", node.get("conditions"))]
+        if isinstance(node.get("effort"), dict):
+            conds.append(("effort.conditions", node["effort"].get("conditions")))
+        for cn, c in conds:
+            for k, unit in (("area_min_m2", "area"), ("height_min_m", "length"), ("ground_clearance_min_m", "length")):
+                add(f"{dk}.{cn}.{k}", unit, (c or {}).get(k))
     return items
 
 
