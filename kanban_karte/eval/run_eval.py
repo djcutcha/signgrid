@@ -65,6 +65,8 @@ def _usage_total(preds) -> dict:
         "attempts": sum(x["attempts"] for x in u),
         "input_tokens": sum(x["input_tokens"] for x in u),
         "output_tokens": sum(x["output_tokens"] for x in u),
+        "cache_write_tokens": sum(x.get("cache_write_tokens", 0) for x in u),
+        "cache_read_tokens": sum(x.get("cache_read_tokens", 0) for x in u),
         "cost_usd": None if (u and any(c is None for c in costs)) else sum(costs),
     }
 
@@ -73,6 +75,8 @@ def dry_run(judge, source: str, limit: int | None, split: str, seed: int,
             config_path: str | None) -> dict:
     sources = dataset.RANKED_SOURCES if source == "all" else (source,)
     items = dataset.load_all(config_path, sources)
+    if hasattr(judge, "set_example_pool"):
+        judge.set_example_pool(items)
     per = {}
     for s, pool, _, no_photos in _pools(items, sources, split, limit, seed):
         ests = [judge.estimate(it) for it in pool]
@@ -80,6 +84,7 @@ def dry_run(judge, source: str, limit: int | None, split: str, seed: int,
                   "photos": sum(e["photos"] for e in ests),
                   "image_tokens": sum(e["image_tokens"] for e in ests),
                   "text_tokens": sum(e["text_tokens"] for e in ests),
+                  "example_tokens": sum(e["example_image_tokens"] + e["example_text_tokens"] for e in ests),
                   "input_tokens": sum(e["input_tokens"] for e in ests)}
     tot = {k: sum(v[k] for v in per.values()) for k in next(iter(per.values()))}
     from .claude_judge import ASSUMED_OUTPUT_TOKENS, cost_usd
@@ -97,15 +102,17 @@ def dry_run_text(d: dict) -> str:
          "| ソース | 送る看板数 | 写真なしで除外 | 写真枚数 | 推定入力トークン(画像+文) |", "|---|---|---|---|---|"]
     for s, v in d["per_source"].items():
         L.append(f"| {s} | {v['signs']} | {v['signs_no_photos']} | {v['photos']} | "
-                 f"{v['input_tokens']:,}({v['image_tokens']:,}+{v['text_tokens']:,}) |")
+                 f"{v['input_tokens']:,}(判定対象の画像 {v['image_tokens']:,} + 文 {v['text_tokens']:,} + 例示 {v['example_tokens']:,}) |")
     t = d["total"]
     L.append(f"| 合計 | {t['signs']} | {t['signs_no_photos']} | {t['photos']} | "
-             f"{t['input_tokens']:,}({t['image_tokens']:,}+{t['text_tokens']:,}) |")
+             f"{t['input_tokens']:,}(判定対象の画像 {t['image_tokens']:,} + 文 {t['text_tokens']:,} + 例示 {t['example_tokens']:,}) |")
     c = d["est_cost_usd"]
     L += ["", f"- 概算費用: " + ("不明(価格表にないモデル)" if c is None else
           f"約 ${c:.2f}(入力 {t['input_tokens']:,} トークン + 出力は 1 看板 {d['assumed_output_tokens'] // max(1, t['signs'])} トークンと仮定)"),
           "- 画像トークンは「幅x高さ/750(上限 4784)」の概算。文は 1 文字 1 トークンの概算。"
           "正確な値は鍵が入ってから count_tokens で測る。",
+          "- 例示ありのとき、例示ブロックは prompt caching の対象(1 基目で書き込み 1.25 倍、以降の読み出しは 0.1 倍)。"
+          "この概算は全て通常単価で数えた上限寄りの値。",
           "- JSON 不正の再試行(最大 1 回)が起きると、その看板は入力が約 2 倍になる。"]
     return "\n".join(L)
 
@@ -115,6 +122,8 @@ def run(judge, judge_name: str, source: str, limit: int | None, split: str, seed
     sources = dataset.RANKED_SOURCES if source == "all" else (source,)
     items = dataset.load_all(config_path, sources)
     counts = dataset.summarize(items)
+    if hasattr(judge, "set_example_pool"):
+        judge.set_example_pool(items)
 
     per_source: dict[str, dict] = {}
     usage_by_source: dict[str, dict] = {}
@@ -148,9 +157,17 @@ def run(judge, judge_name: str, source: str, limit: int | None, split: str, seed
         "dataset_counts": counts,
         "overall": _add_excluded(metrics.compute(all_pairs), ex_truth_total, ex_photo_total),
         "usage": _usage_total(all_preds), "usage_by_source": usage_by_source,
+        "config": judge_config(judge, sources),
         "per_source": per_source,
         "records": records,
     }
+
+
+def judge_config(judge, sources) -> dict:
+    """結果 JSON に残す判定役の条件。例示に使った看板の sign_id も残す(どの看板を見せたかの記録)。"""
+    n = getattr(judge, "n_examples", 0)
+    return {"examples": n,
+            "examples_used": {s: [e.sign_id for e in judge.examples_for(s)] for s in sources} if n else {}}
 
 
 def _pct(x) -> str:
@@ -208,7 +225,8 @@ def to_markdown(r: dict, json_name: str) -> str:
         L += ["## 使用量(API)", "",
               f"- モデル: {r['model']}",
               f"- 判定した看板 {u['signs']} 件(うち判定できず {u['failed_none']} 件)、API 呼び出し {u['attempts']} 回",
-              f"- 入力 {u['input_tokens']:,} トークン、出力 {u['output_tokens']:,} トークン",
+              f"- 入力 {u['input_tokens']:,} トークン(うちキャッシュ書き込み {u['cache_write_tokens']:,}、"
+              f"キャッシュ読み出し {u['cache_read_tokens']:,})、出力 {u['output_tokens']:,} トークン",
               "- 推定費用: " + ("不明(価格表にないモデル)" if c is None else f"${c:.2f}"), ""]
     L += ["## 全体", ""] + _metrics_block(r["overall"]) + [""]
     for s, m in r["per_source"].items():
@@ -225,7 +243,9 @@ def log_row(r: dict, note: str = "", max_photos: int | None = None) -> str:
         (f"limit={r['limit_per_source']} seed={r['seed']}" if r["limit_per_source"] else "全件")
     if max_photos and r["judge"] == "claude":
         cond += f" / 写真{max_photos}枚まで"
-    cond += " / ゼロショット" if r["judge"] == "claude" else ""
+    if r["judge"] == "claude":
+        n_ex = (r.get("config") or {}).get("examples", 0)
+        cond += f" / 例示{n_ex}" if n_ex else " / ゼロショット"
     if note:
         cond += f" / {note}"
     api = bool(u["signs_with_usage"])
@@ -269,14 +289,18 @@ def main(argv=None) -> int:
     g.add_argument("--workers", type=int, default=4, help="並列数(1〜4、既定 4)")
     g.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"], default=None,
                    help="output_config.effort(省略時は API の既定)")
+    g.add_argument("--examples", type=int, default=0, choices=range(0, 7), metavar="N",
+                   help="同じ様式の例示用(split=example)から N 基(0〜6)を判定例として先頭に置く。0 でゼロショット")
     g.add_argument("--dry-run", action="store_true", help="API を呼ばず、送る看板数・写真枚数・推定トークンだけ出す")
     a = ap.parse_args(argv)
 
     opts = {}
     if a.judge == "claude":
-        opts = {"max_photos": a.max_photos, "workers": a.workers, "effort": a.effort}
+        opts = {"max_photos": a.max_photos, "workers": a.workers, "effort": a.effort, "examples": a.examples}
         if a.model:
             opts["model"] = a.model
+    elif a.examples:
+        ap.error("--examples は --judge claude のときだけ使えます")
     elif a.dry_run:
         ap.error("--dry-run は --judge claude のときだけ使えます")
     if a.append_log and a.judge == "oracle":

@@ -193,5 +193,102 @@ class JudgeFlowTest(unittest.TestCase):
         self.assertEqual([p.rank_pred for p in preds], [1, 2, 3, 4, 1])
 
 
+class ExamplesTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.n = 0
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _item(self, source, rank, split, group, n_photos=5):
+        self.n += 1
+        paths = []
+        for k in range(n_photos):
+            p = os.path.join(self.tmp.name, f"{self.n}_{k}.jpg")
+            Image.new("RGB", (64, 48), (self.n * 7 % 256, k * 30, 0)).save(p)
+            paths.append(p)
+        return EvalItem(source, f"{source}:{self.n:03d}", paths, rank, {"②腐食": rank} if rank else None,
+                        split, {"group_key": f"{source}|{group}", "form_items": FORM, "sign_name": f"秘密の看板{self.n}"})
+
+    def _pool(self):
+        pool = []
+        for r in (1, 2, 3, 4):
+            for g in range(3):
+                pool.append(self._item("xlsx_center", r, "example", f"g{r}{g}"))
+        pool.append(self._item("xlsx_center", 1, "eval", "ev"))        # 評価用は絶対に入れない
+        pool.append(self._item("xlsx_karte", 3, "example", "k"))       # 別の様式は入れない
+        pool.append(self._item("xlsx_center", None, "example", "nr"))  # 正解ランクなしは入れない
+        return pool
+
+    def test_select_spreads_ranks_and_pairs_1_and_2(self):
+        pool = self._pool()
+        ex = cj.select_examples(pool, "xlsx_center", 6)
+        self.assertEqual(sorted(e.rank_true for e in ex), [1, 1, 2, 2, 3, 4])
+        self.assertTrue(all(e.split == "example" and e.source == "xlsx_center" for e in ex))
+        self.assertEqual(len({e.meta["group_key"] for e in ex}), 6)  # 同じ現場から重ねない
+        self.assertEqual(ex, cj.select_examples(list(reversed(pool)), "xlsx_center", 6))  # 決定論(入力順に依らない)
+
+    def test_select_missing_rank_and_small_n(self):
+        pool = [i for i in self._pool() if i.rank_true != 4]
+        self.assertEqual(sorted(e.rank_true for e in cj.select_examples(pool, "xlsx_center", 4)), [1, 1, 2, 3])
+        self.assertEqual(sorted(e.rank_true for e in cj.select_examples(pool, "xlsx_center", 2)), [1, 2])
+        self.assertEqual(cj.select_examples(pool, "xlsx_center", 0), [])
+        self.assertEqual(cj.select_examples(pool, "paper_scan", 6), [])  # 例示用が無い様式は 0 基
+
+    def test_blocks_cached_hidden_names_and_photo_cap(self):
+        j = ClaudeJudge(client=FakeClient(['{"rank": 2}']), examples=6)
+        j.set_example_pool(self._pool())
+        target = self._item("xlsx_center", 2, "eval", "t", n_photos=2)
+        j.judge(target)
+        kw = j._client.calls[0]
+        content = kw["messages"][0]["content"]
+        marked = [i for i, b in enumerate(content) if "cache_control" in b]
+        self.assertEqual(len(marked), 1)
+        # 例示ブロックが先頭に固定され、キャッシュ印は例示の最後。判定対象の写真はその後ろ
+        first_target_photo = next(i for i, b in enumerate(content) if b.get("text") == "写真1")
+        self.assertLess(marked[0], first_target_photo)
+        ex_imgs = [b for b in content[: marked[0]] if b["type"] == "image"]
+        self.assertEqual(len(ex_imgs), 6 * cj.EXAMPLE_PHOTOS)  # 各基 3 枚に絞る(元は 5 枚)
+        text = " ".join(b.get("text", "") for b in content[: marked[0] + 1])
+        self.assertNotIn("秘密の看板", text)  # 例示の看板名は伏せる
+        self.assertIn("ランク", text)
+        self.assertIn("判定例", kw["system"])
+
+    def test_zero_shot_unchanged(self):
+        j = ClaudeJudge(client=FakeClient(['{"rank": 2}']))
+        self.assertEqual(j.system, cj.SYSTEM_PROMPT)
+        self.assertEqual(j.example_blocks("xlsx_center"), [])
+        self.assertNotIn("判定例", cj.SYSTEM_PROMPT)
+
+    def test_cache_usage_and_cost(self):
+        self.assertAlmostEqual(cj.cost_usd("claude-sonnet-5-5", 0, 0, cache_write=1_000_000), 2.0 * 1.25)
+        self.assertAlmostEqual(cj.cost_usd("claude-sonnet-5-5", 0, 0, cache_read=1_000_000), 2.0 * 0.1)
+
+        class C(FakeClient):
+            def _create(self, **kw):
+                r = super()._create(**kw)
+                r.usage = SimpleNamespace(input_tokens=100, output_tokens=10,
+                                          cache_creation_input_tokens=5000, cache_read_input_tokens=0)
+                return r
+        j = ClaudeJudge(client=C(['{"rank": 2}']))
+        item = EvalItem("xlsx_center", "x:1", [self._item("xlsx_center", 1, "eval", "q").photo_paths[0]],
+                        2, None, "eval", {})
+        u = j.judge(item).usage
+        self.assertEqual((u["input_tokens"], u["cache_write_tokens"], u["cache_read_tokens"]), (5100, 5000, 0))
+        self.assertAlmostEqual(u["cost_usd"], (100 * 2.0 + 5000 * 2.0 * 1.25 + 10 * 10.0) / 1e6)
+
+    def test_judge_many_with_examples_keeps_order(self):
+        c = FakeClient(['{"rank": %d}' % (i % 4 + 1) for i in range(4)])
+        j = ClaudeJudge(client=c, examples=2)
+        j.set_example_pool(self._pool())
+        items = [self._item("xlsx_center", 2, "eval", f"t{i}", 1) for i in range(4)]
+        j.workers = 2
+        preds = j.judge_many(items)
+        self.assertEqual(len(preds), 4)
+        self.assertEqual(preds[0].rank_pred, 1)  # 1 基目は単独で先に流す
+        self.assertEqual(len(c.calls), 4)
+
+
 if __name__ == "__main__":
     unittest.main()
