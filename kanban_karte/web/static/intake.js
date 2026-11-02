@@ -30,7 +30,7 @@
       cell("", "c-kind", el("span", { class: `chip src ${b.source === "LINE" ? "line" : "pc"}`, text: b.source })),
       cell("ファイル", "c-file", el("div", { text: b.file }), el("div", { class: "sub", text: `束 ${b.id} / ${b.pages} ページ` })),
       cell("状態", "c-state", el("span", { class: `chip status ${b.status === "signs_drafted" ? "confirmed" : b.status}`, text: BUNDLE_STATUS[b.status] || b.status })),
-      cell("看板", "c-count", `看板 ${b.sign_count} 基 / 下書き ${b.draft_count}`),
+      cell("", "c-count", `看板 ${b.sign_count} 基 / 下書き ${b.draft_count}`),
       cell("エラー", "c-err", b.error ? el("span", { class: "notice err", text: b.error }) : el("span", { class: "muted", text: "—" })),
       cell("", "c-go", b.site_id ? el("a", { href: `#/?site=${encodeURIComponent(b.site_id)}`, text: "台帳(現場)へ →" }) : el("span", { class: "muted", text: "現場は未定" })),
       cell("", "c-act", action));

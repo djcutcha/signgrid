@@ -40,7 +40,9 @@
 
   KK.views.gov = async function (_, params) {
     const head = el("div", { class: "page-head" }, el("div", {}, el("div", { class: "eyebrow", text: "職員が撮った写真の一括登録" }), el("h1", { text: "行政" })));
-    const data = await KK.api("/api/gov/batches");
+    const today = params.get("today");  // 基準日(YYYY-MM-DD。見本の撮影用。既定は今日)
+    const tq = today ? `&today=${encodeURIComponent(today)}` : "";
+    const data = await KK.api(`/api/gov/batches${today ? `?today=${encodeURIComponent(today)}` : ""}`);
     if (!data.available || !data.batches.length) {
       KK.setView(head, el("p", { class: "notice", text: "一括登録はまだありません。" }),
         el("p", { class: "sub", text: "職員が撮った写真のフォルダを取り込む(python3 -m kanban_karte.gov.cli intake)と、ここに並びます。" }));
@@ -49,9 +51,9 @@
     let id = +params.get("batch");
     if (!data.batches.some((b) => b.id === id)) id = data.batches[0].id;
     const b = data.batches.find((x) => x.id === id);
-    const cand = await KK.api(`/api/gov/candidates?batch=${id}`);
+    const cand = await KK.api(`/api/gov/candidates?batch=${id}${tq}`);
     const picker = data.batches.length > 1
-      ? el("select", { "aria-label": "一括登録", onchange: (e) => { location.hash = `#/gov?batch=${e.target.value}`; } },
+      ? el("select", { "aria-label": "一括登録", onchange: (e) => { location.hash = `#/gov?batch=${e.target.value}${tq}`; } },
         data.batches.map((x) => el("option", { value: x.id, selected: x.id === id || null, text: `登録 ${x.id}(${KK.fmtTime(x.created)})` })))
       : null;
     const stat = (n, t) => el("div", { class: "stat" }, el("b", { text: String(n) }), el("span", { text: t }));
@@ -61,7 +63,7 @@
         stat(b.gps_count, "位置あり"), stat(b.nogps_count, "位置なし")),
       countChips(data, b.by_color),
       el("section", { class: "card gov-map" }, el("h2", { text: "地図" }),
-        el("iframe", { src: `/api/gov/map.html?batch=${id}`, title: "巡回調査マップ", loading: "lazy", sandbox: "allow-scripts allow-popups allow-popups-to-escape-sandbox" }),
+        el("iframe", { src: `/api/gov/map.html?batch=${id}${tq}`, title: "巡回調査マップ", loading: "lazy", sandbox: "allow-scripts allow-popups allow-popups-to-escape-sandbox" }),
         el("p", { class: "sub" }, "地図: ", el("a", { href: "https://maps.gsi.go.jp/development/ichiran.html", target: "_blank", rel: "noopener", text: "国土地理院 地理院タイル(淡色地図)" }),
           "。赤の点は無許可の疑いで、確認が要ります(断定ではありません)。")),
       candidatesTable(cand.candidates, cand.colors));

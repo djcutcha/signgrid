@@ -16,8 +16,11 @@ python3 -m kanban_karte.web --db <新しいsqlite> --sample      # 見本デー�
 
 | 画面 | 内容 |
 |---|---|
+| 受付(`#/intake`) | 受け付けた束の一覧。種別(`line://` の束は LINE、他は PC)・ファイル名・状態・看板数/下書き数・エラー、台帳(現場)へのリンク。下書き前の束には「下書きを作る」(鍵が無ければ無効で理由を表示) |
 | 台帳(`#/`) | 現場を選ぶ → 看板1基=1行。法規の列(自家用・許可・期限)と安全の列(ランク・判断できず N/18・写真枚数・前回との差・状態)。ランクは下書きが破線の薄い札、確定が塗りの濃い札。行で開く。スマホ幅では1基=1枚のカード。受け付けた束があれば「下書きを作る」(鍵が無ければ無効) |
 | カルテ(`#/sign/<id>`) | 写真(タップで拡大・前後送り)、18項目の区分、各項目の根拠(evidence の文と写真番号、「写真3」は押せる)、所見、法規。黄色=判断できず/下書きが要実測としたマス。マスをタップ→区分を選ぶと即 POST、右側(スマホでは下)に訂正の履歴。「確定して署名」→ 名前つきで確認 → 確定。確定後は編集不可 |
+| 行政(`#/gov`) | 職員が撮った写真の一括登録(`kanban_karte.gov`)。赤/橙/緑/灰の件数、地図(`gov.map` の HTML を iframe で埋める。地理院タイル・出典表示つき)、候補の一覧(位置・束ねた写真数・近い台帳の看板・状態・許可の期限)。gov の表が無い台帳では「一括登録はまだありません」。`#/gov?today=YYYY-MM-DD` で基準日を指定 |
+| オーナー(`#/owner`) | スマホ幅が基本。写真(表示だけ)→住所(手入力)→幅×高さ(m、面積は自動)→「調べる」。自家用の許可の要否・点検の義務の3行と根拠条文。安全の判定(ランク・18項目)は出さない。「看板屋に点検を頼む」は宛先が空の `mailto:` |
 | 規則と出力(`#/rules`) | 訂正から育った規則(同じ項目・同じ所見で区分が違う規則に「矛盾の可能性」の印)、現場ごとの「東京都 第2号様式を出力」「客先A型を出力」(xlsx ダウンロード。出力は常に下書き) |
 
 ## API(JSON)
@@ -32,6 +35,11 @@ python3 -m kanban_karte.web --db <新しいsqlite> --sample      # 見本デー�
 | `POST /api/signs/<id>/items` | `{item, value, by, note?}` 訂正。`item` は項目キーか `rank`(1〜4)。`pipeline.review.apply_correction` |
 | `POST /api/signs/<id>/finalize` | `{by}` 確定。`pipeline.review.finalize`。確定済みへの訂正・確定は 409 |
 | `GET /api/bundles`、`POST /api/bundles/<id>/draft` | 束の一覧、下書き(`pipeline.draft.draft_bundle`。鍵が無ければ 503) |
+| `GET /api/gov/batches?today=` | 一括登録の一覧(写真数・候補数・色別件数)。gov の表が無ければ `available:false` |
+| `GET /api/gov/candidates?batch=` | 候補(位置の有無・束ねた写真数・近い台帳の看板・状態/色・期限)。赤→橙→緑→灰の順 |
+| `GET /api/gov/map.html?batch=` | `gov.map.write_map` の HTML(iframe 用) |
+| `POST /api/owner/judge` | `{address, area_m2, height_m?}` → 法規役 `judge(use="self")` の結果。台帳には書かない |
+| `GET /api/signs/<id>` の `legal` | 看板の住所(無ければ現場)・自家用か・寸法(size の mm から面積)で `judge()`。面積が取れなければ「要実測」。全高は台帳に無いので渡さない |
 | `GET /api/rules` | 規則(`conflicts_with` つき) |
 | `GET /api/sites/<id>/output/tokyo.xlsx` / `client-a.xlsx` | 様式の出力 |
 | `GET /media/<相対パス>` | 写真 |

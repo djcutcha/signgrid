@@ -2,7 +2,8 @@
 
   python3 tools/web_screenshots.py [--out docs/img] [--only ledger,karte,...]
 
-撮る画面: ledger(台帳)、karte(カルテ)、karte-edit(黄色のマスを直した後)、karte-confirmed(確定後)、rules(規則と出力)。
+撮る画面: ledger(台帳)、karte(カルテ)、karte-legal(カルテの法規カード)、karte-edit(黄色のマスを直した後)、karte-confirmed(確定後)、
+rules(規則と出力)、intake(受付)、gov(行政。gov.make_sample の見本の束を入れる)、owner(オーナー。見本の寸法で「調べる」まで)。
 karte-edit 以降は台帳を書き換えるので、一時の台帳でだけ行う(見本の JSON は変わらない)。
 """
 from __future__ import annotations
@@ -15,6 +16,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from kanban_karte.gov import make_sample as gov_sample  # noqa: E402
+from kanban_karte.gov.batch_intake import intake as gov_intake  # noqa: E402
 from kanban_karte.web.server import SAMPLE_JSON, App, make_server, seed_sample  # noqa: E402
 
 VIEWPORTS = {"pc": {"width": 1280, "height": 900}, "sp": {"width": 390, "height": 844}}
@@ -31,6 +34,22 @@ def shoot(page, base: str, out: Path, tag: str, hash_: str, name: str, full=True
     print(path)
 
 
+def seed_extra(db: Path, tmp: Path) -> None:
+    """受付と行政の見本: 束を2本(PC の PDF と LINE の写真)、gov の見本の束(写真10枚・台帳5基)。"""
+    from kanban_karte.ledger import Ledger
+
+    gov_sample.build(tmp / "gov")
+    with Ledger(db) as lg:
+        a = lg.add_bundle("/scan/見本_点検票.pdf", "sample-sha-pc", 4)
+        lg.set_bundle(a, status="classified", kind_counts={"点検票": 3, "写真": 1}, site_id="demo-site-1")
+        b = lg.add_bundle("line://Usample/2026-11-02/s1", "sample-sha-line", 6)
+        lg.set_bundle(b, status="pages_registered", site_id="demo-site-1")
+        c = lg.add_bundle("/scan/見本_現地写真.pdf", "sample-sha-pc2", 2)
+        lg.set_bundle(c, status="signs_drafted", site_id="demo-site-1")
+        lg.import_json(tmp / "gov" / "ledger_gov.json")
+        gov_intake(lg.conn, tmp / "gov" / "photos")
+
+
 def run(page, base, out, tag, only):
     def want(k):
         return only is None or k in only
@@ -39,6 +58,34 @@ def run(page, base, out, tag, only):
         shoot(page, base, out, tag, "/", "ledger", wait="main .ledger tbody tr")
     if want("karte"):
         shoot(page, base, out, tag, f"/sign/{SIGN}", "karte", wait="main .karte")
+    if want("karte-legal"):
+        page.goto(f"{base}/#/sign/{SIGN}")
+        page.wait_for_selector("main .legal-card .cites li")
+        page.wait_for_timeout(300)
+        page.add_style_tag(content=".topbar{position:static !important}")  # 要素の撮影に sticky のヘッダーが写り込まないように
+        path = out / f"karte-legal-{tag}.png"
+        page.locator(".legal-card").screenshot(path=str(path))
+        print(path)
+    if want("intake"):
+        shoot(page, base, out, tag, "/intake", "intake", wait="main .intake tbody tr")
+    if want("gov"):
+        shoot(page, base, out, tag, "/gov?today=2026-11-02", "gov", wait="main .gov-table tbody tr")
+        page.wait_for_timeout(2500)  # 地図(Leaflet・地理院タイル)の読み込み待ち
+        page.evaluate("window.scrollTo(0, 0)")
+        page.screenshot(path=str(out / f"gov-{tag}.png"), full_page=True)
+    if want("owner"):
+        page.goto(f"{base}/#/owner")
+        page.wait_for_selector("main .owner")
+        page.set_input_files("#owner-photo", str(SAMPLE_JSON.parent / "photos" / "plain_a.png"))
+        page.fill("#owner-address", "東京都豊島区見本町1-2-3")
+        page.fill("#owner-w", "1.95")
+        page.fill("#owner-h", "0.6")
+        page.click("button:has-text('調べる')")
+        page.wait_for_selector(".owner-result .cites li")
+        page.wait_for_timeout(600)
+        page.evaluate("window.scrollTo(0, 0)")
+        page.screenshot(path=str(out / f"owner-{tag}.png"), full_page=True)
+        print(out / f"owner-{tag}.png")
     if want("karte-edit") or want("karte-confirmed"):
         page.goto(f"{base}/#/sign/{SIGN}")
         page.wait_for_selector("main .karte")
@@ -84,6 +131,7 @@ def main(argv=None) -> int:
             with tempfile.TemporaryDirectory() as td:  # 画面幅ごとに新しい台帳(確定が次の撮影に残らないように)
                 db = Path(td) / "l.sqlite"
                 seed_sample(db)
+                seed_extra(db, Path(td))
                 srv = make_server(App(db, SAMPLE_JSON.parent, sample=True), "127.0.0.1", 0)
                 base = f"http://127.0.0.1:{srv.server_address[1]}"
                 threading.Thread(target=srv.serve_forever, daemon=True).start()
