@@ -18,6 +18,9 @@ class Prediction:
     confidence: float | None = None
     raw: dict | str | None = None  # モデル応答の生データ・失敗理由(デバッグ用)
     usage: dict | None = None  # {input_tokens, output_tokens, attempts, cost_usd}(API を使う判定役のみ)
+    verified: bool = False  # 反証役(verifier.py)を通した。見落とし指摘があれば rank/項目を上げている
+    verifier_notes: list[dict] | None = None  # 反証役の指摘 [{item, photo, reason}]。通して指摘なしなら []
+    rank_before: int | None = None  # 反証役を通す前の rank(通したときだけ)
 
 
 class Judge:
