@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kanban-karte"
+version = "0.0.1"
+description = "看板カルテ: 看板1基=1行の看板管理台帳(Built with Claude: Japan 2026)"
+requires-python = ">=3.12"
+dependencies = ["anthropic==2.3.0", "numpy==2.5.4", "pillow==12.3.0", "pypdf==6.21.4"]
+
+[project.scripts]
+kanban-karte = "kanban_karte.cli:main"
+
+[tool.setuptools]
+packages = ["kanban_karte", "kanban_karte.eval", "kanban_karte.ledger", "kanban_karte.intake", "kanban_karte.legal"]
+
+[tool.setuptools.package-data]
+"kanban_karte.ledger" = ["schema.sql"]
