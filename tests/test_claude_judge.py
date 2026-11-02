@@ -368,18 +368,27 @@ class ExamplesTest(unittest.TestCase):
         self.assertTrue(all(n["pred"] is None and "従来選択" in n["why"] for _, n in sel))
         self.assertEqual(cj.select_boundary_examples(pool, "paper_scan", pred), [])
 
-    def test_judge_boundary(self):
+    def test_judge_boundary_and_scale(self):
         pool, pred = self._bpool()
         with self.assertRaises(ValueError):
             ClaudeJudge(client=FakeClient(['{"rank": 2}']), example_select="boundary")
         j = ClaudeJudge(client=FakeClient(['{"rank": 2}']), example_select="boundary", example_pred=pred,
-                        example_mix=[1, 2])
+                        example_scale=True, example_mix=[1, 2])
         self.assertEqual(j.n_examples, 6)
         j.set_example_pool(pool)
         text = " ".join(b.get("text", "") for b in j.example_blocks("xlsx_center"))
+        self.assertEqual(text.count("この様式では、写真に写る程度の"), 6)
+        self.assertIn("有資格者の判定= 1(この様式では、写真に写る程度の②腐食は 1 と判定する)", text)
         self.assertNotIn("AI 予測", text)
         self.assertNotIn("秘密の看板", text)
         self.assertEqual(len(j.example_notes["xlsx_center"]), 6)
+
+    def test_scale_line_without_items(self):
+        it = self._item("xlsx_center", 3, "example", "s")
+        it.item_judgments_true = None
+        self.assertEqual(cj.example_scale_text(it),
+                         "有資格者の判定= 3(この様式では、写真に写る程度の看板全体の状態は 3 と判定する)")
+        self.assertNotIn("この様式では", cj.example_answer_text(it))
 
     def test_blocks_cached_hidden_names_and_photo_cap(self):
         j = ClaudeJudge(client=FakeClient(['{"rank": 2}']), examples=6)

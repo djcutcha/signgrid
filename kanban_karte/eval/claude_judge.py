@@ -389,7 +389,15 @@ def example_why_text(it: EvalItem) -> str:
             f"看板全体の評価でランク {it.rank_true}")
 
 
-def example_answer_text(it: EvalItem, why: bool = False) -> str:
+def example_scale_text(it: EvalItem) -> str:
+    """物差しを明示する 1 行。様式の項目名だけ(現場名・店名は出さない)。"""
+    y = it.rank_true
+    names = [k for k, v in (it.item_judgments_true or {}).items() if v == y]
+    what = "・".join(names) if names else "看板全体の状態"
+    return f"有資格者の判定= {y}(この様式では、写真に写る程度の{what}は {y} と判定する)"
+
+
+def example_answer_text(it: EvalItem, why: bool = False, scale: bool = False) -> str:
     L = [f"有資格者の判定: ランク {it.rank_true}({RANK_NAME[it.rank_true]})"]
     if it.item_judgments_true:
         L.append("項目の判定: " + "、".join(f"{k}={v}" for k, v in it.item_judgments_true.items())
@@ -398,6 +406,8 @@ def example_answer_text(it: EvalItem, why: bool = False) -> str:
         L.append("項目の判定: なし(この様式は看板全体のランクだけ)")
     if why:
         L.append(example_why_text(it))
+    if scale:
+        L.append(example_scale_text(it))
     return "\n".join(L)
 
 
@@ -427,7 +437,7 @@ class ClaudeJudge(Judge):
                  effort: str | None = None, client=None, examples: int = 0, example_seed: int = 0,
                  guard: bool = False, rubric: bool = False,
                  example_mix: list[int] | None = None, example_why: bool = False,
-                 example_select: str = "rank", example_pred: dict | None = None,
+                 example_select: str = "rank", example_pred: dict | None = None, example_scale: bool = False,
                  rules: list[str] | None = None):
         self.model = model
         self.max_photos = max_photos
@@ -436,6 +446,7 @@ class ClaudeJudge(Judge):
         self.example_mix = list(example_mix) if example_mix else None  # 指定時は examples を無視
         self.n_examples = len(self.example_mix) if self.example_mix else max(0, min(examples, EXAMPLE_MAX))
         self.example_why = example_why
+        self.example_scale = example_scale
         if example_select not in ("rank", "boundary"):
             raise ValueError(f"unknown example_select: {example_select}")
         if example_select == "boundary":
@@ -509,7 +520,7 @@ class ClaudeJudge(Judge):
                     blocks.append({"type": "text", "text": f"例{k} 写真{j}"})
                     blocks.append({"type": "image", "source": {
                         "type": "base64", "media_type": "image/jpeg", "data": prepare_image(pth)}})
-                blocks.append({"type": "text", "text": example_answer_text(ex, self.example_why)})
+                blocks.append({"type": "text", "text": example_answer_text(ex, self.example_why, self.example_scale)})
             blocks.append({"type": "text", "text": "【判定例ここまで。以下が判定対象の看板です】",
                            "cache_control": {"type": "ephemeral"}})
             self._example_blocks[source] = blocks
@@ -539,7 +550,7 @@ class ClaudeJudge(Judge):
             for pth in spread(ex.photo_paths, EXAMPLE_PHOTOS):
                 ex_img += estimate_image_tokens(pth)
                 ex_text += 8
-            ex_text += len(example_answer_text(ex, self.example_why)) + 20
+            ex_text += len(example_answer_text(ex, self.example_why, self.example_scale)) + 20
         text += sum(len(b["text"]) for b in rules_block(self.rules))
         return {"photos": len(photos), "image_tokens": img, "text_tokens": text,
                 "example_image_tokens": ex_img, "example_text_tokens": ex_text,

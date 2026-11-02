@@ -195,6 +195,7 @@ def judge_config(judge, sources) -> dict:
     n = getattr(judge, "n_examples", 0)
     return {"examples": n, "example_mix": getattr(judge, "example_mix", None),
             "example_why": bool(getattr(judge, "example_why", False)),
+            "example_scale": bool(getattr(judge, "example_scale", False)),
             "example_select": getattr(judge, "example_select", "rank"),
             "example_notes": getattr(judge, "example_notes", {}) if n else {}, "guard": bool(getattr(judge, "guard", False)),
             "rubric": bool(getattr(judge, "rubric", False)), "rules": list(getattr(judge, "rules", [])),
@@ -286,6 +287,8 @@ def log_row(r: dict, note: str = "", max_photos: int | None = None) -> str:
             cond += "(理由行つき)"
         if (r.get("config") or {}).get("example_select") == "boundary":
             cond += "(境界例示)"
+        if (r.get("config") or {}).get("example_scale"):
+            cond += "(物差し行つき)"
         if (r.get("config") or {}).get("guard"):
             cond += " / 見逃し対策"
         if (r.get("config") or {}).get("rubric"):
@@ -349,6 +352,8 @@ def main(argv=None) -> int:
                         "AI の予測と正解がずれた看板を優先(6 基固定。--examples / --example-mix は無視)")
     g.add_argument("--example-pred", default=None, metavar="JSON",
                    help="--example-select boundary 用。例示側(split=example)を判定した結果 JSON(runs/…)")
+    g.add_argument("--example-scale", action="store_true",
+                   help="各例示に「有資格者の判定= y(この様式では、写真に写る程度の<項目名>は y と判定する)」の 1 行を付ける")
     g.add_argument("--guard", action="store_true",
                    help="見逃し対策の指示を足し、項目ごとに evidence と needs_onsite(写真では判定できない= 判断できず)を出させる")
     g.add_argument("--rubric", action="store_true",
@@ -361,7 +366,7 @@ def main(argv=None) -> int:
     opts = {}
     if a.judge == "claude":
         opts = {"max_photos": a.max_photos, "workers": a.workers, "effort": a.effort, "examples": a.examples, "guard": a.guard, "rubric": a.rubric,
-                "example_why": a.example_why}
+                "example_why": a.example_why, "example_scale": a.example_scale}
         if a.example_select == "boundary":
             if not a.example_pred or not Path(a.example_pred).exists():
                 ap.error("--example-select boundary には存在する --example-pred が要ります")
@@ -386,7 +391,7 @@ def main(argv=None) -> int:
                 ap.error(f"台帳がありません: {a.rules_from_db}")
             with Ledger(a.rules_from_db) as lg:
                 opts["rules"] = lg.recent_rules(RULES_MAX)
-    elif a.examples or a.guard or a.rubric or a.example_mix or a.example_why or a.rules_from_db or a.example_select != "rank" or a.example_pred:
+    elif a.examples or a.guard or a.rubric or a.example_mix or a.example_why or a.rules_from_db or a.example_select != "rank" or a.example_pred or a.example_scale:
         ap.error("--examples / --example-mix / --example-why / --guard / --rubric / --rules-from-db は --judge claude のときだけ使えます")
     elif a.dry_run:
         ap.error("--dry-run は --judge claude のときだけ使えます")
