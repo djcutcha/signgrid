@@ -101,6 +101,15 @@ class GuardFormatTest(unittest.TestCase):
         self.assertIn("判定例", cj.system_prompt(6, True))
         self.assertNotIn("evidence", cj.system_prompt(6, False))
 
+    def test_rubric_prompt(self):
+        r = cj.system_prompt(0, False, True)
+        for w in ("a(1)", "d(4)", "アンカーボルト", "ビス", "配線", "退色"):
+            self.assertIn(w, r)
+        self.assertEqual(cj.system_prompt(0, False, False), cj.SYSTEM_PROMPT)
+        self.assertNotIn("評価基準", cj.system_prompt(6, True))
+        self.assertLess(cj.system_prompt(6, True, True).index("評価基準"),
+                        cj.system_prompt(6, True, True).index("見逃し対策"))
+
     def test_judge_guard_records_notes(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)

@@ -73,16 +73,34 @@ FORMAT_V2 = """出力は JSON オブジェクト1つだけにしてください�
 - needs_onsite: 写真では判定できない項目(裏側・内部・寸法や締付けの実測が要る、写っていない、対象外)は true にし、rank は null にします。写真で判定できる項目は false です。
 - 項目一覧がないときは items を {} にし、根拠(どの写真の何を見たか)は reasons に書いてください。"""
 
+# 点検の評価基準(ある客先の基準の要点。出典は eval/nas 側の rubric.md。顧客名は書かない)。
+# a〜d は上の 1〜4 に対応させる目安。見本写真は送っていない(文字だけ)。
+RUBRIC_TEXT = """評価基準(点検の判定の目安): 評価は a〜d の4段階で、1〜4 に対応します(a=1, b=2, c=3, d=4)。
+a(1) 良好: 問題なし。補修・改修は不要。
+b(2) 錆・腐食・劣化・剥離が小: 次回点検時に判断する。小規模補修程度。
+c(3) 錆・腐食・劣化・剥離が中: 次回点検時までに是正を検討する。錆止め・塗装・補修が要る程度。
+d(4) 破損や、錆・腐食・劣化・剥離が大: 至急交換が必要。危険・要改修・要撤去。
+部位ごとの見るところ:
+- 主要構造の鉄骨(ポール・柱、基部シール、梁・胴縁、本体鉄骨、ブラケット、タラップ): 変形・歪み・錆・腐食・亀裂・傾斜・損傷。アンカーボルト・ナットは緩みも。柱部材の接続部や内部まで錆が侵食している状態は重い。
+- 基礎・根巻部(基礎底盤、根巻コンクリート、取付ボルト): 沈下・傾斜・亀裂・損傷・歪み。取付ボルトは錆・腐食・緩み。
+- 看板本体部: 板面は破損・変形・劣化・錆・腐食(ひび・割れ・面板はずれ・歪みも)。ビスは変形・錆・腐食・緩みで、表面の汚れ・錆なら軽く、ビスが抜け落ちている・内部で折れているなら重い。外装材(側面)は劣化・退色・剥離。底板は変形・錆・脱落。額縁は変形・錆・亀裂・損傷。
+- 電気設備: ランプは全点灯が a、一部不点灯が b〜c、全不点灯が d。配線は、ほこりはあるが処理に問題なしが b、キズ・劣化が見えるのが c、皮膜が破れて危険な状態(交換)が d。アーム・トランス・安定器・タイマー・分電盤は破損・変形・劣化・錆・腐食・動作不良・漏電(タイマーの動作不良は交換)。
+- 美観(意匠表示部): 表示面の汚れは b、退色・光沢劣化は c、クラック・はがれ・チョーキング・視認性低下など劣化大は d。視認性は障害物・高さ・大きさ。
+この基準は目安です。様式の項目名と、判定例があればその付け方を優先してください。"""
+
 SYSTEM_PROMPT = SYSTEM_HEAD + "\n\n" + FORMAT_V1  # ゼロショットの既定(Day1 と同じ文面)
 
 
-def system_prompt(n_examples: int = 0, guard: bool = False) -> str:
-    """ゼロショット(0, False)は SYSTEM_PROMPT と同一。guard で見逃し対策と evidence/needs_onsite の出力形式。"""
-    if not n_examples and not guard:
+def system_prompt(n_examples: int = 0, guard: bool = False, rubric: bool = False) -> str:
+    """ゼロショット(0, False, False)は SYSTEM_PROMPT と同一。
+    rubric で評価基準の要点、guard で見逃し対策と evidence/needs_onsite の出力形式を足す。"""
+    if not n_examples and not guard and not rubric:
         return SYSTEM_PROMPT
     parts = [SYSTEM_HEAD]
     if n_examples:
         parts.append(EXAMPLES_NOTE)
+    if rubric:
+        parts.append(RUBRIC_TEXT)
     if guard:
         parts.append(GUARD_TEXT)
     parts.append(FORMAT_V2 if guard else FORMAT_V1)
@@ -310,7 +328,7 @@ class ClaudeJudge(Judge):
 
     def __init__(self, model: str = DEFAULT_MODEL, max_photos: int = 6, workers: int = MAX_WORKERS,
                  effort: str | None = None, client=None, examples: int = 0, example_seed: int = 0,
-                 guard: bool = False):
+                 guard: bool = False, rubric: bool = False):
         self.model = model
         self.max_photos = max_photos
         self.workers = max(1, min(workers, MAX_WORKERS))
@@ -318,6 +336,7 @@ class ClaudeJudge(Judge):
         self.n_examples = max(0, min(examples, EXAMPLE_MAX))
         self.example_seed = example_seed
         self.guard = guard
+        self.rubric = rubric
         self._client = client
         self._example_pool: list[EvalItem] = []
         self._examples: dict[str, list[EvalItem]] = {}    # source -> 選んだ例示
@@ -335,7 +354,7 @@ class ClaudeJudge(Judge):
 
     @property
     def system(self) -> str:
-        return system_prompt(self.n_examples, self.guard)
+        return system_prompt(self.n_examples, self.guard, self.rubric)
 
     # --- 例示 ---
     def set_example_pool(self, items: list[EvalItem]) -> None:

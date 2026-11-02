@@ -171,6 +171,7 @@ def judge_config(judge, sources) -> dict:
     """結果 JSON に残す判定役の条件。例示に使った看板の sign_id も残す(どの看板を見せたかの記録)。"""
     n = getattr(judge, "n_examples", 0)
     return {"examples": n, "guard": bool(getattr(judge, "guard", False)),
+            "rubric": bool(getattr(judge, "rubric", False)),
             "examples_used": {s: [e.sign_id for e in judge.examples_for(s)] for s in sources} if n else {}}
 
 
@@ -255,6 +256,8 @@ def log_row(r: dict, note: str = "", max_photos: int | None = None) -> str:
         cond += f" / 例示{n_ex}" if n_ex else " / ゼロショット"
         if (r.get("config") or {}).get("guard"):
             cond += " / 見逃し対策"
+        if (r.get("config") or {}).get("rubric"):
+            cond += " / ルーブリック"
     if note:
         cond += f" / {note}"
     api = bool(u["signs_with_usage"])
@@ -302,16 +305,18 @@ def main(argv=None) -> int:
                    help="同じ様式の例示用(split=example)から N 基(0〜6)を判定例として先頭に置く。0 でゼロショット")
     g.add_argument("--guard", action="store_true",
                    help="見逃し対策の指示を足し、項目ごとに evidence と needs_onsite(写真では判定できない= 判断できず)を出させる")
+    g.add_argument("--rubric", action="store_true",
+                   help="評価基準(a〜d と部位ごとの判定ポイント)の要点をシステムプロンプトに入れる")
     g.add_argument("--dry-run", action="store_true", help="API を呼ばず、送る看板数・写真枚数・推定トークンだけ出す")
     a = ap.parse_args(argv)
 
     opts = {}
     if a.judge == "claude":
-        opts = {"max_photos": a.max_photos, "workers": a.workers, "effort": a.effort, "examples": a.examples, "guard": a.guard}
+        opts = {"max_photos": a.max_photos, "workers": a.workers, "effort": a.effort, "examples": a.examples, "guard": a.guard, "rubric": a.rubric}
         if a.model:
             opts["model"] = a.model
-    elif a.examples or a.guard:
-        ap.error("--examples / --guard は --judge claude のときだけ使えます")
+    elif a.examples or a.guard or a.rubric:
+        ap.error("--examples / --guard / --rubric は --judge claude のときだけ使えます")
     elif a.dry_run:
         ap.error("--dry-run は --judge claude のときだけ使えます")
     if a.append_log and a.judge == "oracle":
