@@ -170,7 +170,7 @@
     const draftNote = d.draft_rank && d.draft_rank !== d.rank ? ` (下書きは ${KK.RANK[d.draft_rank]})` : "";
     return el("section", { class: "card summary" },
       el("div", { class: "sum-top" }, el("div", {}, el("div", { class: "eyebrow", text: [d.site_name, d.id].filter(Boolean).join(" / ") }),
-        el("h1", { text: d.name || d.id }), el("div", { class: "sub", text: [d.type, d.size].filter(Boolean).join(" / ") })),
+        el("h1", { text: "カルテ" }), el("div", { class: "sign-name", text: d.name || d.id }), el("div", { class: "sub", text: [d.type, d.size].filter(Boolean).join(" / ") })),
         el("div", { class: "rank-box" }, KK.rankChip(d.rank, d.status),
           el("div", { class: "sub", text: `${KK.STATUS[d.status] || d.status}${draftNote}` }))),
       d.remark ? el("div", { class: "kv" }, el("span", { class: "k", text: "所見" }), el("span", { text: d.remark })) : null,

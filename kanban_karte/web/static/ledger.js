@@ -106,8 +106,8 @@
       : null;
     KK.setView(
       el("div", { class: "page-head" },
-        el("div", {}, el("div", { class: "eyebrow", text: "看板管理台帳(看板1基=1行)" }),
-          picker || el("h1", { text: site.name }),
+        el("div", {}, el("div", { class: "eyebrow", text: "看板管理台帳(看板1基=1行)" }), el("h1", { text: "台帳" }),
+          picker || el("div", { class: "site-name", text: site.name }),
           el("div", { class: "sub", text: [site.address, site.municipality].filter(Boolean).join(" / ") }))),
       stats(signs),
       signs.length ? table(signs) : el("p", { class: "notice", text: "この現場に看板がありません。" }),

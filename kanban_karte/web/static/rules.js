@@ -51,7 +51,7 @@
     const [rules, sites] = await Promise.all([KK.api("/api/rules"), KK.api("/api/sites")]);
     KK.setView(
       el("div", { class: "rules rules-page" },
-        el("div", { class: "page-head" }, el("div", {}, el("div", { class: "eyebrow", text: "規則と出力" }), el("h1", { text: "規則と様式の出力" }))),
+        el("div", { class: "page-head" }, el("div", {}, el("div", { class: "eyebrow", text: "規則と出力" }), el("h1", { text: "規則と出力" }))),
         el("div", { class: "two-col" },
           rulesCard(rules),
           el("section", { class: "card" }, el("h2", { text: "様式を出力" }),
