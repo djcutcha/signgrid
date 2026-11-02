@@ -378,6 +378,7 @@ def merge_duties(doc: dict, res: dict) -> dict:
     rules = doc["rules"]
     rules.pop("inspection", None)
     rules.update(res["duties"])
+    doc["citation_check"] = verify_citations(rules, load_texts(doc["ordinance_key"]))  # 全体の引用を数え直す(旧 inspection の分は外れる)
     doc["duties_extraction"] = {"model": res["usage"]["model"], "extracted_at": datetime.now(JST).isoformat(timespec="seconds"),
                                 "notes": res["extraction_notes"], "citation_check": res["citation_check"], "usage": res["usage"]}
     return doc

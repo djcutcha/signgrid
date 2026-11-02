@@ -625,8 +625,8 @@
     "禁止地域での別表第2基準は用途地域区分を特定しないため zone_labels は空"
   ],
   "citation_check": {
-    "total": 23,
-    "verified": 23
+    "total": 35,
+    "verified": 35
   },
   "usage": {
     "input_tokens": 79017,
