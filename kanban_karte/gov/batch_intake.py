@@ -258,6 +258,8 @@ CREATE INDEX IF NOT EXISTS idx_gov_photos_cand ON gov_photos(candidate_id);
 
 def ensure_gov_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(GOV_SCHEMA)
+    if "name" not in {r[1] for r in conn.execute("PRAGMA table_info(gov_batches)")}:   # スマホ投入の束の名前(あとから足した列)
+        conn.execute("ALTER TABLE gov_batches ADD COLUMN name TEXT")
     conn.commit()
 
 
