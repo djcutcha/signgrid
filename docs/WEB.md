@@ -38,6 +38,7 @@ python3 -m kanban_karte.web --db <新しいsqlite> --sample      # 見本デー�
 | `GET /api/gov/batches?today=` | 一括登録の一覧(写真数・候補数・色別件数)。gov の表が無ければ `available:false` |
 | `GET /api/gov/candidates?batch=` | 候補(位置の有無・束ねた写真数・近い台帳の看板・状態/色・期限)。赤→橙→緑→灰の順 |
 | `GET /api/gov/map.html?batch=` | `gov.map.write_map` の HTML(iframe 用) |
+| `POST /api/gov/upload` | `{photos:[{data(base64), lat?, lng?, taken_at?, position_source?}], batch_name?}`(1〜30枚・1枚12MB)→ `{batch_id, candidates, no_position, photos, skipped, position_sources, geocode_pending}`。位置で束ねて新しい束にし、写真は `gov_uploads/<束id>/` に保存。詳しくは GOV.md |
 | `POST /api/owner/estimate` | `{photos:[base64 JPEG 1〜2枚], address, target_name?, height_m?}` → `{estimate(W/H・範囲・参照物・信頼度), judgement(範囲の両端の法規の判定。height_m= 全高があれば両端に渡す)}`。鍵が無ければ 503。台帳に書かない・写真を保存しない |
 | `POST /api/owner/judge` | `{address, area_m2, height_m?}` → 法規役 `judge(use="self")` の結果。台帳には書かない |
 | `GET /api/signs/<id>` の `legal` | 看板の住所(無ければ現場)・自家用か・寸法(size の mm から面積)で `judge()`。面積が取れなければ「要実測」。全高は台帳に無いので渡さない |

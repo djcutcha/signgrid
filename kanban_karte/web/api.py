@@ -17,6 +17,7 @@ from pathlib import Path
 from ..ledger.db import Ledger, Sign
 from ..ledger.items import _ITEMS, ITEM_KEYS, RESULTS
 from ..gov.map import COLOR_NAME, COLORS, COLOR_MEANING, summarize, write_map
+from ..gov.upload import UploadError, upload as gov_upload_photos
 from ..gov.match import WARN_DAYS, load_candidates, match_candidates
 from ..dim.estimator import DimEstimateError, DimEstimator, judge_from_range
 from ..legal.locate import judge_at, place_dict
@@ -339,10 +340,18 @@ def gov_batches(ledger: Ledger, today_q: str | None = None) -> dict:
         return out
     for b in ledger.conn.execute("SELECT * FROM gov_batches ORDER BY id DESC"):
         sm = summarize(_gov_results(ledger, b["id"], today))
-        out["batches"].append({"id": b["id"], "created": b["created"], "dir": Path(b["dir"]).name,
+        out["batches"].append({"id": b["id"], "created": b["created"], "dir": Path(b["dir"]).name, "name": b["name"] if "name" in b.keys() else None,
                                "photo_count": b["n_files"], "gps_count": b["n_gps"], "nogps_count": b["n_nogps"],
                                "candidate_count": sm["total"], "by_color": sm["by_color"]})
     return out
+
+
+def gov_upload(ledger: Ledger, body: dict, store: Path, geocoder) -> dict:
+    """スマホからの投入。写真と(端末側で決めた)位置を、gov.upload が束ねて保存する。"""
+    try:
+        return gov_upload_photos(ledger.conn, body, store, geocoder)
+    except UploadError as e:
+        raise ApiError(e.status, e.message)
 
 
 def gov_candidates(ledger: Ledger, batch_id: int, today_q: str | None = None) -> dict:

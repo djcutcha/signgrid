@@ -76,6 +76,44 @@ Leaflet 1.9.4(cdnjs・SRI 付き)の静的 HTML。タイルは国土地理院タ
 台帳の看板のうち今回写っていなかった基数を出す。件数は HTML 本文に直接書いてあり、スクリプトが動かなくても読める。
 データは JSON で埋め込み、ポップアップは textContent で組むので、看板名やファイル名に HTML が入っても崩れない。
 
+## スマホからの投入(upload.py と `#/gov` の入口カード)
+
+CLI の `intake` はフォルダが要る。巡回の職員が現場で「撮る → 送る」だけで済ませる入口を、行政画面(`#/gov`)に足した。
+スマホ(幅 760px 以下)では見出しの下に全幅、PC では見出しの右上の小さなカード(件数チップ・地図・候補表の並びは変えない)。
+
+流れ:
+
+1. 「① 写真を撮る・選ぶ」(`<input type=file accept=image/* capture=environment multiple>`)。撮るたびに溜まる(最大 30 枚。「選び直す」で空にする)。
+   選んだ枚数と、写真に位置がある枚数をその場で出す。写真は端末の中で見せるだけ。
+2. 「② 送る」。端末の中で長辺 1600px の JPEG に縮め(`owner.js` の `shrink` と同じ)、`POST /api/gov/upload` に base64 で送る。
+3. サーバが 15m・10 分の規則(`batch_intake.bundle_photos`、CLI の `intake` と同じ)で位置ごとに束ね、新しい束として保存し、自治体を判定する。
+4. 画面は送った束に切り替わり、先頭に「束 id・看板の候補 n 基・位置なし n 枚・位置の出どころ」を出し、その束の件数・地図・候補表へスクロールする。
+
+API: `POST /api/gov/upload` `{photos:[{data(base64), lat?, lng?, taken_at?, position_source?("exif"|"device")}], batch_name?}`
+→ `{batch_id, candidates, no_position, photos, skipped, position_sources:{exif,device,given,none}, geocode_pending}`。
+1 回 1〜30 枚、1 枚 12MB まで(JPEG / PNG / WEBP)。本文の上限は 60MB。1枚でも不正なら全体を断り、何も保存しない(400)。
+位置が 1 枚も無くても受け付け、「位置なし」に数える。範囲外と (0,0) も位置なし。すべて取り込み済みの写真なら束は作らない(409)。
+
+保存先: 写真は `<台帳 SQLite のあるフォルダ>/gov_uploads/<束id>/NNN.jpg`(既定の台帳なら `data/private/gov_uploads/`。未追跡)。
+表は CLI の `intake` と同じ `gov_` の表(`gov_batches` に束の名前 `name` の列を足した。古い台帳には起動時に足す)。
+重複の判定は「縮めた内容 + 位置 + 撮影時刻」の hash(縮小で EXIF が落ちるので、内容だけだと別の場所の似た写真を落とすため)。
+自治体の判定は、見本(`--sample`)は同梱の `data/sample/gov/geocache.json` だけで引き、通信しない(無い地点は未判定として応答に出る)。
+実運用は国土地理院の逆ジオコーダ(キャッシュは `<台帳>.geocache.json`。CLI の `geocode` と共通)。通信できなかった束は次の送信時と `geocode` でやり直す。
+
+位置の決め方(写真ごと。どちらを使ったかは `position_sources` に残る):
+
+- (a) **写真の EXIF GPS**: 縮める前の元ファイルの先頭 64KB を端末の中で読み(JPEG の EXIF を自前で解析。外部の部品なし)、GPS と撮影時刻を取る。
+  縮小すると EXIF は落ちるので、位置は縮小とは別に送る。HEIC は読まない。
+- (b) 無ければ、送る直前に `navigator.geolocation.getCurrentPosition` で端末の位置を1回取り、位置の無い写真すべてに使う。
+  許可されない・取れない時は位置なしで送り、結果にその旨を出す。カードのチェックで外せる(既定は入り)。
+  端末のブラウザはカメラの写真に GPS を付けないことが多く(撮影アプリの設定にもよる)、実際には (b) が主になる想定。
+  **撮った場所から離れてから送ると、(b) の位置はずれる**(カードにも書いてある)。
+- 撮影時刻は EXIF、無ければファイルの更新時刻(束ねの 10 分の判定に使う)。
+
+PC との違い: 同じ画面で、投入の入口が小さなカードになるだけ。候補表は PC では表、スマホでは 1 行 1 枚のカード
+(色チップ・状態・期限と残り日数・住所と市区町村・写真の枚数・台帳との一致候補と距離)。地図はスマホで高さ 60vh。
+画面: `docs/img/gov-capture-pc.png` / `gov-capture-sp.png`(見本の写真を送った直後。`python3 tools/web_screenshots.py --only gov`)。
+
 ## 限界
 
 - **許可台帳の代用**: 本物の自治体の許可台帳は使っていない。自社の施工台帳は自社が施工した看板しか載らないため、

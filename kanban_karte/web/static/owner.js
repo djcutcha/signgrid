@@ -81,6 +81,7 @@
     c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
     return c.toDataURL("image/jpeg", 0.85).split(",")[1];
   }
+  KK.shrink = shrink;  // 行政のスマホ投入(gov.js)でも使う
 
   KK.views.owner = async function () {
     const out = el("div", { id: "owner-out" });

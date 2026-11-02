@@ -267,17 +267,44 @@ dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
 .gov-count b{font-size:22px;line-height:1.1;margin-right:6px}
 .gov-count span{font-weight:700}
 .gov-count small{display:block;font-size:11px;opacity:.92;line-height:1.35}
+/* スマホからの投入(撮る → 送る)。PC では見出しの右上の小さなカード、スマホでは見出しの下に全幅 */
+.gov-capture{width:300px;max-width:100%;padding:10px 12px;align-self:flex-start}
+.gov-capture h2{font-size:14px;margin:0 0 8px}
+.gov-capture .btn.block{padding:10px}
+.gov-capture .btn.block+input+.gov-sel{margin-top:8px}
+.gov-sel{font-size:12.5px;margin:8px 0 6px}
+.gov-thumbs{display:flex;flex-wrap:wrap;gap:4px}
+.gov-thumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border:2px solid var(--line);display:block}
+.gov-thumbs img.has-pos{border-color:#2e7d32}
+.gov-device{display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--fg2);margin:8px 0}
+.gov-device input{margin-top:2px;flex:none}
+.gov-capture .btn-row{margin-top:6px}
+.gov-capture .btn-row .btn.block{flex:1 1 auto;width:auto}
+.gov-capture .notice{margin:8px 0 0;font-size:13px}
+.gov-done b{display:block}
 .gov-map{margin-bottom:12px}
 .gov-map iframe{width:100%;height:420px;border:1px solid var(--line);border-radius:8px;display:block;background:var(--ph)}
 .gov-table td{vertical-align:top}
 .gov-table tr.cand.c-red{box-shadow:inset 4px 0 0 #c62828} .gov-table tr.cand.c-orange{box-shadow:inset 4px 0 0 #ef6c00}
 .gov-table tr.cand.c-green{box-shadow:inset 4px 0 0 #2e7d32} .gov-table tr.cand.c-gray{box-shadow:inset 4px 0 0 #757575}
 @media (max-width:760px){
+  .gov-capture{width:100%}
+  .gov-capture h2{font-size:16px}
+  .gov-capture .btn.block{padding:14px;font-size:16px}
+  .gov-thumbs img{width:56px;height:56px}
+  .gov-sel,.gov-device{font-size:13.5px}
   .gov-chips{grid-template-columns:1fr 1fr}
   .gov-count small{display:none}
-  .gov-map iframe{height:320px}
-  .gov-table .c-state{order:1;flex:1 1 100%}
-  .gov-table .c-pos,.gov-table .c-photos,.gov-table .c-sign,.gov-table .c-exp{order:2}
+  .gov-map iframe{height:60vh}
+  /* 候補表: 1行1枚のカード。上段=色チップと状態 / 期限、中段=住所と写真の枚数、下段=台帳との一致候補と距離 */
+  .gov-table tr.cand{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;align-items:start}
+  .gov-table .c-state{grid-column:1;grid-row:1}
+  .gov-table .c-exp{grid-column:2;grid-row:1;text-align:right}
+  .gov-table .c-pos{grid-column:1;grid-row:2}
+  .gov-table .c-photos{grid-column:2;grid-row:2;text-align:right;white-space:nowrap}
+  .gov-table .c-sign{grid-column:1 / -1;grid-row:3;padding-top:6px;border-top:1px solid var(--line);font-size:13.5px}
+  .gov-table .c-sign .sub{display:inline;margin-left:6px}
+  .gov-table .c-pos::before,.gov-table .c-photos::before{content:none !important}
 }
 @media (max-width:760px){
   .intake .c-kind{order:1} .intake .c-file{order:2;flex:1 1 60%} .intake .c-state{order:3} .intake .c-count{order:4}

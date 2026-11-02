@@ -3,7 +3,7 @@
   python3 tools/web_screenshots.py [--out docs/img] [--only ledger,karte,...]
 
 撮る画面: ledger(台帳)、karte(カルテ)、karte-legal(カルテの法規カード)、karte-edit(黄色のマスを直した後)、karte-confirmed(確定後)、
-rules(規則と出力)、intake(受付)、gov(行政。gov.make_sample の見本の束を入れる)、owner(オーナー。見本の寸法で「調べる」まで)、owner-saitama(同、埼玉県の住所・全高 5m)、
+rules(規則と出力)、intake(受付)、gov(行政。gov.make_sample の見本の束を入れる。続けて見本の写真をスマホ投入の入口から送った直後 = gov-capture-pc/sp)、owner(オーナー。見本の寸法で「調べる」まで)、owner-saitama(同、埼玉県の住所・全高 5m)、
 owner-estimate(オーナーの「寸法を推定」後。推定役は固定値の見本で、API は呼ばない)。
 karte-edit 以降は台帳を書き換えるので、一時の台帳でだけ行う(見本の JSON は変わらない)。
 guide = ガイド付き点検(docs/LINE.md)で作った看板のカルテ(guide-karte-pc/sp)。模擬 webhook で見本の台本を一周する。`--only guide` のときだけ撮る。
@@ -116,6 +116,28 @@ def run(page, base, out, tag, only, db=None):
         page.wait_for_timeout(2500)  # 地図(Leaflet・地理院タイル)の読み込み待ち
         page.evaluate("window.scrollTo(0, 0)")
         page.screenshot(path=str(out / f"gov-{tag}.png"), full_page=True)
+        # スマホからの投入: 見本の写真(GPS 入り9枚 + GPS なし1枚)を選んで送った直後の画面。GPS なしの1枚は端末の位置(許可つきの偽の測位)で送る
+        page.context.grant_permissions(["geolocation"])
+        page.context.set_geolocation({"latitude": 35.8910, "longitude": 139.7908})
+        page.goto(f"{base}/#/gov?today=2026-11-02")
+        page.wait_for_selector("#gov-photo", state="attached")
+        photos = sorted(str(p) for p in (Path(db).parent / "gov" / "photos").glob("*.jpg"))
+        page.set_input_files("#gov-photo", photos)
+        page.wait_for_function("document.querySelector('.gov-sel').textContent.startsWith('%d 枚')" % len(photos))
+        page.screenshot(path=str(out / f"gov-capture-select-{tag}.png"), full_page=False)
+        page.click(".gov-capture button:has-text('送る')")
+        page.wait_for_selector(".gov-done", timeout=20000)
+        page.locator(".gov-map iframe").scroll_into_view_if_needed()  # 遅延読み込みの地図を出す
+        page.frame_locator(".gov-map iframe").locator(".leaflet-tile-loaded").first.wait_for(timeout=15000)
+        page.wait_for_timeout(1500)  # 地図の読み込み待ち
+        page.screenshot(path=str(out / f"gov-capture-map-{tag}.png"))  # 地図が見える位置の画面
+        # 全面撮りだと地図(iframe)が灰色になるので、地図の高さ(60vh)を固定してから、画面の高さを全体に伸ばして1枚で撮る
+        page.add_style_tag(content=".gov-map iframe{height:%dpx !important}" % (VIEWPORTS[tag]["height"] * 6 // 10))
+        page.evaluate("window.scrollTo(0, 0)")
+        page.set_viewport_size({"width": VIEWPORTS[tag]["width"], "height": page.evaluate("document.documentElement.scrollHeight")})
+        page.wait_for_timeout(2500)
+        page.screenshot(path=str(out / f"gov-capture-{tag}.png"))
+        print(out / f"gov-capture-{tag}.png")
     if want("owner"):
         page.goto(f"{base}/#/owner")
         page.wait_for_selector("main .owner")

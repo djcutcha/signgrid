@@ -21,6 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit, parse_qs
 
+from ..gov.geocode import Geocoder
 from ..ledger.db import Ledger
 from ..legal.locate import SamplePlacer, make_placer
 from . import api
@@ -29,6 +30,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 STATIC = Path(__file__).with_name("static")
 SAMPLE_JSON = REPO_ROOT / "data" / "sample" / "ledger.json"
 MAX_BODY = 30_000_000
+MAX_UPLOAD_BODY = 60_000_000    # 行政のスマホ投入は 1回 30枚(縮小済みでも 1枚 0.5〜1MB)
 MEDIA_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",
                ".gif": "image/gif"}
 
@@ -45,13 +47,23 @@ class App:
     """サーバの設定。リクエストごとに台帳を開く(SQLite の接続はスレッドを渡さない)。"""
 
     def __init__(self, db: str | Path, data_dir: str | Path, sample: bool = False, judge_factory=None,
-                 estimator_factory=None, placer=None, clarifier=None):
+                 estimator_factory=None, placer=None, clarifier=None, geocoder=None, gov_store=None):
         self.db, self.data_dir, self.sample, self.judge_factory = Path(db), Path(data_dir), sample, judge_factory
         self.estimator_factory = estimator_factory
         self.clarifier = clarifier  # 聞き返し役。None なら見本・鍵なしは固定文、鍵があれば Sonnet(リクエストごとに作る)
         # 用途地域を引く部品。起動時に1回だけ作って共有する。見本データは通信も GIS 読み込みもしない(固定の商業地域)
         self.placer = SamplePlacer() if sample and placer is None else placer
+        # 行政のスマホ投入: 逆ジオコーダと写真の置き場。見本は同梱の geocache だけで引く(通信しない)
+        self.gov_store = Path(gov_store) if gov_store else self.db.parent / "gov_uploads"
+        self.geocoder = geocoder if geocoder is not None else self._default_geocoder()
         self.verbose = False
+
+    def _default_geocoder(self) -> Geocoder:
+        if self.sample:
+            def offline(lat, lng):
+                raise OSError("見本は通信しない")
+            return Geocoder(SAMPLE_JSON.parent / "gov" / "geocache.json", fetch=offline)
+        return Geocoder(str(self.db) + ".geocache.json")   # gov.cli の既定と同じキャッシュ
 
     def ledger(self) -> Ledger:
         return Ledger(self.db, data_dir=self.data_dir)
@@ -163,7 +175,7 @@ def make_handler(app: App):
                 return self._error(415, "Content-Type は application/json")
             try:
                 n = int(self.headers.get("Content-Length") or 0)
-                if n > MAX_BODY:
+                if n > (MAX_UPLOAD_BODY if path == "/api/gov/upload" else MAX_BODY):
                     return self._error(413, "本文が大きすぎます")
                 body = json.loads(self.rfile.read(n) or b"{}")
                 if not isinstance(body, dict):
@@ -178,6 +190,8 @@ def make_handler(app: App):
                 if path == "/api/owner/estimate":  # 台帳を開かない・書かない。写真は保存しない
                     return self._json(api.owner_estimate(body, app.estimator_factory, app.placer))
                 with app.ledger() as ledger:
+                    if path == "/api/gov/upload":
+                        return self._json(api.gov_upload(ledger, body, app.gov_store, app.geocoder))
                     m = SIGN_HEIGHT.match(path)
                     if m:
                         return self._json(api.set_height(ledger, m[1], body, app.placer))
