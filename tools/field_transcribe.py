@@ -17,12 +17,14 @@ from __future__ import annotations
 
 import argparse
 import base64
+import difflib
 import io
 import json
 import random
 import re
 import sys
 import time
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -185,8 +187,16 @@ def latest(recs: list[dict]) -> dict[tuple[str, int], dict]:
 # ---------- 照合 ----------
 
 def _norm(s: str) -> str:
-    s = re.sub(r"[((].*?[))]", "", s or "")
-    return re.sub(r"[\s\d.．、。・:：]+", "", s)
+    s = unicodedata.normalize("NFKC", s or "")
+    s = re.sub(r"\(.*?\)", "", s)
+    return re.sub(r"[\s\d.、。・:/／]+", "", s)
+
+
+def _no(rec: dict):
+    """看板番号の比較用: 丸数字の整数と「他N」を同じ数字に揃える(様式の種別は別に比べる)。"""
+    n = rec.get("item_no")
+    m = re.search(r"\d+", unicodedata.normalize("NFKC", str(n))) if n is not None else None
+    return int(m.group()) if m else None
 
 
 def cell_map(rec: dict) -> dict[str, str]:
@@ -218,9 +228,17 @@ def compare(a: dict, b: dict) -> dict:
     letters = ("D", "C", "B", "A")
     marked = {k for k in keys if ca.get(k) in letters or cb.get(k) in letters}  # どちらかが D/C/B/A のセル
     marked_diff = [d for d in diffs if d["cell"] in marked]
+    # 行の割り方・点検内容の書き方が違っても判定そのものは同じ、を見るため、D/C/B/A の並び(頁の上から順)も比べる
+    la = [r["judgment"] for r in a.get("rows") or [] if r["judgment"] in letters]
+    lb = [r["judgment"] for r in b.get("rows") or [] if r["judgment"] in letters]
+    seq = sum(m.size for m in difflib.SequenceMatcher(None, la, lb, autojunk=False).get_matching_blocks())
+    rank = {"D": 1, "C": 2, "B": 3, "A": 4}
+    wa = max((rank[x] for x in la), default=None)
+    wb = max((rank[x] for x in lb), default=None)
     return {"cells": len(keys), "cells_match": len(keys) - len(diffs), "marked_cells": len(marked),
             "marked_match": len(marked) - len(marked_diff), "diffs": diffs,
-            "item_no_match": a.get("item_no") == b.get("item_no"), "kind_match": a.get("sheet_kind") == b.get("sheet_kind")}
+            "seq_letters": max(len(la), len(lb)), "seq_match": seq, "worst_match": wa == wb,
+            "item_no_match": _no(a) == _no(b), "kind_match": a.get("sheet_kind") == b.get("sheet_kind")}
 
 
 def verify(raw: Path, out: Path, seed: int = 0) -> dict:
@@ -228,7 +246,7 @@ def verify(raw: Path, out: Path, seed: int = 0) -> dict:
     pages = pick_verify(recs, seed)
     stat = run(raw, out, OPUS, pages, "pages_opus.jsonl")
     opus = latest(read_jsonl(out / "pages_opus.jsonl"))
-    per, tot = [], {"cells": 0, "cells_match": 0, "marked_cells": 0, "marked_match": 0, "item_no": 0, "kind": 0, "n": 0}
+    per, tot = [], {"cells": 0, "cells_match": 0, "marked_cells": 0, "marked_match": 0, "seq_letters": 0, "seq_match": 0, "worst": 0, "item_no": 0, "kind": 0, "n": 0}
     for k in pages:
         if k not in opus:
             continue
@@ -238,12 +256,15 @@ def verify(raw: Path, out: Path, seed: int = 0) -> dict:
         tot["n"] += 1
         tot["item_no"] += c["item_no_match"]
         tot["kind"] += c["kind_match"]
-        for f in ("cells", "cells_match", "marked_cells", "marked_match"):
+        tot["worst"] += c["worst_match"]
+        for f in ("cells", "cells_match", "marked_cells", "marked_match", "seq_letters", "seq_match"):
             tot[f] += c[f]
     cost_opus = sum((r.get("usage") or {}).get("cost_usd") or 0 for r in read_jsonl(out / "pages_opus.jsonl"))
     res = {"pages": tot["n"], "strata": VERIFY_N, "seed": seed, "totals": tot,
            "cell_match_rate": tot["cells_match"] / tot["cells"] if tot["cells"] else None,
            "marked_cell_match_rate": tot["marked_match"] / tot["marked_cells"] if tot["marked_cells"] else None,
+           "letter_seq_match_rate": tot["seq_match"] / tot["seq_letters"] if tot["seq_letters"] else None,
+           "page_worst_match_rate": tot["worst"] / tot["n"] if tot["n"] else None,
            "item_no_match_rate": tot["item_no"] / tot["n"] if tot["n"] else None,
            "opus_run": stat, "opus_cost_usd": round(cost_opus, 3), "per_page": per}
     (out / "verify.json").write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
