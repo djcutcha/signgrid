@@ -81,7 +81,8 @@ def _correction(r, labels: dict[str, str]) -> dict:
 
 
 LEGAL_KEYS = ("permit_required", "inspection_required", "permit_term_years", "is_self_use_exempt", "municipality",
-              "ordinance_key", "citations", "notes", "confidence")
+              "ordinance_key", "citations", "notes", "confidence",
+              "maintenance_duty", "inspection_duty", "inspection_interval_years", "qualified_inspector", "report_duty", "duties")
 
 
 def sign_area_m2(s: Sign) -> float | None:

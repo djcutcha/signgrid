@@ -210,8 +210,21 @@ def judge_from_range(estimate: DimEstimate, address: str | None, judge=legal.jud
     if lo.permit_required != hi.permit_required:
         notes.append(f"推定の範囲の両端で結論が分かれる(小さい側 {area_low} ㎡: 許可{lo.permit_required}、"
                      f"大きい側 {area_high} ㎡: 許可{hi.permit_required})。実測が要る")
+    duties = {}
+    for k, e in lo.duties.items():
+        h = hi.duties.get(k)
+        if h is not None and h["value"] == e["value"]:
+            duties[k] = e
+        else:  # 範囲の両端で結論が分かれる -> 要実測(根拠の条文は小さい側のものを残す)
+            duties[k] = {**e, "value": legal.NEEDS_MEASURE, "reason": "推定の範囲の両端で結論が分かれる",
+                         "text": "要実測(推定の範囲の両端で結論が分かれる)"}
     return {"permit": permit, "area_low": area_low, "area_high": area_high, "area_mid": area_mid,
             "inspection_required": same(lo.inspection_required, hi.inspection_required),
+            "maintenance_duty": same(lo.maintenance_duty, hi.maintenance_duty),
+            "inspection_duty": same(lo.inspection_duty, hi.inspection_duty),
+            "inspection_interval_years": lo.inspection_interval_years if lo.inspection_interval_years == hi.inspection_interval_years else None,
+            "qualified_inspector": same(lo.qualified_inspector, hi.qualified_inspector),
+            "report_duty": same(lo.report_duty, hi.report_duty), "duties": duties,
             "is_self_use_exempt": lo.is_self_use_exempt if lo.is_self_use_exempt == hi.is_self_use_exempt else None,
             "permit_term_years": hi.permit_term_years, "ordinance_key": lo.ordinance_key or hi.ordinance_key,
             "municipality": lo.municipality or hi.municipality, "citations": cites, "notes": notes,

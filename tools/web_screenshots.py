@@ -3,7 +3,7 @@
   python3 tools/web_screenshots.py [--out docs/img] [--only ledger,karte,...]
 
 撮る画面: ledger(台帳)、karte(カルテ)、karte-legal(カルテの法規カード)、karte-edit(黄色のマスを直した後)、karte-confirmed(確定後)、
-rules(規則と出力)、intake(受付)、gov(行政。gov.make_sample の見本の束を入れる)、owner(オーナー。見本の寸法で「調べる」まで)、
+rules(規則と出力)、intake(受付)、gov(行政。gov.make_sample の見本の束を入れる)、owner(オーナー。見本の寸法で「調べる」まで)、owner-saitama(同、埼玉県の住所・全高 5m)、
 owner-estimate(オーナーの「寸法を推定」後。推定役は固定値の見本で、API は呼ばない)。
 karte-edit 以降は台帳を書き換えるので、一時の台帳でだけ行う(見本の JSON は変わらない)。
 """
@@ -99,6 +99,19 @@ def run(page, base, out, tag, only):
         page.evaluate("window.scrollTo(0, 0)")
         page.screenshot(path=str(out / f"owner-{tag}.png"), full_page=True)
         print(out / f"owner-{tag}.png")
+    if want("owner-saitama"):  # 許可不要の自家用でも点検の義務がある条例(埼玉県)。全高 5m で有資格者は努力義務
+        page.goto(f"{base}/#/owner")
+        page.wait_for_selector("main .owner")
+        page.fill("#owner-address", "埼玉県さいたま市大宮区桜木町1-1-1")
+        page.fill("#owner-w", "1.95")
+        page.fill("#owner-h", "0.6")
+        page.fill("#owner-height", "5")
+        page.click("button:has-text('調べる')")
+        page.wait_for_selector(".owner-result .cites li")
+        page.wait_for_timeout(600)
+        page.evaluate("window.scrollTo(0, 0)")
+        page.screenshot(path=str(out / f"owner-saitama-{tag}.png"), full_page=True)
+        print(out / f"owner-saitama-{tag}.png")
     if want("owner-estimate"):
         page.goto(f"{base}/#/owner")
         page.wait_for_selector("main .owner")

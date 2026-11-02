@@ -124,6 +124,13 @@
       el("p", { class: "sub", text: d.height_m ? "高さの基準がある条例では、この値で判定します。" : "未入力。高さの基準がある条例では、全高が分からないと「要実測」になります。" }), msg);
   }
 
+  // 点検まわりの4つの義務(法規役の duties の文言のまま)。旧形式の規則のときは旧『点検』の値だけ
+  function dutyKv(L) {
+    const es = KK.dutyEntries(L.duties);
+    if (!es.length) return [el("span", { class: "k", text: "点検" }), el("span", {}, `点検の義務 ${L.inspection_required}(旧形式の規則。再抽出が要る)`)];
+    return es.flatMap((e) => [el("span", { class: "k", text: e.title }), el("span", {}, e.text)]);
+  }
+
   function legalCard(d, state, rerender) {
     const kv = (k, v) => [el("span", { class: "k", text: k }), el("span", {}, v)];
     const L = d.legal || {};
@@ -134,7 +141,9 @@
           : L.is_self_use_exempt ? `自家用の許可不要の基準に収まる${L.area_m2 ? `(${L.area_m2} ㎡)` : ""}` : "自家用の基準を超える、または自家用でない"),
         KK.placeText(L.place) ? kv("用途地域", KK.placeText(L.place)) : null,
         kv("許可", KK.permitChip(L.permit_required)),
-        kv("期限・点検", [term, `点検の義務 ${L.inspection_required}`].filter(Boolean).join(" / "))),
+        term ? kv("期限", term) : null,
+        ...dutyKv(L)),
+      el("p", { class: "sub", text: "管理・点検・有資格者・行政への報告は別の義務です。条例ごとに掛かり方が違い、許可が不要でも義務がある場合があります。" }),
       el("h3", { text: `根拠条文 ${(L.citations || []).length} 件${L.ordinance_key ? `(${L.ordinance_key}の条例)` : ""}` }),
       KK.citations(L.citations),
       (L.notes || []).length ? el("ul", { class: "legal-notes" }, L.notes.map((n) => el("li", { class: "sub", text: n }))) : null,

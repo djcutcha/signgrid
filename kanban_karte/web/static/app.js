@@ -155,3 +155,10 @@ KK.start = async function () {
   window.addEventListener("hashchange", KK.route);
   KK.route();
 };
+
+// 点検まわりの4つの義務(管理 / 点検 / 有資格者 / 行政への報告)。法規役の duties({title, value, text})を順に。
+// 4つは別の義務で、条例ごとに掛かり方が違う。text は法規役が条文つきで作った1行(盛らない)
+KK.DUTY_ORDER = ["maintenance", "inspection", "qualified", "report"];
+KK.dutyEntries = function (duties) {
+  return duties ? KK.DUTY_ORDER.filter((k) => duties[k]).map((k) => duties[k]) : [];
+};
