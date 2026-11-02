@@ -239,14 +239,28 @@ def _pct(x) -> str:
     return "n/a" if x is None else f"{x * 100:.1f}%"
 
 
+def _photo_miss(m: dict) -> str:
+    """「見逃し(写真可)= x/y」(区分 c を母数にした見逃し。区分が無い古い結果は "-")。"""
+    b = m.get("action_breakdown")
+    if not b:
+        return "-"
+    return f"{b['missed']['c']}/{b['counts']['c']}"
+
+
 def _metrics_block(m: dict) -> list[str]:
     it = m["items"]
+    b = m.get("action_breakdown")
     lines = [
         f"- 評価母数 n = {m['n']}(入力 {m['n_input']}、正解ランクなしで除外 {m['n_excluded_no_truth']}、"
         f"写真なしで除外 {m['n_excluded_no_photos']})",
         f"- 完全一致率 {_pct(m['exact_rate'])}({m['exact']}/{m['n']})",
         f"- ±1以内 {_pct(m['within1_rate'])}({m['within1']}/{m['n']})",
         f"- 要対応(3,4)の見逃し率 {_pct(m['miss_rate'])}({m['action_needed_missed']}/{m['action_needed_true']})",
+        *([f"- 見逃し(写真可)= {_photo_miss(m)}({_pct(b['photo_miss_rate'])})。"
+           f"要対応 {m['action_needed_true']} 基の内訳: a 内訳なし {b['counts']['a']}(見逃し {b['missed']['a']})、"
+           f"b 内訳はあるが要対応項目なし {b['counts']['b']}(見逃し {b['missed']['b']})、"
+           f"c 要対応項目あり・写真で判定できる {b['counts']['c']}(見逃し {b['missed']['c']})、"
+           f"d 要対応項目が写真不可 {b['counts']['d']}(見逃し {b['missed']['d']})"] if b else []),
         f"- 要対応の誤警報率 {_pct(m['false_alarm_rate'])}({m['false_alarm']}/{m['not_action_true']})",
         f"- 要対応の適合率 {_pct(m['action_precision'])}",
         f"- 項目一致率 {_pct(it['item_agreement_rate'])}(判断できずを不一致に数える。項目 {it['cells_correct']}/{it['cells']})、"
@@ -344,7 +358,7 @@ def log_row(r: dict, note: str = "", max_photos: int | None = None) -> str:
     cells = [
         r["created"][:10], cond, r["model"] or "-", r.get("effort") or ("API 既定" if api else "-"),
         f"{o['n']}基", _pct(o["exact_rate"]), _pct(o["within1_rate"]),
-        _pct(o["miss_rate"]), _pct(o["false_alarm_rate"]),
+        _pct(o["miss_rate"]), _photo_miss(o), _pct(o["false_alarm_rate"]),
         _pct(it["item_agreement_rate"]) if it["cells"] else "-",
         f"看板{o['no_answer']}/項目{it['cells_unanswered']}",
         f"{u['input_tokens']:,}" if api else "-",
