@@ -120,7 +120,10 @@ class SpecAndItemTest(unittest.TestCase):
             self.assertIsNone(src.page(2))
             paths = crop.crop_item(src, "1", root / "out", max_edge=400)
             self.assertEqual(len(paths), 4)
-            sizes = [Image.open(p).size for p in paths]
+            sizes = []
+            for pth in paths:
+                with Image.open(pth) as im2:
+                    sizes.append(im2.size)
             self.assertTrue(all(max(s) <= 400 for s in sizes))  # 長辺の上限で縮小
             cells = crop.cut_cells(im, dpi)
             self.assertEqual(len(cells), 4)

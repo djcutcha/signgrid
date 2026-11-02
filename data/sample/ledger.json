@@ -1,0 +1,103 @@
+{
+  "_comment": "見本データ。店名・住所・日付・判定はすべて架空(UI モックの『見本店』と同じ扱い)。写真は無地の代用画像で、自社の看板写真は後で差し替える。",
+  "sites": [
+    {
+      "id": "demo-site-1",
+      "name": "見本ストア 北見台店",
+      "address": "東京都豊島区見本町1-2-3",
+      "lat": null,
+      "lng": null,
+      "municipality": "東京都豊島区"
+    }
+  ],
+  "signs": [
+    {
+      "id": "demo-001",
+      "site_id": "demo-site-1",
+      "name": "メインサインポール",
+      "type": "自立",
+      "size_w": 1950,
+      "size_h": 600,
+      "address": "東京都豊島区見本町1-2-3",
+      "is_self_use": true,
+      "permit_required": true,
+      "permit_expires": "2027-04-30",
+      "next_inspection": "2027-01-30",
+      "rank": 3,
+      "items": {
+        "基礎部・上部構造-1": "良好",
+        "基礎部・上部構造-2": "良好",
+        "基礎部・上部構造-3": "経過観察",
+        "支持部-1": "要改善",
+        "支持部-2": "良好",
+        "取付部-1": "対象外",
+        "取付部-2": "対象外",
+        "取付部-3": "対象外",
+        "表示部-1": "良好",
+        "表示部-2": "良好",
+        "表示部-3": "経過観察",
+        "表示部-4": "経過観察",
+        "照明装置-1": "良好",
+        "照明装置-2": "良好",
+        "照明装置-3": "良好",
+        "その他-1": "対象外",
+        "その他-2": "対象外",
+        "その他-3": "対象外"
+      },
+      "remark": "支柱根元の腐食(写真3)。補修後に許可申請。表示面に退色。",
+      "photos": ["photos/plain_a.png", "photos/plain_b.png", "photos/plain_c.png", "photos/plain_d.png", "photos/plain_e.png", "photos/plain_f.png"],
+      "last_inspected": "2026-11-05",
+      "prev_rank": 1
+    },
+    {
+      "id": "demo-002",
+      "site_id": "demo-site-1",
+      "name": "壁面看板(店名ロゴ)",
+      "type": "壁面",
+      "size_w": 4200,
+      "size_h": 900,
+      "address": "東京都豊島区見本町1-2-3",
+      "is_self_use": true,
+      "permit_required": false,
+      "permit_expires": null,
+      "next_inspection": null,
+      "rank": 2,
+      "items": {
+        "取付部-1": "良好",
+        "取付部-2": "経過観察",
+        "取付部-3": "良好",
+        "表示部-1": "良好",
+        "表示部-4": "経過観察",
+        "照明装置-1": "良好"
+      },
+      "remark": "コーキングの劣化(経過観察)。",
+      "photos": ["photos/plain_b.png", "photos/plain_a.png", "photos/plain_f.png"],
+      "last_inspected": "2026-11-05",
+      "prev_rank": 2
+    },
+    {
+      "id": "demo-003",
+      "site_id": "demo-site-1",
+      "name": "駐車場入口 案内板",
+      "type": "野立て",
+      "size_w": 900,
+      "size_h": 1500,
+      "address": "東京都豊島区見本町1-2-3",
+      "is_self_use": null,
+      "permit_required": null,
+      "permit_expires": null,
+      "next_inspection": null,
+      "rank": 1,
+      "items": {
+        "基礎部・上部構造-1": "良好",
+        "基礎部・上部構造-2": "良好",
+        "表示部-1": "良好",
+        "表示部-4": "良好"
+      },
+      "remark": "",
+      "photos": ["photos/plain_c.png", "photos/plain_d.png"],
+      "last_inspected": "2026-11-05",
+      "prev_rank": 1
+    }
+  ]
+}
