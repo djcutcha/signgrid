@@ -78,7 +78,10 @@ def parse_photos(body: dict) -> list[dict]:
         if lat is not None and not valid_position(lat, lng):
             lat = lng = None    # 範囲外と (0,0) は位置なし(EXIF の扱いと同じ)
         src = x.get("position_source")
-        out.append({"bytes": b, "ext": _EXT[fmt], "sha256": hashlib.sha256(b).hexdigest(), "taken_at": _taken(x.get("taken_at")),
+        taken = _taken(x.get("taken_at"))
+        # 重複判定は「内容 + 位置 + 撮影時刻」。縮小で EXIF が落ちるので、見た目が同じでも別の場所・時刻の写真は別物として扱う
+        key = hashlib.sha256(b + f"|{lat}|{lng}|{taken}".encode()).hexdigest()
+        out.append({"bytes": b, "ext": _EXT[fmt], "sha256": key, "taken_at": taken,
                     "lat": lat, "lng": lng, "source": (src if src in POSITION_SOURCES else "given") if lat is not None else None})
     return out
 
