@@ -1,7 +1,7 @@
-# 看板カルテ / Kanban Karte
+# SignGrid(サイングリッド)/ 看板カルテ
 
-Built with Claude: Japan 2026 (2026-11-02 〜 2026-11-08) で、株式会社エフ広芸(看板製作会社)がゼロから作る作品。
-A sign-inspection ledger built from scratch during Built with Claude: Japan 2026, by a Japanese signboard maker.
+Built with Claude: Japan 2026 (2026-11-02 〜 2026-11-08) で、看板製作会社がゼロから作る作品。SignGrid は、把握されていない街の看板を台帳と地図に載せる道具。看板1基ごとの記録を「看板カルテ」と呼ぶ。
+SignGrid: a ledger and map for the signboards nobody tracks. Built from scratch during Built with Claude: Japan 2026 by a Japanese signboard maker. Each sign's record is a "karte".
 
 ## 何を作るか / What this is
 - 写真と紙の点検表から、看板1基=1行の「看板管理台帳」を作る
