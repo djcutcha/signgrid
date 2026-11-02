@@ -91,14 +91,22 @@ def _usage_total(preds) -> dict:
     }
 
 
+def _override(items: list, override: str | None) -> list:
+    """--photo-override: 索引で対応した看板の写真を原本に差し替える(対応のない看板は写真なし= 除外)。"""
+    if not override:
+        return items
+    from . import originals
+    return originals.apply_override(items, originals.read_index(override))
+
+
 def dry_run(judge, source: str, limit: int | None, split: str, seed: int,
-            config_path: str | None) -> dict:
+            config_path: str | None, override: str | None = None) -> dict:
     sources = dataset.RANKED_SOURCES if source == "all" else (source,)
     items = dataset.load_all(config_path, sources)
     if hasattr(judge, "set_example_pool"):
         judge.set_example_pool(items)
     per = {}
-    for s, pool, _, no_photos in _pools(items, sources, split, limit, seed):
+    for s, pool, _, no_photos in _pools(_override(items, override), sources, split, limit, seed):
         ests = [judge.estimate(it) for it in pool]
         per[s] = {"signs": len(pool), "signs_no_photos": no_photos,
                   "photos": sum(e["photos"] for e in ests),
@@ -157,7 +165,8 @@ def verify_summary(pairs, verifier) -> dict:
 
 
 def run(judge, judge_name: str, source: str, limit: int | None, split: str, seed: int,
-        config_path: str | None, spread: bool = False, exclude_shown: bool = False, verifier=None) -> dict:
+        config_path: str | None, spread: bool = False, exclude_shown: bool = False, verifier=None,
+        override: str | None = None) -> dict:
     sources = dataset.RANKED_SOURCES if source == "all" else (source,)
     items = dataset.load_all(config_path, sources)
     counts = dataset.summarize(items)
@@ -170,7 +179,11 @@ def run(judge, judge_name: str, source: str, limit: int | None, split: str, seed
     all_pairs, all_preds = [], []
     ex_truth_total = ex_photo_total = 0
     shown = {e.sign_id for s in sources for e in judge.examples_for(s)} if exclude_shown else None
-    for s, pool, ex_truth, ex_photo in _pools(items, sources, split, limit, seed, spread, shown):
+    override_stats = {"matched": {}, "unmatched": {}}
+    for s, pool, ex_truth, ex_photo in _pools(_override(items, override), sources, split, limit, seed,
+                                              spread, shown):
+        override_stats["matched"][s] = len(pool)
+        override_stats["unmatched"][s] = ex_photo
         preds = judge.judge_many(pool)
         if verifier:
             preds = verifier.verify_many(pool, preds)
@@ -217,6 +230,8 @@ def run(judge, judge_name: str, source: str, limit: int | None, split: str, seed
         out["verify"] = verify_summary(all_pairs, verifier)
     if hasattr(judge, "source_run"):
         out["replay_of"] = judge.source_run
+    if override:  # 原本写真で判定した。対応なしの看板は除外(母数に数えない)
+        out["config"]["photo_override"] = {"index": Path(override).name, **override_stats}
     return out
 
 
@@ -228,7 +243,8 @@ def judge_config(judge, sources) -> dict:
             "example_why": bool(getattr(judge, "example_why", False)),
             "example_scale": bool(getattr(judge, "example_scale", False)),
             "example_select": getattr(judge, "example_select", "rank"),
-            "example_notes": getattr(judge, "example_notes", {}) if n else {}, "guard": bool(getattr(judge, "guard", False)),
+            "example_notes": getattr(judge, "example_notes", {}) if n else {},
+            "max_long_edge": getattr(judge, "max_long_edge", None), "guard": bool(getattr(judge, "guard", False)),
             "rubric": bool(getattr(judge, "rubric", False)), "rules": list(getattr(judge, "rules", [])),
             "examples_used": {s: [e.sign_id for e in judge.examples_for(s)] for s in sources} if n else {},
             # 実際に使えた構成(要求した構成から、該当する例示用の看板が無いランクを省いたもの)
@@ -348,6 +364,11 @@ def log_row(r: dict, note: str = "", max_photos: int | None = None) -> str:
             cond += " / 見逃し対策"
         if (r.get("config") or {}).get("rubric"):
             cond += " / ルーブリック"
+    po = (r.get("config") or {}).get("photo_override")
+    if po:
+        cond += f" / 原本写真・対応 {sum(po['matched'].values())} 基(対応なし {sum(po['unmatched'].values())} 基は除外)"
+        if (r.get("config") or {}).get("max_long_edge"):
+            cond += f"・長辺{r['config']['max_long_edge']}px"
     if r.get("verify"):
         v = r["verify"]
         cond += (f" / 反証役 {v['model']}: 上げ{v['raised']}基(正解3以上{v['raised_correct']}、未満{v['raised_wrong']})"
@@ -390,6 +411,9 @@ def main(argv=None) -> int:
                     help="判定役に例示として見せた看板を判定の対象から外す(--split example の較正用。答えを見た看板を学習に使わない)")
     ap.add_argument("--out", default=None, help="結果 JSON のパス(省略時 runs/YYYY-MM-DD_HHMM_<judge>.json)")
     ap.add_argument("--sources-config", default=None, help="sources.toml のパス")
+    ap.add_argument("--photo-override", default=None, metavar="INDEX_TSV",
+                    help="originals.py build で作った索引。対応した看板の写真を NAS の原本に差し替えて判定する。"
+                         "対応のない看板(索引に無い物を含む)は除外し、母数に数えない")
     ap.add_argument("--append-log", action="store_true",
                     help="結果の1行を docs/EVAL.md の「日ごとの測定記録」の表に追記する(oracle は不可)")
     ap.add_argument("--log-note", default="", help="--append-log の「条件」欄に足す一言")
@@ -406,6 +430,8 @@ def main(argv=None) -> int:
     g.add_argument("--model", default=None, help="モデル ID(既定は ClaudeJudge の DEFAULT_MODEL)")
     g.add_argument("--max-photos", type=int, default=6, help="1 看板に送る写真の最大枚数(既定 6)")
     g.add_argument("--workers", type=int, default=4, help="並列数(1〜4、既定 4)")
+    g.add_argument("--max-long-edge", type=int, default=None, metavar="PX",
+                   help="判定対象の写真の長辺(既定 1280。API の上限は約 1568)。原本写真を使うとき 1568 にする")
     g.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"], default=None,
                    help="output_config.effort(省略時は API の既定)")
     g.add_argument("--examples", type=int, default=0, choices=range(0, 13), metavar="N",
@@ -461,6 +487,10 @@ def main(argv=None) -> int:
                 ap.error(str(e))
         if a.model:
             opts["model"] = a.model
+        if a.max_long_edge is not None:
+            if not 256 <= a.max_long_edge <= 1568:
+                ap.error("--max-long-edge は 256〜1568")
+            opts["max_long_edge"] = a.max_long_edge
         if a.rules_from_db:
             from ..ledger.db import Ledger
             from .claude_judge import RULES_MAX
@@ -478,6 +508,10 @@ def main(argv=None) -> int:
         ap.error("--examples / --example-mix / --example-why / --guard / --rubric / --rules-from-db は --judge claude のときだけ使えます")
     elif a.dry_run:
         ap.error("--dry-run は --judge claude のときだけ使えます")
+    if a.max_long_edge is not None and a.judge != "claude":
+        ap.error("--max-long-edge は --judge claude のときだけ使えます")
+    if a.photo_override and not Path(a.photo_override).exists():
+        ap.error(f"索引がありません: {a.photo_override}")
     if a.replay and a.judge != "replay":
         ap.error("--replay は --judge replay のときだけ使えます")
     if (a.verify or a.verifier_model or a.verifier_effort) and not (a.verify and a.judge in ("claude", "replay")):
@@ -494,12 +528,12 @@ def main(argv=None) -> int:
         verifier = Verifier(a.verifier_model or DEFAULT_VERIFIER_MODEL, a.max_photos, a.workers, a.verifier_effort)
 
     if a.dry_run:
-        print(dry_run_text(dry_run(judge, a.source, a.limit, a.split, a.seed, a.sources_config)))
+        print(dry_run_text(dry_run(judge, a.source, a.limit, a.split, a.seed, a.sources_config, a.photo_override)))
         return 0
 
     try:
         r = run(judge, a.judge, a.source, a.limit, a.split, a.seed, a.sources_config,
-                a.spread_sites, a.exclude_shown, verifier)
+                a.spread_sites, a.exclude_shown, verifier, a.photo_override)
     except RuntimeError as e:  # 鍵が無いなど
         print(f"エラー: {e}", file=sys.stderr)
         return 2

@@ -462,9 +462,10 @@ class ClaudeJudge(Judge):
                  example_mix: list[int] | None = None, example_why: bool = False,
                  example_mix_by_source: dict[str, list[int]] | None = None,
                  example_select: str = "rank", example_pred: dict | None = None, example_scale: bool = False,
-                 rules: list[str] | None = None):
+                 rules: list[str] | None = None, max_long_edge: int = MAX_LONG_EDGE):
         self.model = model
         self.max_photos = max_photos
+        self.max_long_edge = max_long_edge  # 判定対象の写真の長辺(例示の写真は既定のまま)
         self.workers = max(1, min(workers, MAX_WORKERS))
         self.effort = effort
         self.example_mix = list(example_mix) if example_mix else None  # 指定時は examples を無視
@@ -560,14 +561,15 @@ class ClaudeJudge(Judge):
         for i, p in enumerate(photos, 1):
             content.append({"type": "text", "text": f"写真{i}"})
             content.append({"type": "image", "source": {
-                "type": "base64", "media_type": "image/jpeg", "data": prepare_image(p)}})
+                "type": "base64", "media_type": "image/jpeg",
+                "data": prepare_image(p, self.max_long_edge)}})
         content.append({"type": "text", "text": build_user_text(item, len(photos))})
         return [{"role": "user", "content": content}]
 
     def estimate(self, item: EvalItem) -> dict:
         """API を呼ばずに、送る写真枚数と入力トークンを概算する(dry-run 用)。"""
         photos = self.photos_for(item)
-        img = sum(estimate_image_tokens(p) for p in photos)
+        img = sum(estimate_image_tokens(p, self.max_long_edge) for p in photos)
         text = len(self.system) + len(build_user_text(item, len(photos))) + 8 * len(photos)
         ex_img = ex_text = 0
         for ex in self.examples_for(item.source):
