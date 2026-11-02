@@ -79,8 +79,9 @@ def group_of(address: str, resolver: AddressResolver | None = None):
 
 
 @lru_cache(maxsize=4096)
-def _judge(key: str, pref: str, city: str | None, use: str, area: float | None, kind: str | None) -> str:
-    res = J.judge(municipality=Municipality(pref, city), use=use, area_m2=area, kind=kind)
+def _judge(key: str, pref: str, city: str | None, use: str, area: float | None, kind: str | None,
+           place: str | None = None) -> str:
+    res = J.judge(municipality=Municipality(pref, city), use=use, area_m2=area, kind=kind, place=place)
     return res.permit_required
 
 
@@ -98,6 +99,11 @@ class GroupStat:
     unknown_as_self: Counter = field(default_factory=Counter)  # 用途不明を自家用と仮定した判定
     use: Counter = field(default_factory=Counter)          # self / general / unknown
     detail: Counter = field(default_factory=Counter)       # 自家用/一般 × 判定
+    # --with-zoning のときだけ使う
+    zoning: Counter = field(default_factory=Counter)       # 設置場所の区分の取れ方(place.Placed.status)
+    with_place: int = 0                                    # 区分(用途地域)を judge に渡せた件数
+    base_outcome: Counter = field(default_factory=Counter)  # 区分を渡さなかった場合の内訳(区分なしの集計 = 前回の表)
+    base_unknown_as_self: Counter = field(default_factory=Counter)
 
 
 @dataclass
@@ -109,6 +115,8 @@ class Report:
     agency_signs: int = 0          # 代理店経由で屋外の看板が取れた指示書(住所未確定)
     agency_instructions: int = 0
     kinds: Counter = field(default_factory=Counter)
+    zoning_enabled: bool = False
+    precision: Counter = field(default_factory=Counter)   # 座標化できた住所検索の粒度
     generated: str = ""
 
 
@@ -121,11 +129,15 @@ FROM r_shijisyo s LEFT JOIN r_bukken b ON b.cBUKKEN = s.cSHIJISYO
 """
 
 
-def run(db_path: str | Path, agency_words: tuple[str, ...] | None = None, rows=None) -> Report:
-    """rows を渡すとそれを使う(テスト用。SQL と同じ並びのタプル)。"""
+def run(db_path: str | Path, agency_words: tuple[str, ...] | None = None, rows=None, placer=None) -> Report:
+    """rows を渡すとそれを使う(テスト用。SQL と同じ並びのタプル)。
+
+    placer(place.ZonePlacer)を渡すと、母数の各指示書の住所を座標化 → 用途地域に直し、judge の place に渡す
+    (用途地域ベースの暫定。禁止地域のうち用途地域で決まらないものは未判定)。区分を渡さない場合の内訳も base_outcome に持つ。"""
     matcher = AgencyMatcher(load_agency_words() if agency_words is None else agency_words)
     resolver = AddressResolver()
-    rep = Report(db_name=Path(str(db_path)).name, generated=datetime.now().strftime("%Y-%m-%d %H:%M"))
+    rep = Report(db_name=Path(str(db_path)).name, generated=datetime.now().strftime("%Y-%m-%d %H:%M"),
+                 zoning_enabled=placer is not None)
     con = None
     if rows is None:
         con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
@@ -157,21 +169,35 @@ def run(db_path: str | Path, agency_words: tuple[str, ...] | None = None, rows=N
         kind = JUDGE_KIND.get(e.kind)
         key = ordinance_key(muni)
         city = muni.city if muni and muni.prefecture == "埼玉県" and key == muni.city else None
+        placed = placer.place(addr, muni) if placer else None
+        if placed:
+            g.zoning[placed.status] += 1
+            g.with_place += placed.vocab is not None
+            if placed.precision and placed.status not in ("not_found", "error", "mismatch"):
+                rep.precision[placed.precision] += 1
+        place = placed.vocab if placed else None
+        use = "general" if e.use == GENERAL else "self"      # 用途不明は『仮に自家用なら』で判定する
+        r = _judge(key, muni.prefecture, city, use, e.area_m2, kind, place)
+        r0 = _judge(key, muni.prefecture, city, use, e.area_m2, kind) if placed else r   # 区分なし(前回の集計)
         if e.use == UNKNOWN:
-            r = _judge(key, muni.prefecture, city, "self", e.area_m2, kind)
             g.unknown_as_self[r] += 1
             g.outcome[USE_UNKNOWN] += 1
-        elif e.use == SELF:
-            r = _judge(key, muni.prefecture, city, "self", e.area_m2, kind)
-            g.outcome[{"不要": SELF_EXEMPT, "要": PERMIT}.get(r, MEASURE)] += 1
-            g.detail[f"自家用:{r}"] += 1
+            g.base_unknown_as_self[r0] += 1
+            g.base_outcome[USE_UNKNOWN] += 1
         else:
-            r = _judge(key, muni.prefecture, city, "general", e.area_m2, kind)
-            g.outcome[PERMIT if r == "要" else MEASURE] += 1
-            g.detail[f"一般:{r}"] += 1
+            g.outcome[_bucket(e.use, r)] += 1
+            g.base_outcome[_bucket(e.use, r0)] += 1
+            g.detail[("自家用:" if e.use == SELF else "一般:") + r] += 1
     if con:
         con.close()
     return rep
+
+
+def _bucket(use: str, r: str) -> str:
+    """用途が分かっているものの判定 -> 母数の内訳。"""
+    if use == SELF:
+        return {"不要": SELF_EXEMPT, "要": PERMIT}.get(r, MEASURE)
+    return PERMIT if r == "要" else MEASURE
 
 
 def _pct(a: int, b: int) -> str:
@@ -192,7 +218,52 @@ def totals(rep: Report) -> GroupStat:
         t.unknown_as_self.update(g.unknown_as_self)
         t.use.update(g.use)
         t.detail.update(g.detail)
+        t.zoning.update(g.zoning)
+        t.with_place += g.with_place
+        t.base_outcome.update(g.base_outcome)
+        t.base_unknown_as_self.update(g.base_unknown_as_self)
     return t
+
+
+ZONING_STATUS = (("zone", "用途地域あり"), ("outside", "用途地域の外(調整区域等)"), ("no_data", "GISにその自治体が無い"),
+                 ("not_found", "座標化できず: 住所検索に該当なし"), ("mismatch", "座標化できず: 座標が別の自治体"),
+                 ("error", "座標化できず: 通信エラー"))
+
+
+PRECISION_LABEL = {"lot": "番地・号まで", "chome": "丁目まで", "area": "町名まで"}
+
+
+def _render_zoning(rep: Report, t: GroupStat) -> list[str]:
+    L: list[str] = [""]
+    L.append("### 区分なし(前回)との差")
+    L.append("")
+    L.append("用途地域ベースの暫定。禁止地域のうち用途地域で決まらないもの(風致・景観・文教・文化財周辺 等)は未判定のため、"
+             "区分ありでも禁止区域を見落としている点がある。区分を渡せなかった指示書(下表)は区分なしと同じ判定。")
+    L.append("")
+    L.append("| 自治体 | 母数 | 自家用・許可不要 区分なし→あり | 許可要 区分なし→あり | 要実測 区分なし→あり | (不明を自家用と仮定した不要) 区分なし→あり |")
+    L.append("|---|---:|---:|---:|---:|---:|")
+    for name in (*GROUPS, "合計"):
+        g = t if name == "合計" else rep.groups.get(name, GroupStat())
+        o, b = g.outcome, g.base_outcome
+        L.append(f"| {name} | {g.base} | {b[SELF_EXEMPT]} → {o[SELF_EXEMPT]} | {b[PERMIT]} → {o[PERMIT]} | "
+                 f"{b[MEASURE]} → {o[MEASURE]} | {g.base_unknown_as_self['不要']} → {g.unknown_as_self['不要']} |")
+    L.append("")
+    L.append("### 座標化と用途地域の取れ方(母数の指示書ごと)")
+    L.append("")
+    L.append("| 自治体 | 母数 | " + " | ".join(label for _, label in ZONING_STATUS) + " |")
+    L.append("|---|---:|" + "---:|" * len(ZONING_STATUS))
+    for name in (*GROUPS, "合計"):
+        g = t if name == "合計" else rep.groups.get(name, GroupStat())
+        L.append(f"| {name} | {g.base} | " + " | ".join(str(g.zoning[k]) for k, _ in ZONING_STATUS) + " |")
+    failed = sum(t.zoning[k] for k in ("not_found", "mismatch", "error"))
+    geocoded = t.base - failed
+    L.append("")
+    L.append(f"- 座標化できた: {geocoded} / {t.base} ({_pct(geocoded, t.base)})。できなかった: {failed} 件")
+    L.append(f"- 区分(用途地域)を judge に渡せた: {t.with_place} / {t.base} ({_pct(t.with_place, t.base)})")
+    if rep.precision:
+        L.append("- 住所検索の粒度(座標化できたもの): " + "、".join(
+            f"{PRECISION_LABEL[k]} {v}" for k, v in rep.precision.most_common()))
+    return L
 
 
 def render(rep: Report) -> str:
@@ -212,16 +283,20 @@ def render(rep: Report) -> str:
     L.append(f"- 用途が不明のものを自家用と仮定すると最大: {hi} 基({_pct(hi, t.base)})")
     L.append(f"- 代理店経由で看板と取れた指示書は住所未確定: {rep.agency_signs} 件(この母数に入っていない)")
     L.append("")
-    L.append("## 自治体別")
+    z = rep.zoning_enabled
+    L.append("## 自治体別" + ("(用途地域あり。用途地域ベースの暫定)" if z else ""))
     L.append("")
-    L.append("| 自治体 | 直取引の指示書 | 母数(屋外の看板) | 寸法あり | 自家用・許可不要 | 許可要 | 要実測 | 用途不明 | (不明を自家用と仮定した不要) |")
-    L.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|")
+    L.append("| 自治体 | 直取引の指示書 | 母数(屋外の看板) | 寸法あり | 自家用・許可不要 | 許可要 | 要実測 | 用途不明 | (不明を自家用と仮定した不要) |"
+             + (" 区分あり |" if z else ""))
+    L.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|" + ("---:|" if z else ""))
     for name in (*GROUPS, "合計"):
         g = t if name == "合計" else rep.groups.get(name, GroupStat())
         o = g.outcome
         L.append(f"| {name} | {g.instructions} | {g.base} | {g.with_size} ({_pct(g.with_size, g.base)}) | "
                  f"{o[SELF_EXEMPT]} ({_pct(o[SELF_EXEMPT], g.base)}) | {o[PERMIT]} | {o[MEASURE]} | "
-                 f"{o[USE_UNKNOWN]} | {g.unknown_as_self['不要']} |")
+                 f"{o[USE_UNKNOWN]} | {g.unknown_as_self['不要']} |" + (f" {g.with_place} ({_pct(g.with_place, g.base)}) |" if z else ""))
+    if z:
+        L.extend(_render_zoning(rep, t))
     og = rep.groups.get(OTHER)
     if og:
         L.append("")
