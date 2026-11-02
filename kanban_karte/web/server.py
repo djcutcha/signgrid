@@ -35,6 +35,7 @@ MEDIA_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
 SIGN = re.compile(r"^/api/signs/([^/]+)$")
 SIGN_ACT = re.compile(r"^/api/signs/([^/]+)/(items|finalize)$")
 SIGN_HEIGHT = re.compile(r"^/api/signs/([^/]+)/height$")
+RULE_ACT = re.compile(r"^/api/rules/(\d+)/(approve|reject)$")
 BUNDLE_DRAFT = re.compile(r"^/api/bundles/(\d+)/draft$")
 OUTPUT = re.compile(r"^/api/sites/([^/]+)/output/([a-z-]+)\.xlsx$")
 
@@ -182,6 +183,11 @@ def make_handler(app: App):
                     if m:
                         fn = api.correct if m[2] == "items" else api.finalize
                         return self._json(fn(ledger, m[1], body, app.placer))
+                    m = RULE_ACT.match(path)
+                    if m:
+                        return self._json(api.rule_decide(ledger, int(m[1]), m[2], body))
+                    if path == "/api/rules/resolve":
+                        return self._json(api.rule_resolve(ledger, body))
                     m = BUNDLE_DRAFT.match(path)
                     if m:
                         return self._json(api.draft_bundle(ledger, int(m[1]), app.judge_factory))

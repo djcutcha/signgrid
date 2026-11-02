@@ -237,8 +237,41 @@ def draft_bundle(ledger: Ledger, bundle_id: int, judge_factory=None) -> dict:
 
 
 def rules(ledger: Ledger) -> list[dict]:
+    """規則と承認の状態。conflicts_with は台帳の値(新しい側にだけ積む)、conflicts は両方向・却下を除いた矛盾の相手。"""
     return [{"id": r["id"], "text": r["text"], "source": r["source"], "created": r["created"],
-             "conflicts_with": json.loads(r["conflicts_with"] or "[]")} for r in ledger.list_rules()]
+             "conflicts_with": json.loads(r["conflicts_with"] or "[]"), "conflicts": review_mod.conflict_partners(ledger, r["id"]),
+             "status": r["status"], "approved_by": r["approved_by"], "approved_at": r["approved_at"],
+             "resolution": r["resolution"]} for r in ledger.list_rules()]
+
+
+def _rule_json(ledger: Ledger, rule_id: int) -> dict:
+    return next(r for r in rules(ledger) if r["id"] == rule_id)
+
+
+def _rule_op(fn, *args):
+    try:
+        fn(*args)
+    except LookupError as e:
+        raise ApiError(404, str(e))
+    except ValueError as e:
+        raise ApiError(400 if "要ります" in str(e) or "同じ" in str(e) else 409, str(e))
+
+
+def rule_decide(ledger: Ledger, rule_id: int, action: str, body: dict) -> dict:
+    """規則の承認・却下(action = approve / reject)。by は必須。承認済みの規則と矛盾する規則は承認できない(409)。"""
+    fn = review_mod.approve_rule if action == "approve" else review_mod.reject_rule
+    _rule_op(fn, ledger, rule_id, str(body.get("by", "")), body.get("resolution"))
+    return _rule_json(ledger, rule_id)
+
+
+def rule_resolve(ledger: Ledger, body: dict) -> list[dict]:
+    """矛盾の組を1操作で解く: keep を承認、drop を却下、reason を resolution に。戻り値は2件の規則。"""
+    try:
+        keep, drop = int(body.get("keep")), int(body.get("drop"))
+    except (TypeError, ValueError):
+        raise ApiError(400, "keep と drop(規則の id)が要ります")
+    _rule_op(review_mod.resolve_conflict, ledger, keep, drop, str(body.get("by", "")), body.get("reason"))
+    return [_rule_json(ledger, keep), _rule_json(ledger, drop)]
 
 
 # ---- 行政の一括登録(gov_ の表。無い台帳では「まだありません」) ----

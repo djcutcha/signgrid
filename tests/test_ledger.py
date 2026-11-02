@@ -174,7 +174,7 @@ class RecentRulesTest(unittest.TestCase):
     def test_latest_n_oldest_first(self):
         with Ledger() as lg:
             for i in range(25):
-                lg.add_rule(f"r{i}")
+                lg.add_rule(f"r{i}", status="approved")
             self.assertEqual(lg.recent_rules(3), ["r22", "r23", "r24"])
             self.assertEqual(len(lg.recent_rules()), 20)
             self.assertEqual(lg.recent_rules()[0], "r5")

@@ -15,6 +15,7 @@ from .items import validate_items
 SCHEMA_VERSION = 2
 SCHEMA_SQL = Path(__file__).with_name("schema.sql")
 SIGN_STATUSES = ("new", "needs_photos", "draft", "confirmed")
+RULE_STATUSES = ("candidate", "approved", "rejected")
 PAGE_KINDS = ("指示書", "完成報告書", "点検表", "写真", "地図", "危険予知", "その他", "不明")
 
 
@@ -134,6 +135,12 @@ class Ledger:
                          ("confirmed_at", "TEXT"), ("confirmed_by", "TEXT"), ("height_m", "REAL")):
             if col not in sign_cols:
                 self.conn.execute(f"ALTER TABLE signs ADD COLUMN {col} {ddl}")
+        # 規則の承認の列(古い台帳に足す。ALTER の ADD COLUMN は CHECK を付けても既存行は既定値 candidate になる)
+        rule_cols = {r[1] for r in self.conn.execute("PRAGMA table_info(rules)")}
+        for col, ddl in (("status", "TEXT NOT NULL DEFAULT 'candidate' CHECK (status IN ('candidate', 'approved', 'rejected'))"),
+                         ("approved_by", "TEXT"), ("approved_at", "TEXT"), ("resolution", "TEXT")):
+            if col not in rule_cols:
+                self.conn.execute(f"ALTER TABLE rules ADD COLUMN {col} {ddl}")
         self.conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         self.conn.commit()
 
@@ -255,14 +262,33 @@ class Ledger:
             "SELECT kind, COUNT(*) n FROM pages WHERE bundle_id=? GROUP BY kind ORDER BY kind", (bundle_id,))}
 
     # ---- 規則(有資格者の訂正から育つ) ----
-    def add_rule(self, text: str, source: str | None = None, conflicts_with: list[int] | None = None) -> int:
-        cur = self.conn.execute("INSERT INTO rules(text, source, conflicts_with) VALUES (?,?,?)",
-                                (text, source, json.dumps(conflicts_with or [])))
+    def add_rule(self, text: str, source: str | None = None, conflicts_with: list[int] | None = None,
+                 status: str = "candidate") -> int:
+        if status not in RULE_STATUSES:
+            raise ValueError(f"規則の status は {RULE_STATUSES} のどれか: {status!r}")
+        cur = self.conn.execute("INSERT INTO rules(text, source, conflicts_with, status) VALUES (?,?,?,?)",
+                                (text, source, json.dumps(conflicts_with or []), status))
         self.conn.commit()
         return cur.lastrowid
 
-    def list_rules(self) -> list[sqlite3.Row]:
-        return list(self.conn.execute("SELECT * FROM rules ORDER BY id"))
+    def list_rules(self, status: str | None = None) -> list[sqlite3.Row]:
+        if status is None:
+            return list(self.conn.execute("SELECT * FROM rules ORDER BY id"))
+        return list(self.conn.execute("SELECT * FROM rules WHERE status=? ORDER BY id", (status,)))
+
+    def get_rule(self, rule_id: int) -> sqlite3.Row | None:
+        return self.conn.execute("SELECT * FROM rules WHERE id=?", (rule_id,)).fetchone()
+
+    def set_rule_status(self, rule_id: int, status: str, by: str, resolution: str | None = None, *,
+                        commit: bool = True) -> None:
+        """承認・却下を書く。resolution は None なら今の値を残す。"""
+        if status not in RULE_STATUSES:
+            raise ValueError(f"規則の status は {RULE_STATUSES} のどれか: {status!r}")
+        self.conn.execute(
+            "UPDATE rules SET status=?, approved_by=?, approved_at=datetime('now'), resolution=COALESCE(?, resolution) "
+            "WHERE id=?", (status, by, resolution, rule_id))
+        if commit:
+            self.conn.commit()
 
     # ---- 訂正(有資格者が下書きを直した記録) ----
     def add_correction(self, sign_id: str, item: str, old_value: str | None, new_value: str, by: str, *,
@@ -281,8 +307,8 @@ class Ledger:
         return list(self.conn.execute("SELECT * FROM corrections WHERE sign_id=? ORDER BY id", (sign_id,)))
 
     def recent_rules(self, n: int = 20) -> list[str]:
-        """最新 n 件の規則の文(古い順)。ClaudeJudge の set_rules に渡す。"""
-        rows = self.conn.execute("SELECT text FROM rules ORDER BY id DESC LIMIT ?", (n,)).fetchall()
+        """承認済み(approved)の最新 n 件の規則の文(古い順)。ClaudeJudge の set_rules に渡す。候補・却下は入れない。"""
+        rows = self.conn.execute("SELECT text FROM rules WHERE status='approved' ORDER BY id DESC LIMIT ?", (n,)).fetchall()
         return [r["text"] for r in reversed(rows)]
 
     # ---- JSON の読み込み(見本データ) ----

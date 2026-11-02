@@ -91,7 +91,12 @@ CREATE TABLE IF NOT EXISTS rules (
     text          TEXT NOT NULL,
     source        TEXT,                 -- 由来(どの看板・どの訂正か)
     created       TEXT NOT NULL DEFAULT (datetime('now')),
-    conflicts_with TEXT NOT NULL DEFAULT '[]'   -- JSON [矛盾する規則の id, ...]
+    conflicts_with TEXT NOT NULL DEFAULT '[]',  -- JSON [矛盾する規則の id, ...]
+    -- 承認の工程: 下書きに効くのは approved だけ(candidate は積まれただけ、rejected は却下)。古い台帳には db.py が足す
+    status        TEXT NOT NULL DEFAULT 'candidate' CHECK (status IN ('candidate', 'approved', 'rejected')),
+    approved_by   TEXT,                 -- 承認・却下した有資格者の呼び名
+    approved_at   TEXT,
+    resolution    TEXT                  -- 矛盾の解き方のメモ(どちらを残し、なぜか)
 );
 
 -- 有資格者の訂正(下書きとの差分)。1行=1回の訂正。確定後は訂正できない(pipeline/review.py)

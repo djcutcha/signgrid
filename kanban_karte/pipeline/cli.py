@@ -6,7 +6,7 @@
   python3 -m kanban_karte.pipeline.cli finalize --sign <看板ID> --by <有資格者>
   python3 -m kanban_karte.pipeline.cli changed  [--bundle <束ID>]   確定後にランクが変わった看板数
 台帳は --db(既定 data/private/ledger.sqlite、環境変数 KANBAN_KARTE_DB)。
-draft は台帳の rules の最新20件を例示の後ろに入れる(--no-rules で外す)。AI は下書きまで。確定は有資格者。
+draft は台帳の rules のうち承認済み(approved)の最新20件を例示の後ろに入れる(--no-rules で外す)。AI は下書きまで。確定は有資格者。
 """
 from __future__ import annotations
 

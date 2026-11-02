@@ -8,6 +8,7 @@
 """
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -88,8 +89,61 @@ def _add_rule(ledger: Ledger, text: str, head: str, source: str) -> int:
     for r in rules:
         if r["text"] == text:
             return r["id"]  # 同じ規則は積み直さない
-    conflicts = [r["id"] for r in rules if head and r["text"].startswith(head)]
+    conflicts = [r["id"] for r in rules if head and r["status"] != "rejected" and r["text"].startswith(head)]
     return ledger.add_rule(text, source, conflicts)
+
+
+# ---- 規則の承認(候補 → 承認/却下)。下書きに効くのは承認だけ ----
+def conflict_partners(ledger: Ledger, rule_id: int) -> list[int]:
+    """この規則と矛盾する(却下されていない)規則の id。conflicts_with は新しい側にだけ積むので、両方向を見る。"""
+    rules = {r["id"]: r for r in ledger.list_rules()}
+    out = set(json.loads(rules[rule_id]["conflicts_with"] or "[]")) if rule_id in rules else set()
+    out |= {i for i, r in rules.items() if rule_id in json.loads(r["conflicts_with"] or "[]")}
+    return sorted(i for i in out if i in rules and i != rule_id and rules[i]["status"] != "rejected")
+
+
+def _need_by(by: str | None) -> str:
+    if not by or not by.strip():
+        raise ValueError("承認・却下する人(by)が要ります")
+    return by.strip()
+
+
+def _rule(ledger: Ledger, rule_id: int):
+    r = ledger.get_rule(rule_id)
+    if r is None:
+        raise LookupError(f"規則 {rule_id} が台帳にありません")
+    return r
+
+
+def approve_rule(ledger: Ledger, rule_id: int, by: str, resolution: str | None = None) -> None:
+    """規則を承認する(以後の下書きに効く)。承認済みの規則と矛盾する間は承認できない(resolve_conflict で片方を選ぶ)。"""
+    by = _need_by(by)
+    _rule(ledger, rule_id)
+    clash = [i for i in conflict_partners(ledger, rule_id) if ledger.get_rule(i)["status"] == "approved"]
+    if clash:
+        raise ValueError(f"規則 {rule_id} は承認済みの規則 {', '.join(f'#{i}' for i in clash)} と矛盾します。"
+                         "どちらを残すかを選んでください")
+    ledger.set_rule_status(rule_id, "approved", by, resolution)
+
+
+def reject_rule(ledger: Ledger, rule_id: int, by: str, resolution: str | None = None) -> None:
+    by = _need_by(by)
+    _rule(ledger, rule_id)
+    ledger.set_rule_status(rule_id, "rejected", by, resolution)
+
+
+def resolve_conflict(ledger: Ledger, keep_id: int, drop_id: int, by: str, reason: str | None = None) -> None:
+    """矛盾する2規則のどちらを残すか。残す側を承認、他方を却下し、理由(resolution)を両方に書く。1回の書き込み。"""
+    by = _need_by(by)
+    if keep_id == drop_id:
+        raise ValueError("残す規則と却下する規則が同じです")
+    _rule(ledger, keep_id), _rule(ledger, drop_id)
+    if drop_id not in conflict_partners(ledger, keep_id) and keep_id not in conflict_partners(ledger, drop_id):
+        raise ValueError(f"規則 {keep_id} と {drop_id} は矛盾の組ではありません")
+    note = (reason or "").strip() or None
+    ledger.set_rule_status(keep_id, "approved", by, f"残した: {note}" if note else "残した", commit=False)
+    ledger.set_rule_status(drop_id, "rejected", by, f"却下: {note}" if note else f"却下(#{keep_id} を残した)", commit=False)
+    ledger.conn.commit()
 
 
 def apply_correction(ledger: Ledger, sign_id: str, item: str, new_value, by: str,
