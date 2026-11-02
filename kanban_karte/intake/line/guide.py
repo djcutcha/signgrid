@@ -244,7 +244,8 @@ class Guide:
             self._answer(user_id, st, "unknown")
 
     def _answer(self, user_id: str, st: GuideState, ans: str) -> None:
-        key = PARTS[st.part][1][st.item][0]
+        items = PARTS[st.part][1]
+        key = items[st.item][0]
         st.answers[key] = ans
         self.sink.answer(user_id, st, key, ans)
         if st.item + 1 < len(items):
