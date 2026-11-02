@@ -149,6 +149,9 @@ def run(judge, judge_name: str, source: str, limit: int | None, split: str, seed
                 rec["raw"] = pr.raw
             elif isinstance(pr.raw, dict) and pr.raw.get("reasons"):
                 rec["reasons"] = pr.raw["reasons"]
+            if isinstance(pr.raw, dict) and pr.raw.get("item_notes"):
+                rec["item_notes"] = pr.raw["item_notes"]
+                rec["needs_onsite"] = pr.raw.get("needs_onsite", 0)
             records.append(rec)
     return {
         "created": datetime.now().isoformat(timespec="seconds"),
@@ -158,6 +161,7 @@ def run(judge, judge_name: str, source: str, limit: int | None, split: str, seed
         "overall": _add_excluded(metrics.compute(all_pairs), ex_truth_total, ex_photo_total),
         "usage": _usage_total(all_preds), "usage_by_source": usage_by_source,
         "config": judge_config(judge, sources),
+        "needs_onsite_items": sum(rec.get("needs_onsite", 0) for rec in records),
         "per_source": per_source,
         "records": records,
     }
@@ -166,7 +170,7 @@ def run(judge, judge_name: str, source: str, limit: int | None, split: str, seed
 def judge_config(judge, sources) -> dict:
     """結果 JSON に残す判定役の条件。例示に使った看板の sign_id も残す(どの看板を見せたかの記録)。"""
     n = getattr(judge, "n_examples", 0)
-    return {"examples": n,
+    return {"examples": n, "guard": bool(getattr(judge, "guard", False)),
             "examples_used": {s: [e.sign_id for e in judge.examples_for(s)] for s in sources} if n else {}}
 
 
@@ -228,6 +232,9 @@ def to_markdown(r: dict, json_name: str) -> str:
               f"- 入力 {u['input_tokens']:,} トークン(うちキャッシュ書き込み {u['cache_write_tokens']:,}、"
               f"キャッシュ読み出し {u['cache_read_tokens']:,})、出力 {u['output_tokens']:,} トークン",
               "- 推定費用: " + ("不明(価格表にないモデル)" if c is None else f"${c:.2f}"), ""]
+        if (r.get("config") or {}).get("guard"):
+            L += [f"- 写真では判定できない(needs_onsite)と答えた項目: {r['needs_onsite_items']} 項目"
+                  "(「判断できず」の項目に含まれる)", ""]
     L += ["## 全体", ""] + _metrics_block(r["overall"]) + [""]
     for s, m in r["per_source"].items():
         L += [f"## {s}({SOURCE_LABEL.get(s, s)})", ""] + _metrics_block(m) + [""]
@@ -246,6 +253,8 @@ def log_row(r: dict, note: str = "", max_photos: int | None = None) -> str:
     if r["judge"] == "claude":
         n_ex = (r.get("config") or {}).get("examples", 0)
         cond += f" / 例示{n_ex}" if n_ex else " / ゼロショット"
+        if (r.get("config") or {}).get("guard"):
+            cond += " / 見逃し対策"
     if note:
         cond += f" / {note}"
     api = bool(u["signs_with_usage"])
@@ -291,16 +300,18 @@ def main(argv=None) -> int:
                    help="output_config.effort(省略時は API の既定)")
     g.add_argument("--examples", type=int, default=0, choices=range(0, 7), metavar="N",
                    help="同じ様式の例示用(split=example)から N 基(0〜6)を判定例として先頭に置く。0 でゼロショット")
+    g.add_argument("--guard", action="store_true",
+                   help="見逃し対策の指示を足し、項目ごとに evidence と needs_onsite(写真では判定できない= 判断できず)を出させる")
     g.add_argument("--dry-run", action="store_true", help="API を呼ばず、送る看板数・写真枚数・推定トークンだけ出す")
     a = ap.parse_args(argv)
 
     opts = {}
     if a.judge == "claude":
-        opts = {"max_photos": a.max_photos, "workers": a.workers, "effort": a.effort, "examples": a.examples}
+        opts = {"max_photos": a.max_photos, "workers": a.workers, "effort": a.effort, "examples": a.examples, "guard": a.guard}
         if a.model:
             opts["model"] = a.model
-    elif a.examples:
-        ap.error("--examples は --judge claude のときだけ使えます")
+    elif a.examples or a.guard:
+        ap.error("--examples / --guard は --judge claude のときだけ使えます")
     elif a.dry_run:
         ap.error("--dry-run は --judge claude のときだけ使えます")
     if a.append_log and a.judge == "oracle":

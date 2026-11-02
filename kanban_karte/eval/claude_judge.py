@@ -65,13 +65,28 @@ EXAMPLES_NOTE = """判定例: 最初のメッセージに「有資格者の過�
 FORMAT_V1 = """出力は JSON オブジェクト1つだけにしてください。前後に説明文やコードフェンスを付けないでください。形式は次のとおりです。
 {"rank": 1〜4の整数, "items": {"項目名": 1〜4の整数 または null, ...}, "reasons": ["根拠を日本語で短く", ...(最大5つ)], "confidence": 0〜1の数}"""
 
+GUARD_TEXT = """見逃し対策: 要改善(3)・即時対応(4)を見落とすことが、最も重い誤りです。腐食(錆の進行・穴・錆汁)、緊結部(ボルト・ビス・ブラケット)のゆるみや欠落、ひび・亀裂、傾き・歪みの兆候が写真にあれば、3 以上を検討し、その根拠を evidence に書いてください。ただし、写真に兆候が見えないのに「念のため」で上げることはしません(要対応でない看板を要対応と判定する誤りも測っています)。兆候の有無を写真で確かめて決めてください。"""
+
+FORMAT_V2 = """出力は JSON オブジェクト1つだけにしてください。前後に説明文やコードフェンスを付けないでください。形式は次のとおりです。
+{"rank": 1〜4の整数, "items": {"項目名": {"rank": 1〜4の整数 または null, "evidence": "どの写真の何を見たか(1文)", "needs_onsite": true または false}, ...}, "reasons": ["根拠を日本語で短く", ...(最大5つ)], "confidence": 0〜1の数}
+- evidence: 項目ごとに必ず書く。「写真2の柱の根元に赤錆が広がっている」のように、どの写真の何を見て判定したかを1文で。
+- needs_onsite: 写真では判定できない項目(裏側・内部・寸法や締付けの実測が要る、写っていない、対象外)は true にし、rank は null にします。写真で判定できる項目は false です。
+- 項目一覧がないときは items を {} にし、根拠(どの写真の何を見たか)は reasons に書いてください。"""
+
 SYSTEM_PROMPT = SYSTEM_HEAD + "\n\n" + FORMAT_V1  # ゼロショットの既定(Day1 と同じ文面)
 
 
-def system_prompt(n_examples: int = 0) -> str:
-    if not n_examples:
+def system_prompt(n_examples: int = 0, guard: bool = False) -> str:
+    """ゼロショット(0, False)は SYSTEM_PROMPT と同一。guard で見逃し対策と evidence/needs_onsite の出力形式。"""
+    if not n_examples and not guard:
         return SYSTEM_PROMPT
-    return SYSTEM_HEAD + "\n\n" + EXAMPLES_NOTE + "\n\n" + FORMAT_V1
+    parts = [SYSTEM_HEAD]
+    if n_examples:
+        parts.append(EXAMPLES_NOTE)
+    if guard:
+        parts.append(GUARD_TEXT)
+    parts.append(FORMAT_V2 if guard else FORMAT_V1)
+    return "\n\n".join(parts)
 
 
 # ---------- 画像 ----------
@@ -145,7 +160,10 @@ def parse_response(text: str, form_items: list[str] | None = None) -> dict:
 
     - rank: 1〜4 の整数(必須)。範囲外・文字列・小数・bool は不正
     - items: {項目名: 1〜4 または null}。null は「判断できない」で結果から除く。範囲外は不正。
-      form_items があれば、その外のキーは捨てる。無ければ items は空にする
+      form_items があれば、その外のキーは捨てる。無ければ items は空にする。
+      値は {"rank", "evidence", "needs_onsite"} のオブジェクトでもよい(v2)。needs_onsite が true の
+      項目(写真では判定できない= 要実測・対象外)は null と同じく「判断できず」として結果から除き、
+      evidence と合わせて item_notes に残す
     - reasons: 文字列のリスト(省略可、最大5件に切る)
     - confidence: 0〜1 の数(省略可)。範囲外は不正
     """
@@ -160,6 +178,7 @@ def parse_response(text: str, form_items: list[str] | None = None) -> dict:
     rank = _as_rank(obj["rank"], "rank")
 
     items: dict[str, int] = {}
+    notes: dict[str, dict] = {}
     raw_items = obj.get("items", {})
     if raw_items is None:
         raw_items = {}
@@ -167,10 +186,23 @@ def parse_response(text: str, form_items: list[str] | None = None) -> dict:
         raise ValueError("items がオブジェクトでない")
     allowed = set(form_items or [])
     for k, v in raw_items.items():
+        onsite = False
+        if isinstance(v, dict):  # v2: {"rank": 1〜4|null, "evidence": 文, "needs_onsite": bool}
+            ev = v.get("evidence")
+            if ev is not None and not isinstance(ev, str):
+                raise ValueError(f"items[{k!r}].evidence が文字列でない")
+            onsite = v.get("needs_onsite", False)
+            if onsite is None:
+                onsite = False
+            if not isinstance(onsite, bool):
+                raise ValueError(f"items[{k!r}].needs_onsite が真偽値でない")
+            v = v.get("rank")
+            if k in allowed:
+                notes[k] = {"evidence": ev, "needs_onsite": onsite}
         if v is None:
             continue
         v = _as_rank(v, f"items[{k!r}]")
-        if k in allowed:
+        if k in allowed and not onsite:  # 写真では判定できない(要実測)は「判断できず」= 項目の値に入れない
             items[k] = v
 
     reasons = obj.get("reasons", [])
@@ -184,7 +216,8 @@ def parse_response(text: str, form_items: list[str] | None = None) -> dict:
         if isinstance(conf, bool) or not isinstance(conf, (int, float)) or not 0 <= conf <= 1:
             raise ValueError(f"confidence は 0〜1 の数でなければならない: {conf!r}")
         conf = float(conf)
-    return {"rank": rank, "items": items, "reasons": reasons[:5], "confidence": conf}
+    return {"rank": rank, "items": items, "reasons": reasons[:5], "confidence": conf,
+            "item_notes": notes, "needs_onsite": sum(1 for n in notes.values() if n["needs_onsite"])}
 
 
 # ---------- 費用 ----------
@@ -276,13 +309,15 @@ class ClaudeJudge(Judge):
     name = "claude"
 
     def __init__(self, model: str = DEFAULT_MODEL, max_photos: int = 6, workers: int = MAX_WORKERS,
-                 effort: str | None = None, client=None, examples: int = 0, example_seed: int = 0):
+                 effort: str | None = None, client=None, examples: int = 0, example_seed: int = 0,
+                 guard: bool = False):
         self.model = model
         self.max_photos = max_photos
         self.workers = max(1, min(workers, MAX_WORKERS))
         self.effort = effort
         self.n_examples = max(0, min(examples, EXAMPLE_MAX))
         self.example_seed = example_seed
+        self.guard = guard
         self._client = client
         self._example_pool: list[EvalItem] = []
         self._examples: dict[str, list[EvalItem]] = {}    # source -> 選んだ例示
@@ -300,7 +335,7 @@ class ClaudeJudge(Judge):
 
     @property
     def system(self) -> str:
-        return system_prompt(self.n_examples)
+        return system_prompt(self.n_examples, self.guard)
 
     # --- 例示 ---
     def set_example_pool(self, items: list[EvalItem]) -> None:
@@ -427,7 +462,8 @@ class ClaudeJudge(Judge):
                 continue
             return Prediction(p["rank"], p["items"] if form_items else {}, p["confidence"],
                               raw={"reasons": p["reasons"], "model": self.model,
-                                   "stop_reason": resp.stop_reason, "retries": attempts - 1},
+                                   "stop_reason": resp.stop_reason, "retries": attempts - 1,
+                                   "item_notes": p["item_notes"], "needs_onsite": p["needs_onsite"]},
                               usage=usage())
         return Prediction(None, None, None, raw={"failed": log, "model": self.model}, usage=usage())
 

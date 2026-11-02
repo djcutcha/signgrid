@@ -65,6 +65,56 @@ class ParseResponseTest(unittest.TestCase):
                 parse_response(t, FORM)
 
 
+class GuardFormatTest(unittest.TestCase):
+    def test_v2_items_with_evidence_and_needs_onsite(self):
+        t = ('{"rank": 3, "items": {'
+             '"②腐食": {"rank": 3, "evidence": "写真2の柱脚に赤錆", "needs_onsite": false},'
+             '"②破損": {"rank": 1, "evidence": "写真1に破損なし", "needs_onsite": false},'
+             '"④基礎": {"rank": null, "evidence": "基礎が写っていない", "needs_onsite": true}}}')
+        p = parse_response(t, FORM)
+        self.assertEqual(p["items"], {"②腐食": 3, "②破損": 1})  # needs_onsite は判断できず= 値に入れない
+        self.assertEqual(p["needs_onsite"], 1)
+        self.assertEqual(p["item_notes"]["②腐食"]["evidence"], "写真2の柱脚に赤錆")
+        self.assertTrue(p["item_notes"]["④基礎"]["needs_onsite"])
+
+    def test_needs_onsite_drops_even_if_rank_given(self):
+        t = '{"rank": 2, "items": {"②腐食": {"rank": 2, "evidence": "e", "needs_onsite": true}}}'
+        self.assertEqual(parse_response(t, FORM)["items"], {})
+
+    def test_v2_invalid(self):
+        for t in ['{"rank": 2, "items": {"②腐食": {"rank": 7}}}',
+                  '{"rank": 2, "items": {"②腐食": {"rank": 2, "needs_onsite": "yes"}}}',
+                  '{"rank": 2, "items": {"②腐食": {"rank": 2, "evidence": 5}}}']:
+            with self.assertRaises(ValueError, msg=t):
+                parse_response(t, FORM)
+
+    def test_v1_values_still_work_and_notes_empty(self):
+        p = parse_response('{"rank": 2, "items": {"②腐食": 2}}', FORM)
+        self.assertEqual((p["items"], p["item_notes"], p["needs_onsite"]), ({"②腐食": 2}, {}, 0))
+
+    def test_guard_prompt(self):
+        self.assertEqual(cj.system_prompt(0, False), cj.SYSTEM_PROMPT)
+        g = cj.system_prompt(0, True)
+        for w in ("最も重い誤り", "ひび", "evidence", "needs_onsite", "念のため"):
+            self.assertIn(w, g)
+        self.assertNotIn("判定例", g)
+        self.assertIn("判定例", cj.system_prompt(6, True))
+        self.assertNotIn("evidence", cj.system_prompt(6, False))
+
+    def test_judge_guard_records_notes(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        p = os.path.join(tmp.name, "a.jpg")
+        Image.new("RGB", (50, 50)).save(p)
+        item = EvalItem("xlsx_center", "x:0", [p], 3, {"②腐食": 3}, "eval", {"form_items": FORM})
+        c = FakeClient(['{"rank": 3, "items": {"②腐食": {"rank": 3, "evidence": "e", "needs_onsite": false},'
+                        '"④基礎": {"rank": null, "evidence": "f", "needs_onsite": true}}}'])
+        pr = ClaudeJudge(client=c, guard=True).judge(item)
+        self.assertEqual(pr.item_judgments_pred, {"②腐食": 3})
+        self.assertEqual(pr.raw["needs_onsite"], 1)
+        self.assertIn("evidence", c.calls[0]["system"])
+
+
 class HelperTest(unittest.TestCase):
     def test_cost(self):
         self.assertAlmostEqual(cj.cost_usd("claude-sonnet-5-5", 1_000_000, 100_000), 2.0 + 1.0)
