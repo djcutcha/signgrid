@@ -138,5 +138,37 @@ class VerifierTest(unittest.TestCase):
         self.assertEqual(len(c.calls), 1)
 
 
+class ReplayAndSummaryTest(unittest.TestCase):
+    def test_replay_judge(self):
+        import json
+        from kanban_karte.eval.judge import ReplayJudge
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "r.json")
+            usage = {"input_tokens": 1, "output_tokens": 1, "attempts": 1, "cost_usd": 0.1}
+            recs = [{"sign_id": "a", "rank_pred": 2, "item_judgments_pred": {"②腐食": 2},
+                     "reasons": ["r"], "usage": usage},
+                    {"sign_id": "b", "rank_pred": None}]
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump({"model": "m", "records": recs}, f)
+            j = ReplayJudge(path)
+            p = j.judge(EvalItem("s", "a", [], 3, None, "eval", {}))
+            self.assertEqual((p.rank_pred, p.item_judgments_pred, p.raw["reasons"]), (2, {"②腐食": 2}, ["r"]))
+            self.assertEqual(p.usage["cost_usd"], 0.1)
+            self.assertIsNone(j.judge(EvalItem("s", "b", [], 3, None, "eval", {})).rank_pred)
+            self.assertIsNone(j.judge(EvalItem("s", "zz", [], 3, None, "eval", {})).rank_pred)
+            self.assertEqual(j.model, "m")
+
+    def test_verify_summary(self):
+        from kanban_karte.eval.run_eval import verify_summary
+        vu = {"input_tokens": 10, "output_tokens": 1, "attempts": 1, "cost_usd": 0.01}
+        up = lambda r0, r1: Prediction(r1, {}, verified=True, rank_before=r0, usage={"verifier": vu})
+        it = lambda t: EvalItem("s", "x", [], t, None, "eval", {})
+        pairs = [(it(3), up(2, 3)), (it(2), up(1, 3)), (it(3), up(2, 2)), (it(4), Prediction(3, {}))]
+        s = verify_summary(pairs, Verifier(client=FakeClient([])))
+        self.assertEqual((s["verified"], s["raised"], s["raised_correct"], s["raised_wrong"]), (3, 2, 1, 1))
+        self.assertEqual(s["raised_from"], {"1": 1, "2": 1})
+        self.assertAlmostEqual(s["cost_usd"], 0.03)
+
+
 if __name__ == "__main__":
     unittest.main()

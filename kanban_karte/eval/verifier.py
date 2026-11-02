@@ -23,7 +23,6 @@ from .dataset import EvalItem
 from .judge import Prediction
 
 DEFAULT_VERIFIER_MODEL = "claude-sonnet-5-5"
-WHOLE = "全体"  # 項目一覧のない様式で、看板全体について指摘するときの項目名
 
 VERIFIER_HEAD = """あなたは屋外広告物(看板)の安全点検の第二の点検者(反証役)です。別の点検者が写真から付けた下書きの判定が渡されます。あなたの役目は一つだけです: 下書きが「要改善(3)以上」を見落としていないかを確かめること。
 判定は 1=良好、2=経過観察、3=要改善(補修や交換が必要な劣化・損傷)、4=即時対応・危険、の4段階です。
