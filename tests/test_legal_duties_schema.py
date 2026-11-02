@@ -88,6 +88,18 @@ class DutiesSchemaTest(unittest.TestCase):
                      "inspection_duty.conditions.kinds"):
             self.assertIn(frag, errs)
 
+    def test_duty_kind_and_any_of(self):
+        r = new_rules()
+        self.assertEqual(S.validate_rules(r), [])                                   # duty_kind が無ければ既定の inspection
+        r["qualified_inspector"]["duty_kind"] = "manager"
+        r["qualified_inspector"]["conditions"]["any_of"] = [{"height_min_m": 4, "height_min_inclusive": False}, {"area_min_m2": 10}]
+        self.assertEqual(S.validate_rules(r), [])
+        r["qualified_inspector"]["duty_kind"] = "x"
+        self.assertTrue(any("duty_kind" in e for e in S.validate_rules(r)))
+        r["qualified_inspector"]["duty_kind"] = "manager"
+        r["qualified_inspector"]["conditions"]["any_of"] = [{"height_min_m": "4"}]
+        self.assertTrue(any("any_of" in e for e in S.validate_rules(r)))
+
     def test_citations_required_when_duty_exists(self):
         r = new_rules()
         r["inspection_duty"]["citations"] = []

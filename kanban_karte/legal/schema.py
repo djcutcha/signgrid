@@ -199,7 +199,7 @@ def validate_conditions(errs, path, c):
         errs.append(f"{path}.permit_required_only は true/false")
     if "height_min_inclusive" in c and not isinstance(c["height_min_inclusive"], bool):
         errs.append(f"{path}.height_min_inclusive は true/false")
-    for k in ("kinds", "excluded_kinds"):
+    for k in ("kinds", "excluded_kinds", "size_kinds"):
         v = c.get(k, [])
         if not isinstance(v, list) or any(not isinstance(x, str) for x in v):
             errs.append(f"{path}.{k} は文字列の配列")

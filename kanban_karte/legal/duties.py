@@ -27,6 +27,28 @@ def _kind_hit(kinds: list[str], words: tuple[str, ...]) -> bool:
     return any(w in k or k in w for k in kinds for w in words)
 
 
+def _num_check(c: dict, area, height, gc) -> tuple[list[str], list[str]]:
+    """寸法の下限(面積・上端の高さ・地上高)を看板に当てる。(外れた理由の一覧, 未確定の理由の一覧)。"""
+    miss: list[str] = []
+    unknown: list[str] = []
+    incl = c.get("height_min_inclusive")
+    incl = True if incl is None else incl
+    ainc = c.get("area_min_inclusive")
+    ainc = True if ainc is None else ainc
+    for val, lim, label, strict in ((area, c.get("area_min_m2"), "表示面積", not ainc),
+                                    (height, c.get("height_min_m"), "上端の高さ", not incl),
+                                    (gc, c.get("ground_clearance_min_m"), "地上高", False)):
+        if lim is None:
+            continue
+        if val is None:
+            unknown.append("全高が分からない" if label == "上端の高さ" else f"{label}が分からない")
+        elif (val > lim) if strict else (val >= lim):
+            continue
+        else:
+            miss.append(f"{label} {_g(val)}{'㎡' if label == '表示面積' else 'm'} が {_g(lim)}{'㎡' if label == '表示面積' else 'm'}{'を超えない' if strict else '未満'}ため")
+    return miss, unknown
+
+
 def eval_conditions(c: dict | None, *, area, height, gc, permit: str, words, permit_only: bool | None = None) -> tuple[str, str]:
     """conditions を看板に当てる。("hit" | "miss" | "unknown", 理由)。miss が1つでもあれば miss(理由はその1つ)。"""
     c = c or {}
@@ -48,19 +70,23 @@ def eval_conditions(c: dict | None, *, area, height, gc, permit: str, words, per
     ex = c.get("excluded_kinds") or []
     if ex and words is not None and _kind_hit(ex, words):
         miss.append("対象外の種類のため")
-    incl = c.get("height_min_inclusive")
-    incl = True if incl is None else incl
-    for val, lim, label, strict in ((area, c.get("area_min_m2"), "表示面積", False),
-                                    (height, c.get("height_min_m"), "上端の高さ", not incl),
-                                    (gc, c.get("ground_clearance_min_m"), "地上高", False)):
-        if lim is None:
-            continue
-        if val is None:
-            unknown.append("全高が分からない" if label == "上端の高さ" else f"{label}が分からない")
-        elif (val > lim) if strict else (val >= lim):
-            continue
-        else:
-            miss.append(f"{label} {_g(val)}{'㎡' if label == '表示面積' else 'm'} が {_g(lim)}{'㎡' if label == '表示面積' else 'm'}{'を超えない' if strict else '未満'}ため")
+    # size_kinds: 寸法の条件(any_of を含む)がこの種類にだけ掛かる。それ以外の種類(例: アーチ)は寸法によらない
+    size_kinds = c.get("size_kinds") or []
+    size_applies = not (size_kinds and (words is None or not _kind_hit(size_kinds, words)))   # 種類不明なら寸法で外さない(上で要実測)
+    any_of = (c.get("any_of") or []) if size_applies else []
+    if any_of:
+        # OR 条件(例: 高さ4m超 または 表示面積10㎡超)。どれか1つ満たせば満たす。満たすものが無く未確定が残れば unknown
+        alts = [_num_check(a, area, height, gc) for a in any_of]
+        if not any(not m and not u for m, u in alts):
+            if any(not m for m, _ in alts):
+                unknown.append("または".join(dict.fromkeys(w for m, u in alts if not m for w in u)))
+            else:
+                ms = [m[0] for m, _ in alts]
+                miss.append("、".join(x.removesuffix("ため") if i < len(ms) - 1 else x for i, x in enumerate(ms)))
+    if size_applies:
+        m, u = _num_check(c, area, height, gc)
+        miss += m
+        unknown += u
     if miss:
         return "miss", miss[0]
     if unknown:
@@ -73,12 +99,15 @@ def cond_text(c: dict | None, permit_only: bool | None = None) -> str:
     c = c or {}
     parts = []
     if c.get("area_min_m2") is not None:
-        parts.append(f"面積 {_g(c['area_min_m2'])}㎡ 以上")
+        parts.append(f"面積 {_g(c['area_min_m2'])}㎡ {'以上' if c.get('area_min_inclusive') is not False else '超'}")
     if c.get("height_min_m") is not None:
         inc = c.get("height_min_inclusive")
         parts.append(f"上端 {_g(c['height_min_m'])}m {'以上' if (True if inc is None else inc) else '超'}")
     if c.get("ground_clearance_min_m") is not None:
         parts.append(f"地上高 {_g(c['ground_clearance_min_m'])}m 以上")
+    if c.get("any_of"):
+        alts = [cond_text({**a, "kinds": [], "permit_required_only": False}) for a in c["any_of"]]
+        parts.append("または".join(x for x in alts if x))
     if c.get("kinds"):
         parts.append("・".join(c["kinds"]) + "に限る")
     if permit_only if permit_only is not None else c.get("permit_required_only"):
@@ -189,7 +218,20 @@ def judge_duties(R: dict, key: str | None, *, area, height, gc, permit: str, wor
     qual = qi.get("qualification")
     eff = qi.get("effort")
     ctext = cond_text(qi.get("conditions"))
-    if qi["required"] == "unknown":
+    manager = qi.get("duty_kind") == "manager"   # 東京都 条例第25条: 点検をさせる義務ではなく『有資格の管理者を置く』義務
+    if manager and qi["required"] == "duty":
+        st, why = eval_conditions(qi.get("conditions"), **kw)
+        lead = "有資格の屋外広告物管理者を置く義務"
+        if st == "hit":
+            v, why, t = REQUIRED, "", f"{lead}: 要{_paren(qi.get('scope') or ctext, _refs_in(refs))}"
+        elif st == "miss":
+            v = NOT_REQUIRED
+            why = "許可物件のみ" if why == "許可不要のため" else why
+            t = f"{lead}: 不要{_paren(why)}"
+        else:
+            v, t = NEEDS_MEASURE, f"{lead}: 要実測{_paren(why)}"
+        out["qualified"] = _entry("qualified", v, t, refs, why, qualification=qual, duty_kind="manager")
+    elif qi["required"] == "unknown":
         v, why, t = NEEDS_MEASURE, "原文から読み取れていない", "原文から読み取れていません"
     elif qi["required"] == "no":
         v, why = NOT_REQUIRED, "規定なし" if idt.get("absent_in_text") or not qi.get("citations") else "義務を置いていない"
@@ -220,10 +262,11 @@ def judge_duties(R: dict, key: str | None, *, area, height, gc, permit: str, wor
         else:
             v, why = NOT_REQUIRED, e_why if e_node is not None else d_why
             t = f"義務なし{_paren(why)}"
-    ins_v = out["inspection"]["value"]
-    if ins_v == NOT_REQUIRED and v != NOT_REQUIRED:
-        v, why, t = NOT_REQUIRED, "点検の義務の対象外のため", "義務なし(点検の義務の対象外のため)"
-    out["qualified"] = _entry("qualified", v, t, refs, why, qualification=qual)
+    if not manager or qi["required"] != "duty":
+        ins_v = out["inspection"]["value"]
+        if ins_v == NOT_REQUIRED and v != NOT_REQUIRED:
+            v, why, t = NOT_REQUIRED, "点検の義務の対象外のため", "義務なし(点検の義務の対象外のため)"
+        out["qualified"] = _entry("qualified", v, t, refs, why, qualification=qual)
 
     # ----- 行政への報告義務 -----
     rd = R["report_duty"]
