@@ -31,7 +31,7 @@ class DirContentClient:
             return p.read_bytes()
         raise FileNotFoundError(f"模擬の画像が無い: {message_id}")
 
-    def reply(self, reply_token: str, text: str) -> None:
+    def reply(self, reply_token: str, text: str, quick_replies=None, button=None) -> None:
         self.replies.append((reply_token, text))
         if self.echo:
             print(f"[返信 {reply_token}] {text}", flush=True)

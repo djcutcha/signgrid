@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS bundles (
     status        TEXT NOT NULL DEFAULT 'new'
                   CHECK (status IN ('new', 'pages_registered', 'classified', 'signs_drafted', 'error')),
     error         TEXT,
+    site_id       TEXT REFERENCES sites(id),  -- 束の現場(LINE 入口: 位置・案件の選択で決まる。ALTER 済みの古い台帳は db.py が足す)
     created       TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

@@ -114,6 +114,8 @@ class Ledger:
         if ver > SCHEMA_VERSION:
             raise RuntimeError(f"台帳の版 {ver} は、このプログラムが扱える版 {SCHEMA_VERSION} より新しい")
         self.conn.executescript(SCHEMA_SQL.read_text(encoding="utf-8"))
+        if "site_id" not in {r[1] for r in self.conn.execute("PRAGMA table_info(bundles)")}:
+            self.conn.execute("ALTER TABLE bundles ADD COLUMN site_id TEXT REFERENCES sites(id)")
         self.conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         self.conn.commit()
 
@@ -183,9 +185,10 @@ class Ledger:
         return cur.lastrowid
 
     def set_bundle(self, bundle_id: int, *, status: str | None = None, pages: int | None = None,
-                   kind_counts: dict | None = None, error: str | None = None) -> None:
+                   kind_counts: dict | None = None, error: str | None = None,
+                   site_id: str | None = None) -> None:
         sets, args = [], []
-        for col, v in (("status", status), ("pages", pages), ("error", error)):
+        for col, v in (("status", status), ("pages", pages), ("error", error), ("site_id", site_id)):
             if v is not None:
                 sets.append(f"{col}=?")
                 args.append(v)
