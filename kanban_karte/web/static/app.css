@@ -213,6 +213,27 @@ dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
 .intake .c-file{overflow-wrap:anywhere;min-width:12em}
 .intake .notice{margin:0}
 
+/* オーナー(スマホ幅が基本。PC では中央の細い列) */
+.owner{max-width:560px;margin:0 auto}
+.owner .step+.step,.owner .owner-result{margin-top:12px}
+.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.btn.block.pick{padding:14px}
+.owner-preview img{width:100%;max-height:260px;object-fit:contain;border-radius:8px;margin-top:8px;background:var(--ph);display:block}
+.owner label.txt,.owner label.num{display:flex;flex-direction:column;gap:2px;font-size:12.5px;color:var(--fg2)}
+.owner input[type=text],.owner input[type=number]{width:100%;font-size:16px;padding:10px 12px}
+.dims{display:flex;align-items:flex-end;gap:8px}
+.dims .num{flex:1;min-width:0}
+.dims .times{padding-bottom:10px;color:var(--muted)}
+.area-row{display:flex;gap:10px;align-items:baseline;margin:10px 0}
+.area-row .k{color:var(--muted);font-size:12.5px}
+.area{font-size:20px;font-weight:700}
+.owner label.num.wide{margin-top:4px}
+.three{list-style:none;margin:0;padding:0}
+.three li{display:grid;grid-template-columns:3em minmax(0,1fr);gap:8px;align-items:start;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.three li:last-child{border-bottom:0}
+.three .k{color:var(--muted);font-size:12.5px;padding-top:2px}
+.btn.ask{margin-top:12px}
+
 /* 行政 */
 .chip.gov.c-red{background:#c62828} .chip.gov.c-orange{background:#ef6c00} .chip.gov.c-green{background:#2e7d32} .chip.gov.c-gray{background:#757575}
 .gov-pick{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:4px}
