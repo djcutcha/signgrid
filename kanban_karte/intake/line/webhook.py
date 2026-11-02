@@ -15,7 +15,7 @@ import logging
 import threading
 from urllib.parse import parse_qs
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
@@ -25,6 +25,8 @@ from ...legal.municipality import AddressResolver
 from . import reply as reply_text
 from .address import AddressSearch
 from .client import LineClient
+from .guide import START_TEXT, Guide, Say, site_choices as guide_site_choices
+from .guide_ledger import LedgerSink
 from .jobs import Job, find_job, jobs_near, load_jobs
 from .session import JST, SessionStore, safe_name
 
@@ -53,6 +55,7 @@ class _UserTally:
     touched: bool = False       # この配信で新しく受け取った物がある(再送だけなら返事しない)
     bundle_id: int | None = None
     site_id: str | None = None  # 束の現場。None なら現場を尋ねる
+    guide_say: Say | None = None  # ガイド付き点検の進行中は、受け取りの返事の代わりにこれを返す
 
 
 @dataclass
@@ -76,6 +79,11 @@ class LineApp:
         self.jobs = jobs or load_jobs  # 今日の案件。実運用は SignJOBZ の点検指示書に差し替える
         self.address_search = address_search  # None なら座標は引かない
         self._lock = threading.Lock()  # 束の判定と台帳書き込みは1本ずつ
+        self.guide_sink = LedgerSink(now=self.now)  # ガイド付き点検の答えを台帳へ(台帳は配信ごとに差し替える)
+        self.guide = Guide(self.inbox, self.guide_sink, site_choices=self._guide_site_choices)
+
+    def _guide_site_choices(self) -> list[dict]:
+        return guide_site_choices(self._today_jobs(), reply_text.site_choices([], None)[-1])
 
     # ---- 入口 ----
     def handle(self, body: bytes, signature: str | None) -> tuple[int, Delivery | None]:
@@ -99,6 +107,7 @@ class LineApp:
         follows: list[tuple[str, str]] = []
         with self.ledger_factory() as ledger:
             store = SessionStore(ledger, self.inbox)
+            self.guide_sink.ledger = ledger
             for ev in events:
                 try:
                     self._one(ev, store, tally, follows, out)
@@ -109,6 +118,12 @@ class LineApp:
             self._reply(token, text, out)
         for t in tally.values():
             if not t.touched or not t.reply_token:
+                continue
+            if t.guide_say is not None:
+                text = t.guide_say.text
+                if t.failed:
+                    text = f"{t.failed} 枚は取得できませんでした。もう一度送ってください\n{text}"
+                self._reply(t.reply_token, text, out, bundle_id=t.bundle_id, quick_replies=t.guide_say.quick)
                 continue
             text = reply_text.receipt(t.state_photos, has_position_only=t.position_only, notes=t.notes,
                                       failed=t.failed)
@@ -143,6 +158,9 @@ class LineApp:
         t = tally.setdefault(user_id, _UserTally())
         if token:
             t.reply_token = token  # 返事は配信の最後のイベントのトークンで1通
+        if mtype == "text" and self._guide_text(user_id, mid, str(msg.get("text", "")), store, t, now):
+            return
+        guiding = self.guide.active(user_id)
         if mtype == "image":
             try:
                 data = self.client.get_content(mid)
@@ -154,6 +172,8 @@ class LineApp:
                 return
             if res.path is not None:
                 out.saved.append(res.path)
+            if guiding and not res.duplicate and res.path is not None:
+                t.guide_say = self.guide.photo(user_id, res.state.bundle_id, res.state.photos, res.path, now)
         elif mtype == "text":
             res = store.add_text(user_id, mid, str(msg.get("text", "")), now)
             t.notes += 1
@@ -167,6 +187,34 @@ class LineApp:
         t.bundle_id = res.state.bundle_id
         t.site_id = res.state.site_id
         t.position_only = mtype == "location" and res.state.photos == 0
+        if guiding and mtype == "location" and res.state.site_id:
+            t.guide_say = self.guide.location_given(user_id, res.state.site_id) or t.guide_say
+
+    # ---- ガイド付き点検 ----
+    def _guide_start(self, user_id: str, store: SessionStore, now: datetime) -> Say:
+        """始める(進行中なら今の問いに戻る)。直近の束に現場が分かっていれば、現場を尋ねない。"""
+        st = store.current(user_id)
+        recent = st is not None and timedelta(0) <= now - datetime.fromisoformat(st.last_at) <= store.window
+        return self.guide.start(user_id, now, st.site_id if recent and st.site_id else None)
+
+    def _guide_text(self, user_id: str, mid: str, text: str, store: SessionStore, t: _UserTally, now: datetime) -> bool:
+        """「点検開始」と、進行中のテキスト(命令・看板の名前・メモ)を受ける。ガイドが受けたら True。"""
+        if text.strip() == START_TEXT:
+            if self.guide.active(user_id):
+                store.touch(user_id, now)
+            t.guide_say, t.touched = self._guide_start(user_id, store, now), True
+            return True
+        got = self.guide.text(user_id, text, mid)
+        if got is None:
+            return False
+        kind, say = got
+        if kind == "dup":
+            return True
+        store.touch(user_id, now)
+        if kind == "memo":
+            store.add_text(user_id, mid, text, now)
+        t.guide_say, t.touched = say, True
+        return True
 
     # ---- 現場の選択 ----
     def _today_jobs(self) -> list[Job]:
@@ -176,6 +224,8 @@ class LineApp:
         token = ev.get("replyToken")
         q = {k: v[0] for k, v in parse_qs((ev.get("postback") or {}).get("data", "")).items()}
         act = q.get("act")
+        if act == "guide" and token:
+            return self._guide_postback(token, q, user_id, store, out)
         if not token or act not in ("site", "other", "today"):
             return
         st = store.current(user_id)
@@ -204,6 +254,25 @@ class LineApp:
             else:
                 store.bind_site(user_id, bundle_id, self._job_site(job, store.ledger))
                 self._reply(token, reply_text.site_accepted(job.site_name), out, bundle_id=bundle_id)
+
+    def _guide_postback(self, token: str, q: dict, user_id: str, store: SessionStore, out: Delivery) -> None:
+        now = self.now()
+        if self.guide.active(user_id):
+            store.touch(user_id, now)
+        if "start" in q:
+            say = self._guide_start(user_id, store, now)
+        elif "site" in q:
+            job = find_job(self.jobs(), q["site"])
+            if job is None:
+                say = Say(reply_text.job_not_found(), self._guide_site_choices())
+            else:
+                site = self._job_site(job, store.ledger)
+                store.ledger.upsert_site(site)
+                say = self.guide.choose_site(user_id, site.id, job.site_name)
+        else:
+            say = self.guide.postback(user_id, q)
+        if say is not None:
+            self._reply(token, say.text, out, quick_replies=say.quick)
 
     @staticmethod
     def _owns(store: SessionStore, user_id: str, bundle_id: int) -> bool:

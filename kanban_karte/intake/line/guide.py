@@ -179,22 +179,23 @@ class Guide:
         return self._with("位置を受け取りました", self.prompt(st))
 
     def text(self, user_id: str, text: str, message_id: str) -> tuple[str, Say] | None:
-        """進行中のテキスト。戻り値 (種別, 返事): command(命令)/ name(看板の名前)/ memo(メモ。呼び出し側が記録する)。進行が無ければ None。"""
+        """進行中のテキスト。戻り値 (種別, 返事): command(命令)/ name(看板の名前)/ memo(メモ。呼び出し側が記録する)/ dup(再送)。進行が無ければ None。"""
         st = self.load(user_id)
         if st is None:
             return None
+        if message_id in st.seen:
+            return "dup", self.prompt(st)  # webhook の再送。二重に進めない
+        st.seen.append(message_id)
         t = text.strip()
         if t in COMMANDS:
             return "command", self._command(user_id, st, t)
-        if message_id in st.seen:
-            return "name", self.prompt(st)  # webhook の再送。二重に受けない
         if st.step == "sign":
             st.name = t
-            st.seen.append(message_id)
             st.step = "overview"
             self.sink.sign_named(user_id, st)
             self.save(user_id, st)
             return "name", self.prompt(st)
+        self.save(user_id, st)
         return "memo", self._with("メモを受け取りました", self.prompt(st))
 
     def _command(self, user_id: str, st: GuideState, cmd: str) -> Say:
@@ -243,8 +244,7 @@ class Guide:
             self._answer(user_id, st, "unknown")
 
     def _answer(self, user_id: str, st: GuideState, ans: str) -> None:
-        part, items = PARTS[st.part]
-        key = items[st.item][0]
+        key = PARTS[st.part][1][st.item][0]
         st.answers[key] = ans
         self.sink.answer(user_id, st, key, ans)
         if st.item + 1 < len(items):

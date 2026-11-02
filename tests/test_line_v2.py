@@ -264,13 +264,14 @@ class LocationWindowTest(Base):
 class RichMenuTest(unittest.TestCase):
     def test_json_shape(self):
         m = richmenu.menu_json()
-        self.assertEqual(m["size"], {"width": 2500, "height": 843})
-        self.assertEqual([a["action"]["type"] for a in m["areas"]], ["camera", "uri", "postback"])
+        self.assertEqual(m["size"], {"width": 2500, "height": 1686})
+        self.assertEqual([a["action"]["type"] for a in m["areas"]], ["camera", "uri", "postback", "postback"])
         self.assertEqual(m["areas"][1]["action"]["uri"], "https://line.me/R/nv/location")
         self.assertEqual(m["areas"][2]["action"]["data"], "act=today")
-        self.assertEqual(sum(a["bounds"]["width"] for a in m["areas"]), 2500)
-        xs = [a["bounds"]["x"] for a in m["areas"]]
-        self.assertEqual(xs, sorted(xs))
+        self.assertEqual(m["areas"][3]["action"]["data"], "act=guide&start=1")
+        self.assertEqual([(a["bounds"]["x"], a["bounds"]["y"], a["bounds"]["width"], a["bounds"]["height"])
+                          for a in m["areas"]],
+                         [(0, 0, 1250, 843), (1250, 0, 1250, 843), (0, 843, 1250, 843), (1250, 843, 1250, 843)])
         for a in m["areas"]:
             self.assertLessEqual(len(a["action"]["label"]), 20)
         json.dumps(m)
@@ -282,7 +283,7 @@ class RichMenuTest(unittest.TestCase):
                 p = richmenu.render_image(Path(tmp) / "m.png")
             except RuntimeError:
                 self.skipTest("日本語フォントなし")
-            self.assertEqual(Image.open(p).size, (2500, 843))
+            self.assertEqual(Image.open(p).size, (2500, 1686))
 
     def test_apply_calls_in_order(self):
         with tempfile.TemporaryDirectory() as tmp:

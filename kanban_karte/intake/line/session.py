@@ -152,6 +152,13 @@ class SessionStore:
     def current(self, user_id: str) -> SessionState | None:
         return self._load(user_id)
 
+    def touch(self, user_id: str, now: datetime) -> None:
+        """今の束の最終時刻を now にする(ガイド付き点検で、ボタンだけ押している間も束を切らない)。窓の外なら何もしない。"""
+        st = self._load(user_id)
+        if st is not None and timedelta(0) <= now - datetime.fromisoformat(st.last_at) <= self.window:
+            st.last_at = now.isoformat()
+            self._save(user_id, st)
+
     def bind_site(self, user_id: str, bundle_id: int, site: Site) -> None:
         """束に現場(案件から引いた物)を紐づける。台帳の bundles.site_id と、その束が今の束なら状態ファイルも更新。"""
         self.ledger.upsert_site(site)
