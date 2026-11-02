@@ -96,11 +96,36 @@ class SpecAndItemTest(unittest.TestCase):
             pages = root / "pages" / "B1"
             pages.mkdir(parents=True)
             make_page(photos=GRID).rotate(90, expand=True).save(pages / "p-001.jpg", quality=95)
+            src = crop.JpegPages(pages)
             # 回転角 270 で起こす(90 度回して保存したページを元に戻す)
-            paths = crop.crop_item(pages, "1", root / "out", max_cells=3, rots={("B1", 1): 270})
+            paths = crop.crop_item(src, "1", root / "out", max_cells=3, rots={("B1", 1): 270})
             self.assertEqual(len(paths), 3)  # max_cells で打ち切る
             self.assertTrue(all(Path(p).exists() for p in paths))
-            self.assertEqual(crop.crop_item(pages, "9", root / "out2"), [])  # ページなし → 空
+            self.assertEqual(crop.crop_item(src, "9", root / "out2"), [])  # ページなし → 空
+
+    def test_pdf_pages_extract_embedded_image_and_scale_boxes(self):
+        import pypdf
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            hi = make_page(photos=GRID).resize((745 * 2, 1053 * 2))  # 180dpi 相当の高解像度
+            hi.rotate(270, expand=True).save(root / "raw.pdf", "PDF", resolution=180.0)  # 時計回りに 90 度倒した埋め込み画像
+            w = pypdf.PdfWriter(clone_from=str(root / "raw.pdf"))
+            w.pages[0].rotate(270)  # /Rotate 270(時計回り)で見ると、倒した画像が縦に起きる
+            with open(root / "B1.pdf", "wb") as f:
+                w.write(f)
+            src = crop.PdfPages(root / "B1.pdf")
+            im, dpi = src.page(1)
+            self.assertEqual(im.size, (1490, 2106))  # 埋め込み画像がそのまま(縦向きに起こされて)出る
+            self.assertAlmostEqual(dpi, 180.0, delta=1)
+            self.assertIsNone(src.page(2))
+            paths = crop.crop_item(src, "1", root / "out", max_edge=400)
+            self.assertEqual(len(paths), 4)
+            sizes = [Image.open(p).size for p in paths]
+            self.assertTrue(all(max(s) <= 400 for s in sizes))  # 長辺の上限で縮小
+            cells = crop.cut_cells(im, dpi)
+            self.assertEqual(len(cells), 4)
+            self.assertAlmostEqual(cells[0].x0, 70 * 2, delta=16)  # 座標は高解像度の画像上に戻る
+            self.assertAlmostEqual(cells[0].y0, 210 * 2, delta=16)
 
     def test_load_rotations(self):
         with tempfile.TemporaryDirectory() as d:

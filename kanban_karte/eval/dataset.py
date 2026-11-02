@@ -108,12 +108,19 @@ def _scan_pages(page_spec: str) -> list[int]:
     return nums
 
 
-CROP_VERSION = "v4"  # crop.py の検出ロジックを変えたら上げる(古いキャッシュを使わない)
+CROP_VERSION = "v5"  # crop.py の検出ロジックや入力画像を変えたら上げる(古いキャッシュを使わない)
 CROP_MAX_CELLS = 12
 
 
-def _item_crops(scan_root: Path, cache_root: Path, rots, item_group: str, bundle_id: str,
-                spec: str) -> list[str]:
+def _page_source(scan_root: Path, pdf_root: Path | None, bundle_id: str) -> crop.PageSource:
+    """元 PDF があればその埋め込み画像(約300dpi)、無ければ 90dpi のページ画像。"""
+    if pdf_root is not None and (pdf_root / f"{bundle_id}.pdf").exists():
+        return crop.PdfPages(pdf_root / f"{bundle_id}.pdf", bundle_id)
+    return crop.JpegPages(scan_root / "pages" / bundle_id)
+
+
+def _item_crops(scan_root: Path, pdf_root: Path | None, cache_root: Path, rots, item_group: str,
+                bundle_id: str, spec: str) -> list[str]:
     """アイテムのページから写真セルを切り出し(キャッシュあり)、パスのリストを返す。"""
     out_dir = cache_root / CROP_VERSION / item_group
     done = out_dir / ".done"
@@ -122,14 +129,15 @@ def _item_crops(scan_root: Path, cache_root: Path, rots, item_group: str, bundle
     if out_dir.exists():
         for f in out_dir.iterdir():
             f.unlink()
-    paths = crop.crop_item(scan_root / "pages" / bundle_id, spec, out_dir,
+    paths = crop.crop_item(_page_source(scan_root, pdf_root, bundle_id), spec, out_dir,
                            max_cells=CROP_MAX_CELLS, rots=rots)
     out_dir.mkdir(parents=True, exist_ok=True)
     done.write_text(str(len(paths)))
     return paths
 
 
-def load_paper_scan(scan_root: Path, cache_root: Path | None = None) -> list[EvalItem]:
+def load_paper_scan(scan_root: Path, cache_root: Path | None = None,
+                    pdf_root: Path | None = None) -> list[EvalItem]:
     """紙のスキャン束。入力は完成報告書ページから切り出した「写真セル」だけ。
 
     ページ画像そのものは評価欄(正解)・総評・キャプションが写るので使わない(docs/EVAL.md)。
@@ -143,7 +151,7 @@ def load_paper_scan(scan_root: Path, cache_root: Path | None = None) -> list[Eva
         sid = r["item_group"]
         paths = []
         if rank is not None and r["fmt"] == "header-strip":
-            paths = _item_crops(scan_root, cache_root, rots, sid, r["id"], r["pages"])
+            paths = _item_crops(scan_root, pdf_root, cache_root, rots, sid, r["id"], r["pages"])
         items.append(EvalItem(
             source="paper_scan", sign_id=sid, photo_paths=paths,
             rank_true=rank, item_judgments_true=None,
@@ -230,7 +238,9 @@ def load_all(config_path: str | os.PathLike | None = None,
         return nas_root / dirs[key]
 
     loaders = {
-        "paper_scan": lambda: load_paper_scan(scan_root, Path(cfg["crop_cache"]) if cfg.get("crop_cache") else None),
+        "paper_scan": lambda: load_paper_scan(
+            scan_root, Path(cfg["crop_cache"]) if cfg.get("crop_cache") else None,
+            Path(cfg["pdf_root"]) if cfg.get("pdf_root") else None),
         "xlsx_center": lambda: load_xlsx_center(nas("xlsx_center")),
         "xlsx_karte": lambda: load_xlsx_karte(nas("xlsx_karte")),
         "xlsx_sketch": lambda: load_xlsx_sketch(nas("xlsx_sketch")),

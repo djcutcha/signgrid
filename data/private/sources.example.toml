@@ -3,6 +3,8 @@
 [eval]
 # 紙のスキャン束(ground_truth_items.tsv と pages/ がある場所)
 scan_root = "/path/to/eval"
+# 紙の束の元 PDF(<束id>.pdf。各ページがスキャン画像1枚の埋め込み)。無ければ 90dpi のページ画像を使う
+pdf_root = "/path/to/scans"
 # 各客先様式の正解(様式ごとのディレクトリがある場所)
 nas_root = "/path/to/eval/nas"
 

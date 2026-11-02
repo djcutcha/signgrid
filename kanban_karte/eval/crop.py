@@ -187,15 +187,90 @@ def load_rotations(page_index_tsv: Path) -> dict[tuple[str, int], int]:
     return out
 
 
+DET_DPI = 90        # 検出の閾値(MIN_CELL など)は、この解像度のページ画像に合わせてある
+MAX_EDGE = 1600     # 切り出した写真の長辺の上限(これを超えたら縮小して保存)
+
+
+class PageSource:
+    """束のページ画像の取り出し口。page(n) は (向きを起こした RGB 画像, その dpi)、無ければ None。"""
+
+    bundle_id: str
+
+    def page(self, n: int) -> tuple[Image.Image, float] | None:
+        raise NotImplementedError
+
+
+class JpegPages(PageSource):
+    """90dpi のページ画像(eval の pages/<id>/p-NNN.jpg)。"""
+
+    def __init__(self, page_dir: Path):
+        self.page_dir = Path(page_dir)
+        self.bundle_id = self.page_dir.name
+
+    def page(self, n: int):
+        p = self.page_dir / f"p-{n:03d}.jpg"
+        if not p.exists():
+            return None
+        with Image.open(p) as im:
+            im.load()
+            return im.convert("RGB"), 90.0
+
+
+class PdfPages(PageSource):
+    """元の PDF。各ページはスキャン画像1枚の埋め込みなので、描き直さずにその画像をそのまま取り出す。
+
+    ページの /Rotate(時計回り)を反映した向きにする(PDF で見た向き = 90dpi の pages/ と同じ向き)。
+    """
+
+    def __init__(self, pdf_path: Path, bundle_id: str | None = None):
+        import pypdf
+        self.pdf_path = Path(pdf_path)
+        self.bundle_id = bundle_id or self.pdf_path.stem
+        self.reader = pypdf.PdfReader(str(self.pdf_path))
+
+    def __len__(self) -> int:
+        return len(self.reader.pages)
+
+    def page(self, n: int):
+        import io
+        if not 1 <= n <= len(self.reader.pages):
+            return None
+        pg = self.reader.pages[n - 1]
+        imgs = list(pg.images)
+        if not imgs:
+            return None
+        best = max(imgs, key=lambda i: len(i.data))  # 最大の画像(スキャン本体)
+        with Image.open(io.BytesIO(best.data)) as im:
+            im.load()
+            im = im.convert("RGB")
+        dpi = im.width / (float(pg.mediabox.width) / 72.0)
+        rot = int(pg.get("/Rotate") or 0) % 360
+        if rot:
+            im = im.rotate(360 - rot, expand=True)  # /Rotate は時計回り、PIL は反時計回り
+        return im, dpi
+
+
 def open_page(path: Path, rot: int = 0) -> Image.Image:
-    im = Image.open(path)
-    im.load()
-    im = im.convert("RGB")
+    """90dpi のページ画像を開き、page_index の回転(PIL 反時計回り)で起こす(目視確認用)。"""
+    im = JpegPages(Path(path).parent).page(int(Path(path).stem.split("-")[1]))[0]
     return im.rotate(rot, expand=True) if rot else im
 
 
-def crop_item(page_dir: Path, spec: str, out_dir: Path, max_cells: int = 6,
-              rots: dict[tuple[str, int], int] | None = None) -> list[str]:
+def cut_cells(img: Image.Image, dpi: float, half: str | None = None) -> list[Cell]:
+    """高解像度のページ画像から写真セルを探す。検出は DET_DPI に縮小した画像で行い、座標を戻す。"""
+    s = DET_DPI / dpi
+    det = img.resize((max(1, round(img.width * s)), max(1, round(img.height * s))), Image.LANCZOS) \
+        if s < 0.99 else img
+    k = img.width / det.width
+    out = []
+    for c in find_cells(det, half):
+        out.append(Cell(c.half, max(0, round(c.x0 * k)), max(0, round(c.y0 * k)),
+                        min(img.width, round(c.x1 * k)), min(img.height, round(c.y1 * k))))
+    return out
+
+
+def crop_item(source: PageSource, spec: str, out_dir: Path, max_cells: int = 6,
+              rots: dict[tuple[str, int], int] | None = None, max_edge: int = MAX_EDGE) -> list[str]:
     """アイテムのページ指定から写真セルを順に切り出して out_dir に保存し、パスのリストを返す。
 
     面の指定(L/R)があればその面だけ。無ければページ全体。切り出せなければ空リスト。
@@ -203,14 +278,20 @@ def crop_item(page_dir: Path, spec: str, out_dir: Path, max_cells: int = 6,
     out_dir.mkdir(parents=True, exist_ok=True)
     paths: list[str] = []
     for page, half in parse_page_spec(spec):
-        p = page_dir / f"p-{page:03d}.jpg"
-        if not p.exists():
+        got = source.page(page)
+        if got is None:
             continue
-        im = open_page(p, (rots or {}).get((page_dir.name, page), 0))
-        for c in find_cells(im, half):
+        im, dpi = got
+        rot = (rots or {}).get((source.bundle_id, page), 0)
+        if rot:
+            im = im.rotate(rot, expand=True)
+        for c in cut_cells(im, dpi, half):
             if len(paths) >= max_cells:
                 return paths
+            sub = im.crop((c.x0, c.y0, c.x1, c.y1))
+            if max(sub.size) > max_edge:
+                sub.thumbnail((max_edge, max_edge), Image.LANCZOS)
             dst = out_dir / f"c{len(paths) + 1:02d}.jpg"
-            im.crop((c.x0, c.y0, c.x1, c.y1)).save(dst, quality=90)
+            sub.save(dst, quality=90)
             paths.append(str(dst))
     return paths
