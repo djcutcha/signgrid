@@ -295,9 +295,16 @@ dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
   .gov-sel,.gov-device{font-size:13.5px}
   .gov-chips{grid-template-columns:1fr 1fr}
   .gov-count small{display:none}
-  .gov-map iframe{height:320px}
-  .gov-table .c-state{order:1;flex:1 1 100%}
-  .gov-table .c-pos,.gov-table .c-photos,.gov-table .c-sign,.gov-table .c-exp{order:2}
+  .gov-map iframe{height:60vh}
+  /* 候補表: 1行1枚のカード。上段=色チップと状態 / 期限、中段=住所と写真の枚数、下段=台帳との一致候補と距離 */
+  .gov-table tr.cand{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;align-items:start}
+  .gov-table .c-state{grid-column:1;grid-row:1}
+  .gov-table .c-exp{grid-column:2;grid-row:1;text-align:right}
+  .gov-table .c-pos{grid-column:1;grid-row:2}
+  .gov-table .c-photos{grid-column:2;grid-row:2;text-align:right;white-space:nowrap}
+  .gov-table .c-sign{grid-column:1 / -1;grid-row:3;padding-top:6px;border-top:1px solid var(--line);font-size:13.5px}
+  .gov-table .c-sign .sub{display:inline;margin-left:6px}
+  .gov-table .c-pos::before,.gov-table .c-photos::before{content:none !important}
 }
 @media (max-width:760px){
   .intake .c-kind{order:1} .intake .c-file{order:2;flex:1 1 60%} .intake .c-state{order:3} .intake .c-count{order:4}
