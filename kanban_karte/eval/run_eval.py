@@ -137,8 +137,27 @@ def dry_run_text(d: dict) -> str:
     return "\n".join(L)
 
 
+def verify_summary(pairs, verifier) -> dict:
+    """反証役の結果: 通した看板数、上げた基数と、その当たり外れ(正解が 3 以上なら当たり)。
+    pairs は反証役を通した後の (看板, 予測)。"""
+    called = [(it, p) for it, p in pairs if p.verified]
+    raised = [(it, p) for it, p in called if p.rank_pred != p.rank_before]
+    hit = [x for x in raised if x[0].rank_true >= 3]
+    u = [p.usage["verifier"] for _, p in pairs if p.usage and p.usage.get("verifier")]
+    costs = [x.get("cost_usd") for x in u]
+    return {"model": verifier.model, "effort": verifier.effort,
+            "verified": len(called), "raised": len(raised),
+            "raised_correct": len(hit), "raised_wrong": len(raised) - len(hit),
+            "raised_from": {str(r): sum(1 for _, p in raised if p.rank_before == r) for r in (1, 2)},
+            "raised_to": {str(r): sum(1 for _, p in raised if p.rank_pred == r) for r in (3, 4)},
+            "errors": sum(1 for _, p in pairs if isinstance(p.raw, dict) and p.raw.get("verifier_error")),
+            "cost_usd": None if any(c is None for c in costs) else sum(costs),
+            "input_tokens": sum(x["input_tokens"] for x in u),
+            "output_tokens": sum(x["output_tokens"] for x in u)}
+
+
 def run(judge, judge_name: str, source: str, limit: int | None, split: str, seed: int,
-        config_path: str | None, spread: bool = False, exclude_shown: bool = False) -> dict:
+        config_path: str | None, spread: bool = False, exclude_shown: bool = False, verifier=None) -> dict:
     sources = dataset.RANKED_SOURCES if source == "all" else (source,)
     items = dataset.load_all(config_path, sources)
     counts = dataset.summarize(items)
@@ -153,6 +172,8 @@ def run(judge, judge_name: str, source: str, limit: int | None, split: str, seed
     shown = {e.sign_id for s in sources for e in judge.examples_for(s)} if exclude_shown else None
     for s, pool, ex_truth, ex_photo in _pools(items, sources, split, limit, seed, spread, shown):
         preds = judge.judge_many(pool)
+        if verifier:
+            preds = verifier.verify_many(pool, preds)
         pairs = list(zip(pool, preds))
         per_source[s] = _add_excluded(metrics.compute(pairs), ex_truth, ex_photo)
         ex_truth_total += ex_truth
@@ -168,6 +189,10 @@ def run(judge, judge_name: str, source: str, limit: int | None, split: str, seed
                 rec["item_judgments_pred"] = pr.item_judgments_pred
             if pr.usage:
                 rec["usage"] = pr.usage
+            if pr.verified:
+                rec["verified"] = True
+                rec["rank_before"] = pr.rank_before
+                rec["verifier_notes"] = pr.verifier_notes
             if pr.rank_pred is None and isinstance(pr.raw, dict):
                 rec["raw"] = pr.raw
             elif isinstance(pr.raw, dict) and pr.raw.get("reasons"):
@@ -176,7 +201,7 @@ def run(judge, judge_name: str, source: str, limit: int | None, split: str, seed
                 rec["item_notes"] = pr.raw["item_notes"]
                 rec["needs_onsite"] = pr.raw.get("needs_onsite", 0)
             records.append(rec)
-    return {
+    out = {
         "created": datetime.now().isoformat(timespec="seconds"),
         "judge": judge_name, "model": getattr(judge, "model", None), "source": source,
         "split": split, "limit_per_source": limit, "seed": seed,
@@ -188,6 +213,11 @@ def run(judge, judge_name: str, source: str, limit: int | None, split: str, seed
         "per_source": per_source,
         "records": records,
     }
+    if verifier:
+        out["verify"] = verify_summary(all_pairs, verifier)
+    if hasattr(judge, "source_run"):
+        out["replay_of"] = judge.source_run
+    return out
 
 
 def judge_config(judge, sources) -> dict:
@@ -265,6 +295,16 @@ def to_markdown(r: dict, json_name: str) -> str:
         if (r.get("config") or {}).get("guard"):
             L += [f"- 写真では判定できない(needs_onsite)と答えた項目: {r['needs_onsite_items']} 項目"
                   "(「判断できず」の項目に含まれる)", ""]
+    if r.get("verify"):
+        v = r["verify"]
+        c = v["cost_usd"]
+        L += ["## 反証役", "",
+              f"- モデル: {v['model']}(effort {v['effort'] or 'API 既定'})。下書きが 1・2 の看板 {v['verified']} 基を通した"
+              + (f"(判定役の下書きは {r['replay_of']} を再利用)" if r.get("replay_of") else ""),
+              f"- 要改善以上に上げた看板: {v['raised']} 基(うち正解が 3 以上 {v['raised_correct']}、未満 {v['raised_wrong']})。"
+              f"元のランク 1→{v['raised_from']['1']} 基、2→{v['raised_from']['2']} 基。上げた先 3: {v['raised_to']['3']}、4: {v['raised_to']['4']}",
+              f"- 反証役の失敗(下書きのまま): {v['errors']} 基",
+              "- 反証役の費用: " + ("不明" if c is None else f"${c:.2f}") + "(使用量の費用は判定役+反証役の合計)", ""]
     L += ["## 全体", ""] + _metrics_block(r["overall"]) + [""]
     for s, m in r["per_source"].items():
         L += [f"## {s}({SOURCE_LABEL.get(s, s)})", ""] + _metrics_block(m) + [""]
@@ -293,6 +333,10 @@ def log_row(r: dict, note: str = "", max_photos: int | None = None) -> str:
             cond += " / 見逃し対策"
         if (r.get("config") or {}).get("rubric"):
             cond += " / ルーブリック"
+    if r.get("verify"):
+        v = r["verify"]
+        cond += (f" / 反証役 {v['model']}: 上げ{v['raised']}基(正解3以上{v['raised_correct']}、未満{v['raised_wrong']})"
+                 + (f"、判定は{r['replay_of']}を再利用" if r.get("replay_of") else ""))
     if note:
         cond += f" / {note}"
     api = bool(u["signs_with_usage"])
@@ -334,6 +378,15 @@ def main(argv=None) -> int:
     ap.add_argument("--append-log", action="store_true",
                     help="結果の1行を docs/EVAL.md の「日ごとの測定記録」の表に追記する(oracle は不可)")
     ap.add_argument("--log-note", default="", help="--append-log の「条件」欄に足す一言")
+    ap.add_argument("--replay", default=None, metavar="JSON",
+                    help="--judge replay 用。以前の結果 JSON(runs/…)の予測を判定役の下書きとして使う(API なし)")
+    v = ap.add_argument_group("反証役(claude / replay の判定の後に通す)")
+    v.add_argument("--verify", action="store_true",
+                   help="判定の後に反証役(別の呼び出し)を通し、要改善以上の見落としがあれば rank を 3 以上に上げる。"
+                        "下書きが 3 以上の看板は呼ばない")
+    v.add_argument("--verifier-model", default=None, help="反証役のモデル ID(既定 claude-sonnet-5-5)")
+    v.add_argument("--verifier-effort", choices=["low", "medium", "high", "xhigh", "max"], default=None,
+                   help="反証役の output_config.effort(省略時は API の既定)")
     g = ap.add_argument_group("claude 判定役のみ")
     g.add_argument("--model", default=None, help="モデル ID(既定は ClaudeJudge の DEFAULT_MODEL)")
     g.add_argument("--max-photos", type=int, default=6, help="1 看板に送る写真の最大枚数(既定 6)")
@@ -391,15 +444,30 @@ def main(argv=None) -> int:
                 ap.error(f"台帳がありません: {a.rules_from_db}")
             with Ledger(a.rules_from_db) as lg:
                 opts["rules"] = lg.recent_rules(RULES_MAX)
+    elif a.judge == "replay":
+        if not a.replay or not Path(a.replay).exists():
+            ap.error("--judge replay には存在する --replay が要ります")
+        if a.dry_run:
+            ap.error("--dry-run は --judge claude のときだけ使えます")
+        opts = {"path": a.replay}
     elif a.examples or a.guard or a.rubric or a.example_mix or a.example_why or a.rules_from_db or a.example_select != "rank" or a.example_pred or a.example_scale:
         ap.error("--examples / --example-mix / --example-why / --guard / --rubric / --rules-from-db は --judge claude のときだけ使えます")
     elif a.dry_run:
         ap.error("--dry-run は --judge claude のときだけ使えます")
+    if a.replay and a.judge != "replay":
+        ap.error("--replay は --judge replay のときだけ使えます")
+    if (a.verify or a.verifier_model or a.verifier_effort) and not (a.verify and a.judge in ("claude", "replay")):
+        ap.error("--verify は --judge claude / replay のときだけ使えます(--verifier-* は --verify と一緒に)")
     if a.append_log and a.judge == "oracle":
         ap.error("oracle は検算用なので --append-log できません")
     if a.append_log and a.dry_run:
         ap.error("--dry-run と --append-log は同時に使えません")
     judge = build_judge(a.judge, **opts)
+
+    verifier = None
+    if a.verify:
+        from .verifier import DEFAULT_VERIFIER_MODEL, Verifier
+        verifier = Verifier(a.verifier_model or DEFAULT_VERIFIER_MODEL, a.max_photos, a.workers, a.verifier_effort)
 
     if a.dry_run:
         print(dry_run_text(dry_run(judge, a.source, a.limit, a.split, a.seed, a.sources_config)))
@@ -407,7 +475,7 @@ def main(argv=None) -> int:
 
     try:
         r = run(judge, a.judge, a.source, a.limit, a.split, a.seed, a.sources_config,
-                a.spread_sites, a.exclude_shown)
+                a.spread_sites, a.exclude_shown, verifier)
     except RuntimeError as e:  # 鍵が無いなど
         print(f"エラー: {e}", file=sys.stderr)
         return 2

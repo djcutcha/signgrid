@@ -428,6 +428,14 @@ def load_dotenv(path: Path | None = None) -> None:
             os.environ[k] = v
 
 
+def make_client():
+    load_dotenv()
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        raise RuntimeError("ANTHROPIC_API_KEY がありません(環境変数か .env)")
+    # 429 / 529 / 5xx / 接続エラーは SDK が指数バックオフで再試行する
+    return anthropic.Anthropic(max_retries=6, timeout=180.0)
+
+
 # ---------- 判定役 ----------
 
 class ClaudeJudge(Judge):
@@ -470,11 +478,7 @@ class ClaudeJudge(Judge):
     @property
     def client(self):
         if self._client is None:
-            load_dotenv()
-            if not os.environ.get("ANTHROPIC_API_KEY"):
-                raise RuntimeError("ANTHROPIC_API_KEY がありません(環境変数か .env)")
-            # 429 / 529 / 5xx / 接続エラーは SDK が指数バックオフで再試行する
-            self._client = anthropic.Anthropic(max_retries=6, timeout=180.0)
+            self._client = make_client()
         return self._client
 
     @property
