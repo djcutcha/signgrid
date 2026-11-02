@@ -224,6 +224,7 @@ def judge_config(judge, sources) -> dict:
     """結果 JSON に残す判定役の条件。例示に使った看板の sign_id も残す(どの看板を見せたかの記録)。"""
     n = getattr(judge, "n_examples", 0)
     return {"examples": n, "example_mix": getattr(judge, "example_mix", None),
+            "example_mix_by_source": getattr(judge, "example_mix_by_source", {}),
             "example_why": bool(getattr(judge, "example_why", False)),
             "example_scale": bool(getattr(judge, "example_scale", False)),
             "example_select": getattr(judge, "example_select", "rank"),
@@ -398,6 +399,9 @@ def main(argv=None) -> int:
     g.add_argument("--example-mix", default=None, metavar="RANKS",
                    help='例示のランク構成(例 "1,1,2,2,3,3,4")。指定時は --examples を無視。'
                         "該当ランクの看板が例示用に無ければその分は省き、使った構成を結果 JSON に記録")
+    g.add_argument("--example-mix-by-source", default=None, metavar="SRC=RANKS;...",
+                   help='様式ごとの例示構成(例 "paper_scan=1,1,2,3,4;xlsx_center=1,2,3")。--example-mix より優先。'
+                        "指定の無い様式は --example-mix / --examples に従う")
     g.add_argument("--example-why", action="store_true",
                    help="各例示に「なぜそのランクか」の 1 行(項目別の正解から機械的に作る)を付ける")
     g.add_argument("--example-select", choices=["rank", "boundary"], default="rank",
@@ -435,6 +439,12 @@ def main(argv=None) -> int:
                 opts["example_mix"] = parse_mix(a.example_mix)
             except ValueError as e:
                 ap.error(str(e))
+        if a.example_mix_by_source:
+            from .claude_judge import parse_mix_by_source
+            try:
+                opts["example_mix_by_source"] = parse_mix_by_source(a.example_mix_by_source)
+            except ValueError as e:
+                ap.error(str(e))
         if a.model:
             opts["model"] = a.model
         if a.rules_from_db:
@@ -450,7 +460,7 @@ def main(argv=None) -> int:
         if a.dry_run:
             ap.error("--dry-run は --judge claude のときだけ使えます")
         opts = {"path": a.replay}
-    elif a.examples or a.guard or a.rubric or a.example_mix or a.example_why or a.rules_from_db or a.example_select != "rank" or a.example_pred or a.example_scale:
+    elif a.examples or a.guard or a.rubric or a.example_mix or a.example_mix_by_source or a.example_why or a.rules_from_db or a.example_select != "rank" or a.example_pred or a.example_scale:
         ap.error("--examples / --example-mix / --example-why / --guard / --rubric / --rules-from-db は --judge claude のときだけ使えます")
     elif a.dry_run:
         ap.error("--dry-run は --judge claude のときだけ使えます")
