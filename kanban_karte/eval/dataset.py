@@ -30,8 +30,10 @@ EVAL_PERCENT = 70  # 70% を評価用、30% を例示用(few-shot 等に使っ�
 #   xlsx_karte      客先B: 看板カルテ様式(5項目x4段階)
 #   xlsx_sketch     客先C: 判定なし(写真と項目のみ。評価対象外)
 #   xlsx_compliance 客先D: 条例の適合/不適合(安全ランクではない。法規判定の別枠)
-RANKED_SOURCES = ("paper_scan", "xlsx_center", "xlsx_karte")
-ALL_SOURCES = RANKED_SOURCES + ("xlsx_sketch", "xlsx_compliance")
+#   line_paper      客先の 2026年 1店舗(LINE 写真+手書き点検票の転記)。評価 829 基には入れない手付かずの検証セット
+AGGREGATE_SOURCES = ("paper_scan", "xlsx_center", "xlsx_karte")  # --source all(829 基の集計)の範囲
+RANKED_SOURCES = AGGREGATE_SOURCES + ("line_paper",)
+ALL_SOURCES = AGGREGATE_SOURCES + ("xlsx_sketch", "xlsx_compliance")
 
 _LABEL_TO_RANK = {"良好": 1, "経過観察": 2, "要改善": 3, "即時修理": 4, "即時対応": 4, "危険": 4}
 _LETTER_TO_RANK = {"A": 1, "B": 2, "C": 3, "D": 4}  # 客先A様式(A が最良)
@@ -226,6 +228,36 @@ def load_xlsx_compliance(base: Path) -> list[EvalItem]:
     return items
 
 
+_LINE_PAPER_RANK = {"D": 1, "C": 2, "B": 3, "A": 4}  # 点検票の凡例: D=◎ 経過良好 … A=× 危険(客先A様式の A〜D とは逆)
+
+
+def load_line_paper(base: Path) -> list[EvalItem]:
+    """客先の 2026年 1店舗(LINE 写真+手書き点検票)。正解表 items.tsv は tools/field_index.py が作る。
+
+    - 看板単位= 点検票の頁(通常/その他)。分割(70/30)は看板単位(1店舗なので現場単位だと全部同じ側に落ちる)
+    - 総合ランクは様式に総合欄が無いので、判定のあるセルの最悪値からの派生値(xlsx_karte と同じ扱い)
+    - 写真は撮影順(ファイル名末尾の番号順。tsv に並べて入っている)。紙の写真は tsv の段階で除かれている
+    - 1 フォルダに 2 基が混ざる物は tsv で写真なし(= 評価から除外)
+    """
+    items = []
+    for r in _read_tsv(base / "items.tsv"):
+        files = json.loads(r["photo_files"]) if r["photo_files"] else []
+        paths = [str(base / f) for f in files if (base / f).exists()]
+        cells = json.loads(r["item_judgments"]) if r["item_judgments"] else {}
+        ij = {k: _LINE_PAPER_RANK[v] for k, v in cells.items() if v in _LINE_PAPER_RANK}
+        rank = _rank(r["overall_rank_normalized"])
+        group = f"line_paper|{r['key']}"
+        items.append(EvalItem(
+            source="line_paper", sign_id=f"line_paper:{r['key']}", photo_paths=paths, rank_true=rank,
+            item_judgments_true=ij if (rank is not None and ij) else None, split=assign_split(group),
+            meta={"group_key": group, "site": r["site"], "sign_name": r["sign_name"],
+                  "form_items": list(cells.keys()), "inspection_date": r["inspection_date"],
+                  "overall_rank_normalized": rank, "sign_rank_raw": r["sign_rank_raw"],
+                  "photos_missing": len(files) - len(paths), "note": r.get("note", ""),
+                  "paper_photos_excluded": len(json.loads(r["paper_files"])) if r.get("paper_files") else 0}))
+    return items
+
+
 def load_all(config_path: str | os.PathLike | None = None,
              sources: tuple[str, ...] = ALL_SOURCES) -> list[EvalItem]:
     cfg = load_config(config_path)
@@ -245,6 +277,7 @@ def load_all(config_path: str | os.PathLike | None = None,
         "xlsx_karte": lambda: load_xlsx_karte(nas("xlsx_karte")),
         "xlsx_sketch": lambda: load_xlsx_sketch(nas("xlsx_sketch")),
         "xlsx_compliance": lambda: load_xlsx_compliance(nas("xlsx_compliance")),
+        "line_paper": lambda: load_line_paper(nas("line_paper")),
     }
     out: list[EvalItem] = []
     for s in sources:

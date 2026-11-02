@@ -415,7 +415,7 @@ def main(argv=None) -> int:
 
     fp = json.loads(Path(a.first_pass).read_text(encoding="utf-8"))
     recs = fp["records"]
-    items = {i.sign_id: i for i in dataset.load_all(a.sources_config, dataset.RANKED_SOURCES)}
+    items = {i.sign_id: i for i in dataset.load_all(a.sources_config, dataset.AGGREGATE_SOURCES)}
 
     if a.select_out:
         sel = select_targets(recs, items, seed=a.control_seed)

@@ -534,7 +534,7 @@ def main(argv=None) -> int:
         import json
         index = read_index(a.index)
         if a.cmd == "coverage":
-            print(coverage(dataset.load_all(a.sources_config, dataset.RANKED_SOURCES), index))
+            print(coverage(dataset.load_all(a.sources_config, dataset.AGGREGATE_SOURCES), index))
             return 0
         load = lambda p: json.loads(Path(p).read_text(encoding="utf-8"))
         md, rescued = compare(dataset.load_all(a.sources_config, SOURCES), index, load(a.first_pass),
