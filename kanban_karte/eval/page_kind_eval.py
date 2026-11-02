@@ -1,10 +1,13 @@
 """ページ種別(PageClassifier)の精度測定。
 
+注意: 正解の page_index.tsv は OCR+規則で作った「機械の正解」。ここで測るのは人の正解との一致ではなく、
+機械正解との一致率。
+
 正解は page_index.tsv(紙の束のページごとの種別)。ページ画像は eval/pages/<id>/p-NNN.jpg(90dpi)を
 page_index の rot で起こして PageClassifier に渡す。混同行列と正解率(全体・種別ごと)を
 runs/page_kind_<ts>.md に書く(runs/ は未追跡)。
 
-  python3 -m kanban_karte.eval.page_kind_eval [--classifier heuristic] [--limit-bundles N]
+  python3 -m kanban_karte.eval.page_kind_eval [--classifier heuristic|ocr] [--limit-bundles N]
 """
 from __future__ import annotations
 
@@ -73,6 +76,7 @@ def run(classifier: PageClassifier, scan_root: Path, limit_bundles: int | None =
         rows = sorted(by_id[bid], key=lambda r: int(r["page"]))
         n = len(rows)
         src = crop.JpegPages(scan_root / "pages" / bid)
+        pages: list[tuple[str, PageImage]] = []
         for r in rows:
             got = src.page(int(r["page"]))
             if got is None:
@@ -81,14 +85,17 @@ def run(classifier: PageClassifier, scan_root: Path, limit_bundles: int | None =
             rot = int(r["rot"] or 0)
             if rot:
                 im = im.rotate(rot, expand=True)
-            res = classifier.classify(PageImage(int(r["page"]), n, im, dpi, bid))
-            pairs.append((r["kind"], res.kind))
+            pages.append((r["kind"], PageImage(int(r["page"]), n, im, dpi, bid)))
+        if hasattr(classifier, "prefetch"):  # OCR をバンドル単位でまとめて走らせる
+            classifier.prefetch([p for _, p in pages])
+        for truth_kind, p in pages:
+            pairs.append((truth_kind, classifier.classify(p).kind))
     return pairs
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--classifier", default="heuristic", choices=["heuristic", "layout"])
+    ap.add_argument("--classifier", default="heuristic", choices=["heuristic", "ocr", "layout"])
     ap.add_argument("--limit-bundles", type=int, default=None)
     ap.add_argument("--sources", default=None)
     a = ap.parse_args(argv)
@@ -96,6 +103,9 @@ def main(argv=None) -> int:
     scan_root = Path(cfg["scan_root"])
     if a.classifier == "heuristic":
         clf: PageClassifier = HeuristicClassifier()
+    elif a.classifier == "ocr":
+        from ..intake.ocr_classifier import OcrHeuristicClassifier
+        clf = OcrHeuristicClassifier()
     else:
         from ..intake.classifier import LayoutClassifier
         clf = LayoutClassifier()
