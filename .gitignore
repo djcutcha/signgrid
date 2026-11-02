@@ -1,7 +1,11 @@
 .env
 .env.*
+!.env.example
 node_modules/
 __pycache__/
 .venv/
 *.log
-data/private/
+data/private/*
+!data/private/sources.example.toml
+runs/
+.DS_Store

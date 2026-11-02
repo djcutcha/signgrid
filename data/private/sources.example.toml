@@ -1,0 +1,14 @@
+# 正解データの参照先(パスだけを書く。実体はリポジトリに入れない)。
+# これを data/private/sources.toml にコピーして実パスに書き換える(sources.toml は .gitignore 済み)。
+[eval]
+# 紙のスキャン束(ground_truth_items.tsv と pages/ がある場所)
+scan_root = "/path/to/eval"
+# 各客先様式の正解(様式ごとのディレクトリがある場所)
+nas_root = "/path/to/eval/nas"
+
+# source キー -> nas_root 配下のディレクトリ名
+[eval.dirs]
+xlsx_center = "dir_for_center_format"
+xlsx_karte = "dir_for_karte_format"
+xlsx_sketch = "dir_for_sketch_format"
+xlsx_compliance = "dir_for_compliance_format"
