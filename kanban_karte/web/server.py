@@ -35,6 +35,8 @@ MEDIA_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
 SIGN = re.compile(r"^/api/signs/([^/]+)$")
 SIGN_ACT = re.compile(r"^/api/signs/([^/]+)/(items|finalize)$")
 SIGN_HEIGHT = re.compile(r"^/api/signs/([^/]+)/height$")
+RULE_ANSWER = re.compile(r"^/api/rules/(\d+)/answer$")
+RULE_ACT = re.compile(r"^/api/rules/(\d+)/(approve|reject)$")
 BUNDLE_DRAFT = re.compile(r"^/api/bundles/(\d+)/draft$")
 OUTPUT = re.compile(r"^/api/sites/([^/]+)/output/([a-z-]+)\.xlsx$")
 
@@ -43,9 +45,10 @@ class App:
     """サーバの設定。リクエストごとに台帳を開く(SQLite の接続はスレッドを渡さない)。"""
 
     def __init__(self, db: str | Path, data_dir: str | Path, sample: bool = False, judge_factory=None,
-                 estimator_factory=None, placer=None):
+                 estimator_factory=None, placer=None, clarifier=None):
         self.db, self.data_dir, self.sample, self.judge_factory = Path(db), Path(data_dir), sample, judge_factory
         self.estimator_factory = estimator_factory
+        self.clarifier = clarifier  # 聞き返し役。None なら見本・鍵なしは固定文、鍵があれば Sonnet(リクエストごとに作る)
         # 用途地域を引く部品。起動時に1回だけ作って共有する。見本データは通信も GIS 読み込みもしない(固定の商業地域)
         self.placer = SamplePlacer() if sample and placer is None else placer
         self.verbose = False
@@ -180,8 +183,17 @@ def make_handler(app: App):
                         return self._json(api.set_height(ledger, m[1], body, app.placer))
                     m = SIGN_ACT.match(path)
                     if m:
-                        fn = api.correct if m[2] == "items" else api.finalize
-                        return self._json(fn(ledger, m[1], body, app.placer))
+                        if m[2] == "items":
+                            return self._json(api.correct(ledger, m[1], body, app.placer, app.clarifier or api.default_clarifier(app.sample)))
+                        return self._json(api.finalize(ledger, m[1], body, app.placer))
+                    m = RULE_ANSWER.match(path)
+                    if m:
+                        return self._json(api.rule_answer(ledger, int(m[1]), body, app.clarifier or api.default_clarifier(app.sample)))
+                    m = RULE_ACT.match(path)
+                    if m:
+                        return self._json(api.rule_decide(ledger, int(m[1]), m[2], body))
+                    if path == "/api/rules/resolve":
+                        return self._json(api.rule_resolve(ledger, body))
                     m = BUNDLE_DRAFT.match(path)
                     if m:
                         return self._json(api.draft_bundle(ledger, int(m[1]), app.judge_factory))

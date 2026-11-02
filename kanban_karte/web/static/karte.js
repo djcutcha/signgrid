@@ -56,6 +56,7 @@
         const r = await KK.api(`/api/signs/${encodeURIComponent(d.id)}/items`, { item: it.key, value, by, note: note.value.trim() || null });
         state.open = null;
         state.flash = r.changed ? null : "下書きと同じ値なので、記録していません。";
+        state.clarify = r.clarify || null;
         state.detail = r;
         rerender();
       } catch (e) { msg.hidden = false; msg.textContent = e.message; }
@@ -92,6 +93,31 @@
       d.yellow_count ? el("p", { class: "notice warn", text: d.editable ? `黄色の ${d.yellow_count} マスは、判断できない・確信が低いマスです。マスをタップして直します。` : `黄色だったマス ${d.yellow_count} 件は、確定時の内容のままです。` }) : null,
       groups.map((g) => el("div", { class: "group" }, el("div", { class: "grp", text: g.name }), g.items.map((it) => itemRow(d, it, state, rerender)))),
       d.editable ? rankEditor(d, state, rerender) : null);
+  }
+
+  // 聞き返し(声→聞き返し→構造化): 所見が短いとき1問だけ。答えると規則候補の文が 項目/所見/条件/区分 に直る。答えなくても規則は所見のまま積んである
+  function clarifyCard(d, state, rerender) {
+    const c = state.clarify;
+    if (!c) return null;
+    const msg = el("div", { class: "notice err", role: "alert", hidden: true });
+    const input = el("input", { type: "text", id: "clarify-answer", maxlength: 200, "aria-label": "聞き返しへの答え", placeholder: "例: 全周に回っている。写真3で見える" });
+    const done = (text) => { state.clarify = null; state.flash = text; rerender(); };
+    const send = async (answer) => {
+      const by = (document.getElementById("by")?.value || localStorage.getItem(BY_KEY) || "").trim();
+      if (!by) { msg.hidden = false; msg.textContent = "答える人の名前を、「有資格者」に入れてください。"; return; }
+      try {
+        const r = await KK.api(`/api/rules/${c.rule_id}/answer`, { question: c.question, answer, by });
+        done(`規則候補 #${c.rule_id} を直しました: ${r.text}(承認されるまで下書きには効きません)`);
+      } catch (e) { msg.hidden = false; msg.textContent = e.message; }
+    };
+    return el("section", { class: "card clarify" }, el("h2", { text: "聞き返し" }),
+      el("p", { class: "clarify-q", text: c.question }),
+      input,
+      el("div", { class: "btn-row" },
+        el("button", { type: "button", class: "btn", onclick: () => send(input.value.trim()), text: "答える" }),
+        el("button", { type: "button", class: "btn ghost", onclick: () => done(`規則候補 #${c.rule_id} は所見のまま積みました。`), text: "分からない" })),
+      msg,
+      el("p", { class: "sub", text: `規則候補 #${c.rule_id} を、答えで 項目 / 所見 / 条件(範囲・程度)/ 区分 の形に直します。答えなくても候補は所見のまま残ります。` }));
   }
 
   function historyCard(d) {
@@ -206,7 +232,7 @@
   }
 
   KK.views.karte = async function (id) {
-    const state = { open: null, flash: null, detail: await KK.api(`/api/signs/${encodeURIComponent(id)}`) };
+    const state = { open: null, flash: null, clarify: null, detail: await KK.api(`/api/signs/${encodeURIComponent(id)}`) };
     const render = () => {
       const y = window.scrollY;
       const d = state.detail;
@@ -217,7 +243,7 @@
         el("p", { class: "crumb" }, el("a", { href: back, text: "← 台帳に戻る" })),
         state.flash ? el("p", { class: "notice", role: "status", text: state.flash }) : null,
         el("div", { class: "karte" },
-          el("div", { class: "main-col" }, summaryCard(d), photosCard(d, hit), itemsCard(d, state, render)),
+          el("div", { class: "main-col" }, summaryCard(d), clarifyCard(d, state, render), photosCard(d, hit), itemsCard(d, state, render)),
           el("div", { class: "side-col" }, signCard(d, state, render), historyCard(d), legalCard(d, state, render))));
       window.scrollTo(0, y);
     };

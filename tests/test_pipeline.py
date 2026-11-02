@@ -258,9 +258,14 @@ class FlowTest(unittest.TestCase):
         self.assertIn("1 基のうち、ランクが下書きから変わった: 1 基", self.run_cli("changed"))
         self.run_cli("review", "--sign", sid, "--item", "表示部-4", "--value", "3", "--by", "有資格者A", code=1)  # 確定後は訂正できない
 
-        # 次の束の下書きには、積んだ規則が先に渡る
+        # 次の束の下書きには、承認した規則だけが先に渡る(候補は渡らない)
         with Ledger(self.db) as lg:
             bid2 = line_bundle(lg, 1, sha="sha-2")
+        self.run_cli("draft", "--bundle", str(bid2))
+        self.assertEqual(self.judges[-1][0], [])
+        with Ledger(self.db) as lg:
+            review.approve_rule(lg, 1, "有資格者A")
+            review.approve_rule(lg, 2, "有資格者A")
         self.run_cli("draft", "--bundle", str(bid2))
         self.assertEqual(len(self.judges[-1][0]), 2)
         self.run_cli("draft", "--bundle", str(bid2), "--no-rules")
