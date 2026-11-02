@@ -312,7 +312,7 @@ def render(rep: Report) -> str:
     L.append("## 要約")
     L.append("")
     L.append(f"- 母数(直取引・4自治体内・屋外の看板の指示書): **{t.base}** 件")
-    L.append(f"- 自家用で許可不要(誰にも点検義務が無い看板、確定分): **{lo} 基({_pct(lo, t.base)})**")
+    L.append(f"- 自家用で許可不要(行政への点検報告の網に掛からない看板、確定分。点検の義務は条例による): **{lo} 基({_pct(lo, t.base)})**")
     L.append(f"- 用途が不明のものを自家用と仮定すると最大: {hi} 基({_pct(hi, t.base)})")
     L.append(f"- 代理店経由で看板と取れた指示書は住所未確定: {rep.agency_signs} 件(この母数に入っていない)")
     L.append("")
