@@ -123,7 +123,8 @@ def upload(conn: sqlite3.Connection, body: dict, store: Path, geocoder: Geocoder
     conn.commit()
     pending = 0
     if geocoder is not None and cands:
-        _, pending = geocode_candidates(conn, geocoder)
+        geocode_candidates(conn, geocoder)   # 前に通信できなかった束の分もやり直す
+        pending = conn.execute("SELECT COUNT(*) FROM gov_candidates WHERE batch_id=? AND geocoded=0", (bid,)).fetchone()[0]
     srcs = {"exif": 0, "device": 0, "given": 0, "none": len(no_pos)}
     for p in fresh:
         if p["source"]:
