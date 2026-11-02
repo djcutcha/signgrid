@@ -27,8 +27,8 @@ KK.el = function (tag, props, ...kids) {
   return e;
 };
 
-KK.api = async function (path, body) {
-  const opt = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+KK.api = async function (path, body, method = "POST") {
+  const opt = body === undefined ? {} : { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
   const r = await fetch(path, opt);
   if (!r.ok) {
     let msg = r.statusText;
@@ -70,6 +70,13 @@ KK.citations = function (cites) {
       c.quote_verified ? KK.el("span", { class: "chip verified", title: "原文と照合して引用が一致", text: "✓検算済み" })
         : KK.el("span", { class: "chip unverified", title: "原文との照合がまだ", text: "引用未検算" })),
     KK.el("div", { class: "quote", text: c.quote || "" }))));
+};
+
+// 設置場所の区分(用途地域)の1行。place は API の {status, zone}。引けないときは区分なしで判定したと書く
+KK.placeText = function (place) {
+  if (!place || place.status === "none") return null;
+  if (place.zone) return `${place.zone}(${place.status === "sample" ? "見本の固定値" : "国土交通省 GIS、暫定"})`;
+  return "引けず(区分なしで判定)";
 };
 
 KK.triText = function (v, yes, no) { return v === null || v === undefined ? "—" : v ? yes : no; };

@@ -60,6 +60,7 @@ class Sign:
     evidence: dict[str, dict] = field(default_factory=dict)
     confirmed_at: str | None = None
     confirmed_by: str | None = None
+    height_m: float | None = None  # 看板の全高(m)。size は表示面の寸法で、全高は別。法規の判定に渡す
 
     def validate(self) -> None:
         if self.status not in SIGN_STATUSES:
@@ -130,7 +131,7 @@ class Ledger:
         sign_cols = {r[1] for r in self.conn.execute("PRAGMA table_info(signs)")}
         for col, ddl in (("status", "TEXT NOT NULL DEFAULT 'new'"), ("draft_rank", "INTEGER"),
                          ("confidence", "REAL"), ("evidence", "TEXT NOT NULL DEFAULT '{}'"),
-                         ("confirmed_at", "TEXT"), ("confirmed_by", "TEXT")):
+                         ("confirmed_at", "TEXT"), ("confirmed_by", "TEXT"), ("height_m", "REAL")):
             if col not in sign_cols:
                 self.conn.execute(f"ALTER TABLE signs ADD COLUMN {col} {ddl}")
         self.conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")

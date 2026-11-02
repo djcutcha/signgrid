@@ -15,7 +15,12 @@
     return "実測や区域の確認が要ります。点検の義務: 要実測";
   }
 
-  function threeLines(r, areaText) {
+  function placeLine(place) {
+    const t = KK.placeText(place);
+    return t ? el("li", { class: "line-place" }, el("span", { class: "k", text: "用途地域" }), el("span", { text: t })) : null;
+  }
+
+  function threeLines(r, areaText, place) {
     const area = areaText || `${r.area_m2.toFixed(1)} ㎡`;
     const exempt = r.is_self_use_exempt;
     const line1 = exempt === true ? `自家用 ${area}(自家用の許可不要の基準に収まります)`
@@ -23,6 +28,7 @@
     const line3 = inspectLine(r);
     return [
       el("li", { class: "line-use" }, el("span", { class: "k", text: "自家用" }), el("span", { text: line1 })),
+      placeLine(place),
       el("li", { class: "line-permit" }, el("span", { class: "k", text: "許可" }), KK.permitChip(r.permit_required)),
       el("li", { class: "line-inspect" }, el("span", { class: "k", text: "点検" }), el("span", { text: line3 })),
     ];
@@ -33,7 +39,7 @@
     const body = `住所: ${input.address}\n看板の大きさ: 幅 ${input.w} m × 高さ ${input.h} m(約 ${r.area_m2.toFixed(1)} ㎡)\n点検をお願いします。`;
     return el("section", { class: "card owner-result", "aria-live": "polite" },
       el("h2", { text: "調べた結果" }),
-      el("ul", { class: "three" }, threeLines(r)),
+      el("ul", { class: "three" }, threeLines(r, null, r.place)),
       r.notes && r.notes.length ? el("ul", { class: "legal-notes" }, r.notes.map((n) => el("li", { class: "sub", text: n }))) : null,
       el("h3", { text: `根拠条文 ${(r.citations || []).length} 件${r.ordinance_key ? `(${r.ordinance_key}の条例)` : ""}` }),
       KK.citations(r.citations),
@@ -59,7 +65,7 @@
       e.notes ? el("p", { class: "sub", text: e.notes }) : null,
       el("p", { class: "sub", text: "幅・高さの欄に入れました。実測した値があれば、手で直して「調べる」を押してください。" }),
       el("h2", { text: "範囲の両端で調べた結果" }),
-      el("ul", { class: "three" }, threeLines(legal, areaText)),
+      el("ul", { class: "three" }, threeLines(legal, areaText, res.place)),
       j.notes && j.notes.length ? el("ul", { class: "legal-notes" }, j.notes.map((n) => el("li", { class: "sub", text: n }))) : null,
       el("h3", { text: `根拠条文 ${(j.citations || []).length} 件${j.ordinance_key ? `(${j.ordinance_key}の条例)` : ""}` }),
       KK.citations(j.citations),

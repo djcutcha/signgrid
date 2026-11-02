@@ -240,7 +240,7 @@ dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
 .area{font-size:20px;font-weight:700}
 .owner label.num.wide{margin-top:4px}
 .three{list-style:none;margin:0;padding:0}
-.three li{display:grid;grid-template-columns:3em minmax(0,1fr);gap:8px;align-items:start;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.three li{display:grid;grid-template-columns:4.2em minmax(0,1fr);gap:8px;align-items:start;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
 .three li:last-child{border-bottom:0}
 .three .chip{justify-self:start}
 .three .k{color:var(--muted);font-size:12.5px;padding-top:2px}

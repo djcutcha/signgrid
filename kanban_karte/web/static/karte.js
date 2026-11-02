@@ -107,7 +107,24 @@
         : el("p", { class: "sub", text: "まだ訂正はありません。AI の下書きのままです。" }));
   }
 
-  function legalCard(d) {
+  // 全高(m)。表示面の寸法とは別の値で、法規の判定(高さの基準)に渡る。空で保存すると消える
+  function heightForm(d, state, rerender) {
+    const input = el("input", { type: "number", id: "height-m", min: "0", max: "99", step: "0.1", inputmode: "decimal", value: d.height_m ?? "", placeholder: "例 4.5" });
+    const msg = el("p", { class: "notice err", role: "alert", hidden: true });
+    const save = async () => {
+      const byEl = document.getElementById("by");
+      const by = ((byEl && byEl.value) || localStorage.getItem(BY_KEY) || "").trim();
+      if (!by) { msg.hidden = false; msg.textContent = "入力した人の名前が要ります。看板の画面の「有資格者」に名前を入れてください。"; return; }
+      try { state.detail = await KK.api(`/api/signs/${encodeURIComponent(d.id)}/height`, { height_m: input.value.trim() || null, by }, "PUT"); rerender(); }
+      catch (e) { msg.hidden = false; msg.textContent = e.message; }
+    };
+    return el("div", { class: "height-form" },
+      el("label", {}, el("span", { class: "k", text: "全高(m)" }), " ", input),
+      el("button", { class: "btn", type: "button", onclick: save, text: "保存" }),
+      el("p", { class: "sub", text: d.height_m ? "高さの基準がある条例では、この値で判定します。" : "未入力。高さの基準がある条例では、全高が分からないと「要実測」になります。" }), msg);
+  }
+
+  function legalCard(d, state, rerender) {
     const kv = (k, v) => [el("span", { class: "k", text: k }), el("span", {}, v)];
     const L = d.legal || {};
     const term = L.permit_term_years === null || L.permit_term_years === undefined ? null : `許可の期限 ${L.permit_term_years} 年(上限)`;
@@ -115,11 +132,13 @@
       el("div", { class: "kv" },
         kv("自家用", L.is_self_use_exempt === null || L.is_self_use_exempt === undefined ? "要実測(自家用の基準に収まるか決められない)"
           : L.is_self_use_exempt ? `自家用の許可不要の基準に収まる${L.area_m2 ? `(${L.area_m2} ㎡)` : ""}` : "自家用の基準を超える、または自家用でない"),
+        KK.placeText(L.place) ? kv("用途地域", KK.placeText(L.place)) : null,
         kv("許可", KK.permitChip(L.permit_required)),
         kv("期限・点検", [term, `点検の義務 ${L.inspection_required}`].filter(Boolean).join(" / "))),
       el("h3", { text: `根拠条文 ${(L.citations || []).length} 件${L.ordinance_key ? `(${L.ordinance_key}の条例)` : ""}` }),
       KK.citations(L.citations),
       (L.notes || []).length ? el("ul", { class: "legal-notes" }, L.notes.map((n) => el("li", { class: "sub", text: n }))) : null,
+      heightForm(d, state, rerender),
       el("p", { class: "sub", text: "根拠は条例の写しから機械が抜いたものです。安全の判定ではありません。" }));
     return el("section", { class: "card legal-card" }, el("h2", { text: "法規" }), judged,
       el("details", { class: "ledger-law" }, el("summary", { text: "台帳に記録されている法規の値" }),
@@ -190,7 +209,7 @@
         state.flash ? el("p", { class: "notice", role: "status", text: state.flash }) : null,
         el("div", { class: "karte" },
           el("div", { class: "main-col" }, summaryCard(d), photosCard(d, hit), itemsCard(d, state, render)),
-          el("div", { class: "side-col" }, signCard(d, state, render), historyCard(d), legalCard(d))));
+          el("div", { class: "side-col" }, signCard(d, state, render), historyCard(d), legalCard(d, state, render))));
       window.scrollTo(0, y);
     };
     render();

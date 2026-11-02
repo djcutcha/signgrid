@@ -22,6 +22,7 @@ from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit, parse_qs
 
 from ..ledger.db import Ledger
+from ..legal.locate import SamplePlacer, make_placer
 from . import api
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -33,6 +34,7 @@ MEDIA_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
 
 SIGN = re.compile(r"^/api/signs/([^/]+)$")
 SIGN_ACT = re.compile(r"^/api/signs/([^/]+)/(items|finalize)$")
+SIGN_HEIGHT = re.compile(r"^/api/signs/([^/]+)/height$")
 BUNDLE_DRAFT = re.compile(r"^/api/bundles/(\d+)/draft$")
 OUTPUT = re.compile(r"^/api/sites/([^/]+)/output/([a-z-]+)\.xlsx$")
 
@@ -41,9 +43,11 @@ class App:
     """サーバの設定。リクエストごとに台帳を開く(SQLite の接続はスレッドを渡さない)。"""
 
     def __init__(self, db: str | Path, data_dir: str | Path, sample: bool = False, judge_factory=None,
-                 estimator_factory=None):
+                 estimator_factory=None, placer=None):
         self.db, self.data_dir, self.sample, self.judge_factory = Path(db), Path(data_dir), sample, judge_factory
         self.estimator_factory = estimator_factory
+        # 用途地域を引く部品。起動時に1回だけ作って共有する。見本データは通信も GIS 読み込みもしない(固定の商業地域)
+        self.placer = SamplePlacer() if sample and placer is None else placer
         self.verbose = False
 
     def ledger(self) -> Ledger:
@@ -136,7 +140,7 @@ def make_handler(app: App):
                         return self._json(api.rules(ledger))
                     m = SIGN.match(path)
                     if m:
-                        return self._json(api.sign_detail(ledger, m[1]))
+                        return self._json(api.sign_detail(ledger, m[1], app.placer))
                     m = OUTPUT.match(path)
                     if m:
                         data, name = api.export(ledger, m[1], m[2])
@@ -146,6 +150,9 @@ def make_handler(app: App):
                 self._error(404, "見つかりません")
             except api.ApiError as e:
                 self._error(e.status, e.message)
+
+        def do_PUT(self):
+            self.do_POST()
 
         def do_POST(self):
             path = unquote(urlsplit(self.path).path)
@@ -161,15 +168,20 @@ def make_handler(app: App):
             except ValueError:
                 return self._error(400, "本文が JSON のオブジェクトではありません")
             try:
+                if (self.command == "PUT") != bool(SIGN_HEIGHT.match(path)):    # PUT は全高だけ。全高は PUT だけ
+                    return self._error(405, "この経路は " + ("PUT" if SIGN_HEIGHT.match(path) else "POST") + " で送ってください")
                 if path == "/api/owner/judge":  # 台帳を開かない・書かない
-                    return self._json(api.owner_judge(body))
+                    return self._json(api.owner_judge(body, app.placer))
                 if path == "/api/owner/estimate":  # 台帳を開かない・書かない。写真は保存しない
-                    return self._json(api.owner_estimate(body, app.estimator_factory))
+                    return self._json(api.owner_estimate(body, app.estimator_factory, app.placer))
                 with app.ledger() as ledger:
+                    m = SIGN_HEIGHT.match(path)
+                    if m:
+                        return self._json(api.set_height(ledger, m[1], body, app.placer))
                     m = SIGN_ACT.match(path)
                     if m:
                         fn = api.correct if m[2] == "items" else api.finalize
-                        return self._json(fn(ledger, m[1], body))
+                        return self._json(fn(ledger, m[1], body, app.placer))
                     m = BUNDLE_DRAFT.match(path)
                     if m:
                         return self._json(api.draft_bundle(ledger, int(m[1]), app.judge_factory))
@@ -211,7 +223,9 @@ def main(argv=None) -> int:
         data_dir = SAMPLE_JSON.parent
         if not db.exists():
             seed_sample(db, data_dir)
-    app = App(db, data_dir, sample=sample)
+    app = App(db, data_dir, sample=sample, placer=None if sample else make_placer())
+    if not sample:
+        print("用途地域: " + ("GIS を読み込んだ" if app.placer else "GIS が無いので区分なしで判定(python3 -m kanban_karte.geo.fetch_gis)"), file=sys.stderr)
     app.verbose = True
     srv = make_server(app, a.host, a.port)
     print(f"台帳 {db}{'(見本データ)' if sample else ''}\nhttp://{a.host}:{a.port}/ を開く。止めるのは Ctrl-C", file=sys.stderr)
