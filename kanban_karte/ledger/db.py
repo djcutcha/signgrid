@@ -279,6 +279,11 @@ class Ledger:
             return list(self.conn.execute("SELECT * FROM corrections ORDER BY id"))
         return list(self.conn.execute("SELECT * FROM corrections WHERE sign_id=? ORDER BY id", (sign_id,)))
 
+    def recent_rules(self, n: int = 20) -> list[str]:
+        """最新 n 件の規則の文(古い順)。ClaudeJudge の set_rules に渡す。"""
+        rows = self.conn.execute("SELECT text FROM rules ORDER BY id DESC LIMIT ?", (n,)).fetchall()
+        return [r["text"] for r in reversed(rows)]
+
     # ---- JSON の読み込み(見本データ) ----
     def import_json(self, path: str | Path) -> tuple[int, int]:
         """{"sites": [...], "signs": [...]} を読み込む。戻り値は (現場数, 看板数)。写真パスは JSON のあるフォルダ基準の絶対パスで保存。"""

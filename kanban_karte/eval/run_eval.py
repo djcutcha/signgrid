@@ -172,7 +172,7 @@ def judge_config(judge, sources) -> dict:
     n = getattr(judge, "n_examples", 0)
     return {"examples": n, "example_mix": getattr(judge, "example_mix", None),
             "example_why": bool(getattr(judge, "example_why", False)), "guard": bool(getattr(judge, "guard", False)),
-            "rubric": bool(getattr(judge, "rubric", False)),
+            "rubric": bool(getattr(judge, "rubric", False)), "rules": list(getattr(judge, "rules", [])),
             "examples_used": {s: [e.sign_id for e in judge.examples_for(s)] for s in sources} if n else {},
             # 実際に使えた構成(要求した構成から、該当する例示用の看板が無いランクを省いたもの)
             "example_mix_used": {s: sorted(e.rank_true for e in judge.examples_for(s)) for s in sources} if n else {}}
@@ -317,6 +317,8 @@ def main(argv=None) -> int:
                    help="見逃し対策の指示を足し、項目ごとに evidence と needs_onsite(写真では判定できない= 判断できず)を出させる")
     g.add_argument("--rubric", action="store_true",
                    help="評価基準(a〜d と部位ごとの判定ポイント)の要点をシステムプロンプトに入れる")
+    g.add_argument("--rules-from-db", default=None, metavar="LEDGER",
+                   help="台帳(SQLite)の rules 表の最新20件を「有資格者の規則」として例示の後ろに入れる(既定オフ)")
     g.add_argument("--dry-run", action="store_true", help="API を呼ばず、送る看板数・写真枚数・推定トークンだけ出す")
     a = ap.parse_args(argv)
 
@@ -332,8 +334,15 @@ def main(argv=None) -> int:
                 ap.error(str(e))
         if a.model:
             opts["model"] = a.model
-    elif a.examples or a.guard or a.rubric or a.example_mix or a.example_why:
-        ap.error("--examples / --example-mix / --example-why / --guard / --rubric は --judge claude のときだけ使えます")
+        if a.rules_from_db:
+            from ..ledger.db import Ledger
+            from .claude_judge import RULES_MAX
+            if not Path(a.rules_from_db).exists():
+                ap.error(f"台帳がありません: {a.rules_from_db}")
+            with Ledger(a.rules_from_db) as lg:
+                opts["rules"] = lg.recent_rules(RULES_MAX)
+    elif a.examples or a.guard or a.rubric or a.example_mix or a.example_why or a.rules_from_db:
+        ap.error("--examples / --example-mix / --example-why / --guard / --rubric / --rules-from-db は --judge claude のときだけ使えます")
     elif a.dry_run:
         ap.error("--dry-run は --judge claude のときだけ使えます")
     if a.append_log and a.judge == "oracle":

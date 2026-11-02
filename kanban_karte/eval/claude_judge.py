@@ -49,6 +49,7 @@ CACHE_READ_MULT = 0.10
 EXAMPLE_MAX = 9      # 例示の最大基数
 EXAMPLE_MIN_PHOTOS = 3  # 例示に優先して選ぶ写真枚数(これ未満しか無ければ枚数の少ない看板も使う)
 EXAMPLE_PHOTOS = 3   # 例示 1 基あたりの最大写真枚数
+RULES_MAX = 20       # 有資格者の規則として送る最大件数(最新から)
 ASSUMED_OUTPUT_TOKENS = 800  # dry-run の出力トークン仮定(1看板あたり。根拠なしの仮置き)
 
 SYSTEM_HEAD = """あなたは屋外広告物(看板)の安全点検を補助する点検者です。写真から看板の劣化・損傷・固定状態を観察し、次の4段階で判定します。
@@ -106,6 +107,17 @@ def system_prompt(n_examples: int = 0, guard: bool = False, rubric: bool = False
         parts.append(GUARD_TEXT)
     parts.append(FORMAT_V2 if guard else FORMAT_V1)
     return "\n\n".join(parts)
+
+
+RULES_HEAD = ("【有資格者の規則(最新 {n} 件)】有資格者が過去の下書きを訂正して積んだ規則です。"
+              "判定対象の写真に当てはまるときは従ってください。当てはまらないときは無視してください。")
+
+
+def rules_block(rules: list[str]) -> list[dict]:
+    """有資格者の規則のブロック(例示ブロックの後ろ=キャッシュ印の外に置く。規則が増えても例示のキャッシュは効く)。"""
+    if not rules:
+        return []
+    return [{"type": "text", "text": RULES_HEAD.format(n=len(rules)) + "\n" + "\n".join(f"- {r}" for r in rules)}]
 
 
 # ---------- 画像 ----------
@@ -366,7 +378,8 @@ class ClaudeJudge(Judge):
     def __init__(self, model: str = DEFAULT_MODEL, max_photos: int = 6, workers: int = MAX_WORKERS,
                  effort: str | None = None, client=None, examples: int = 0, example_seed: int = 0,
                  guard: bool = False, rubric: bool = False,
-                 example_mix: list[int] | None = None, example_why: bool = False):
+                 example_mix: list[int] | None = None, example_why: bool = False,
+                 rules: list[str] | None = None):
         self.model = model
         self.max_photos = max_photos
         self.workers = max(1, min(workers, MAX_WORKERS))
@@ -378,6 +391,8 @@ class ClaudeJudge(Judge):
         self.guard = guard
         self.rubric = rubric
         self._client = client
+        self.rules: list[str] = []
+        self.set_rules(rules or [])
         self._example_pool: list[EvalItem] = []
         self._examples: dict[str, list[EvalItem]] = {}    # source -> 選んだ例示
         self._example_blocks: dict[str, list[dict]] = {}  # source -> 送るブロック(キャッシュ印つき)
@@ -395,6 +410,11 @@ class ClaudeJudge(Judge):
     @property
     def system(self) -> str:
         return system_prompt(self.n_examples, self.guard, self.rubric)
+
+    # --- 有資格者の規則 ---
+    def set_rules(self, rules: list[str]) -> None:
+        """有資格者の規則(古い順。最新 RULES_MAX 件だけ使う)。空なら送らない(既定。送る物は変わらない)。"""
+        self.rules = [r for r in rules if r][-RULES_MAX:]
 
     # --- 例示 ---
     def set_example_pool(self, items: list[EvalItem]) -> None:
@@ -436,7 +456,7 @@ class ClaudeJudge(Judge):
 
     def build_messages(self, item: EvalItem) -> list[dict]:
         photos = self.photos_for(item)
-        content: list[dict] = list(self.example_blocks(item.source))
+        content: list[dict] = list(self.example_blocks(item.source)) + rules_block(self.rules)
         for i, p in enumerate(photos, 1):
             content.append({"type": "text", "text": f"写真{i}"})
             content.append({"type": "image", "source": {
@@ -455,6 +475,7 @@ class ClaudeJudge(Judge):
                 ex_img += estimate_image_tokens(pth)
                 ex_text += 8
             ex_text += len(example_answer_text(ex, self.example_why)) + 20
+        text += sum(len(b["text"]) for b in rules_block(self.rules))
         return {"photos": len(photos), "image_tokens": img, "text_tokens": text,
                 "example_image_tokens": ex_img, "example_text_tokens": ex_text,
                 "input_tokens": img + text + ex_img + ex_text}

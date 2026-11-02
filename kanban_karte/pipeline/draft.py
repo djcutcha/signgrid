@@ -124,10 +124,11 @@ def draft_bundle(ledger: Ledger, bundle_id: int, judge) -> list[DraftResult]:
     return results
 
 
-def default_judge(sources_config=None, examples: int = 6, **opts):
-    """本番の判定役: ClaudeJudge(例示 examples、xlsx_center の例示用の側から。現場の重複なし)。"""
+def default_judge(rules: list[str] | None = None, sources_config=None, examples: int = 6, **opts):
+    """本番の判定役: ClaudeJudge(例示 examples、xlsx_center の例示用の側から。現場の重複なし)。
+    rules= 台帳の最新の規則(ledger.recent_rules())を例示の後ろに入れる。"""
     from ..eval import dataset
     from ..eval.claude_judge import ClaudeJudge
-    judge = ClaudeJudge(examples=examples, **opts)
+    judge = ClaudeJudge(examples=examples, rules=rules, **opts)
     judge.set_example_pool(dataset.load_all(sources_config, sources=(FORM_SOURCE,)))
     return judge
