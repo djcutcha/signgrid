@@ -297,9 +297,14 @@ class ExamplesTest(unittest.TestCase):
 
     def test_mix_parse(self):
         self.assertEqual(cj.parse_mix("1,1,2, 2,3,3,4"), [1, 1, 2, 2, 3, 3, 4])
-        for bad in ("", "0,1", "1,5", "a", ",".join(["1"] * 10)):
+        for bad in ("", "0,1", "1,5", "a", ",".join(["1"] * 13)):
             with self.assertRaises(ValueError):
                 cj.parse_mix(bad)
+
+    def test_mix_parse_accepts_12(self):
+        self.assertEqual(len(cj.parse_mix(",".join(["1"] * 12))), 12)
+        self.assertEqual(cj.EXAMPLE_MAX, 12)
+        self.assertEqual(ClaudeJudge(client=FakeClient([]), examples=99).n_examples, 12)
 
     def test_select_by_mix_and_equals_default(self):
         pool = self._pool()

@@ -393,8 +393,8 @@ def main(argv=None) -> int:
     g.add_argument("--workers", type=int, default=4, help="並列数(1〜4、既定 4)")
     g.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"], default=None,
                    help="output_config.effort(省略時は API の既定)")
-    g.add_argument("--examples", type=int, default=0, choices=range(0, 10), metavar="N",
-                   help="同じ様式の例示用(split=example)から N 基(0〜9)を判定例として先頭に置く。0 でゼロショット")
+    g.add_argument("--examples", type=int, default=0, choices=range(0, 13), metavar="N",
+                   help="同じ様式の例示用(split=example)から N 基(0〜12)を判定例として先頭に置く。0 でゼロショット")
     g.add_argument("--example-mix", default=None, metavar="RANKS",
                    help='例示のランク構成(例 "1,1,2,2,3,3,4")。指定時は --examples を無視。'
                         "該当ランクの看板が例示用に無ければその分は省き、使った構成を結果 JSON に記録")

@@ -46,7 +46,7 @@ PRICES = {
 # claude-api スキルが読み込めなかったため、公開されている標準の倍率を仮置きしている(請求で要確認)。
 CACHE_WRITE_MULT = 1.25
 CACHE_READ_MULT = 0.10
-EXAMPLE_MAX = 9      # 例示の最大基数
+EXAMPLE_MAX = 12     # 例示の最大基数
 EXAMPLE_MIN_PHOTOS = 3  # 例示に優先して選ぶ写真枚数(これ未満しか無ければ枚数の少ない看板も使う)
 EXAMPLE_PHOTOS = 3   # 例示 1 基あたりの最大写真枚数
 RULES_MAX = 20       # 有資格者の規則として送る最大件数(最新から)
