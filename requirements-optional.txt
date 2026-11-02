@@ -1,0 +1,2 @@
+# 任意の追加依存。iPhone の HEIC 写真を行政の一括登録(gov)で読む時だけ要る。JPEG だけなら不要
+pillow-heif==1.8.1

@@ -1,2 +1,0 @@
-# gov モジュールの追加依存(任意)。HEIC(iPhone の写真)を読むときだけ要る。JPEG だけなら不要。
-pillow-heif==1.8.1

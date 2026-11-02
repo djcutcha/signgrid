@@ -1,4 +1,6 @@
+# 固定版(2026-11-02 統合)。モジュール別の requirements-*.txt は本ファイルに統合した
 anthropic==2.3.0
 numpy==2.5.4
+openpyxl==3.1.5
 pillow==12.3.0
 pypdf==6.21.4
