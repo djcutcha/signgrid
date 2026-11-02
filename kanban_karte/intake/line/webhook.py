@@ -47,6 +47,7 @@ class _UserTally:
     position_only: bool = False
     failed: int = 0
     touched: bool = False       # この配信で新しく受け取った物がある(再送だけなら返事しない)
+    bundle_id: int | None = None
 
 
 @dataclass
@@ -104,7 +105,7 @@ class LineApp:
             text = reply_text.receipt(t.state_photos, has_position_only=t.position_only, notes=t.notes,
                                       failed=t.failed)
             if text:
-                self._reply(t.reply_token, text, out)
+                self._reply(t.reply_token, text, out, bundle_id=t.bundle_id)
         return out
 
     def _one(self, ev: dict, store: SessionStore, tally: dict[str, _UserTally], follows: list,
@@ -148,14 +149,17 @@ class LineApp:
             return  # LINE の再送。数えない・返事もしない
         t.touched = True
         t.state_photos = res.state.photos
+        t.bundle_id = res.state.bundle_id
         t.position_only = mtype == "location" and res.state.photos == 0
 
-    def _reply(self, token: str, text: str, out: Delivery) -> None:
+    def _reply(self, token: str, text: str, out: Delivery, bundle_id: int | None = None) -> None:
+        where = f" bundle=#{bundle_id}" if bundle_id is not None else ""
         try:
             self.client.reply(token, text)
             out.replies.append((token, text))
+            log.info("reply ok 1通%s", where)
         except Exception as e:
-            log.exception("reply failed")
+            log.error("reply failed%s: %s: %s", where, type(e).__name__, e)
             out.errors.append(f"reply: {type(e).__name__}: {e}")
 
 
