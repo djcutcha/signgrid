@@ -117,6 +117,18 @@ def make_handler(app: App):
                         return self._json(api.signs(ledger, (q.get("site") or [None])[0]))
                     if path == "/api/bundles":
                         return self._json(api.bundles(ledger))
+                    if path == "/api/gov/batches":
+                        return self._json(api.gov_batches(ledger, (q.get("today") or [None])[0]))
+                    if path in ("/api/gov/candidates", "/api/gov/map.html"):
+                        try:
+                            batch = int((q.get("batch") or [""])[0])
+                        except ValueError:
+                            return self._error(400, "batch=<一括登録の id> を付けてください")
+                        today = (q.get("today") or [None])[0]
+                        if path == "/api/gov/map.html":
+                            return self._send(200, api.gov_map_html(ledger, batch, today), "text/html; charset=utf-8",
+                                              {"Cache-Control": "no-store"})
+                        return self._json(api.gov_candidates(ledger, batch, today))
                     if path == "/api/rules":
                         return self._json(api.rules(ledger))
                     m = SIGN.match(path)
@@ -144,6 +156,8 @@ def make_handler(app: App):
             except ValueError:
                 return self._error(400, "本文が JSON のオブジェクトではありません")
             try:
+                if path == "/api/owner/judge":  # 台帳を開かない・書かない
+                    return self._json(api.owner_judge(body))
                 with app.ledger() as ledger:
                     m = SIGN_ACT.match(path)
                     if m:

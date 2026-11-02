@@ -132,16 +132,20 @@ def match_candidates(cands: list[CandidateRow], signs: list[Sign], today: date, 
     return out
 
 
-def load_candidates(conn: sqlite3.Connection) -> list[CandidateRow]:
-    """gov_ の表から候補看板(位置あり)と、位置なしの写真(1枚=1行)を読む。"""
+def load_candidates(conn: sqlite3.Connection, batch_id: int | None = None) -> list[CandidateRow]:
+    """gov_ の表から候補看板(位置あり)と、位置なしの写真(1枚=1行)を読む。batch_id があればその回の分だけ。"""
     ensure_gov_schema(conn)
+    where, args = ("", ())
+    if batch_id is not None:
+        where, args = " AND batch_id=?", (batch_id,)
     photos: dict[int, list[str]] = {}
-    for cid, rel in conn.execute("SELECT candidate_id, rel FROM gov_photos WHERE candidate_id IS NOT NULL "
-                                 "ORDER BY taken_at, rel"):
+    for cid, rel in conn.execute("SELECT candidate_id, rel FROM gov_photos WHERE candidate_id IS NOT NULL" + where +
+                                 " ORDER BY taken_at, rel", args):
         photos.setdefault(cid, []).append(rel)
     rows = [CandidateRow(r[0], r[1], r[2], photos.get(r[0], []), r[3], r[4], r[5], r[6], bool(r[7]))
             for r in conn.execute("SELECT id, lat, lng, first_taken, last_taken, pref, city, geocoded "
-                                  "FROM gov_candidates ORDER BY id")]
-    for r in conn.execute("SELECT rel, taken_at FROM gov_photos WHERE candidate_id IS NULL ORDER BY taken_at, rel"):
+                                  "FROM gov_candidates WHERE 1=1" + where + " ORDER BY id", args)]
+    for r in conn.execute("SELECT rel, taken_at FROM gov_photos WHERE candidate_id IS NULL" + where +
+                          " ORDER BY taken_at, rel", args):
         rows.append(CandidateRow(None, None, None, [r[0]], r[1], r[1]))
     return rows

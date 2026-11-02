@@ -212,6 +212,28 @@ dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
 .intake td{vertical-align:top}
 .intake .c-file{overflow-wrap:anywhere;min-width:12em}
 .intake .notice{margin:0}
+
+/* 行政 */
+.chip.gov.c-red{background:#c62828} .chip.gov.c-orange{background:#ef6c00} .chip.gov.c-green{background:#2e7d32} .chip.gov.c-gray{background:#757575}
+.gov-pick{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:4px}
+.gov-chips{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 0 12px}
+.gov-count{border-radius:8px;padding:8px 10px;color:#fff;min-width:0}
+.gov-count.c-red{background:#c62828} .gov-count.c-orange{background:#ef6c00} .gov-count.c-green{background:#2e7d32} .gov-count.c-gray{background:#757575}
+.gov-count b{font-size:22px;line-height:1.1;margin-right:6px}
+.gov-count span{font-weight:700}
+.gov-count small{display:block;font-size:11px;opacity:.92;line-height:1.35}
+.gov-map{margin-bottom:12px}
+.gov-map iframe{width:100%;height:420px;border:1px solid var(--line);border-radius:8px;display:block;background:var(--ph)}
+.gov-table td{vertical-align:top}
+.gov-table tr.cand.c-red{box-shadow:inset 4px 0 0 #c62828} .gov-table tr.cand.c-orange{box-shadow:inset 4px 0 0 #ef6c00}
+.gov-table tr.cand.c-green{box-shadow:inset 4px 0 0 #2e7d32} .gov-table tr.cand.c-gray{box-shadow:inset 4px 0 0 #757575}
+@media (max-width:760px){
+  .gov-chips{grid-template-columns:1fr 1fr}
+  .gov-count small{display:none}
+  .gov-map iframe{height:320px}
+  .gov-table .c-state{order:1;flex:1 1 100%}
+  .gov-table .c-pos,.gov-table .c-photos,.gov-table .c-sign,.gov-table .c-exp{order:2}
+}
 @media (max-width:760px){
   .intake .c-kind{order:1} .intake .c-file{order:2;flex:1 1 60%} .intake .c-state{order:3} .intake .c-count{order:4}
   .intake .c-err{order:5;flex:1 1 100%} .intake .c-go{order:6} .intake .c-act{order:7;flex:1 1 100%}

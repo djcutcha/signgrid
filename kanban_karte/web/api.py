@@ -10,10 +10,13 @@ import json
 import os
 import re
 import tempfile
+from datetime import date
 from pathlib import Path
 
 from ..ledger.db import Ledger, Sign
 from ..ledger.items import _ITEMS, ITEM_KEYS, RESULTS
+from ..gov.map import COLOR_NAME, COLORS, COLOR_MEANING, summarize, write_map
+from ..gov.match import WARN_DAYS, load_candidates, match_candidates
 from ..legal.judge import judge as legal_judge
 from ..output.common import RANK_LABEL, size_text, unjudged_item_keys
 from ..output.client_a_form import write_client_a
@@ -210,6 +213,97 @@ def draft_bundle(ledger: Ledger, bundle_id: int, judge_factory=None) -> dict:
 def rules(ledger: Ledger) -> list[dict]:
     return [{"id": r["id"], "text": r["text"], "source": r["source"], "created": r["created"],
              "conflicts_with": json.loads(r["conflicts_with"] or "[]")} for r in ledger.list_rules()]
+
+
+# ---- 行政の一括登録(gov_ の表。無い台帳では「まだありません」) ----
+def _has_gov(ledger: Ledger) -> bool:
+    """読むだけで表を作らない(gov の表が無い台帳に、画面を開いただけで書き込まない)。"""
+    return ledger.conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='gov_batches'").fetchone() is not None
+
+
+def _today(q: str | None) -> date:
+    try:
+        return date.fromisoformat(q) if q else date.today()
+    except ValueError:
+        raise ApiError(400, f"today は YYYY-MM-DD: {q!r}")
+
+
+def _gov_results(ledger: Ledger, batch_id: int, today: date):
+    if not _has_gov(ledger) or ledger.conn.execute("SELECT 1 FROM gov_batches WHERE id=?", (batch_id,)).fetchone() is None:
+        raise ApiError(404, f"一括登録 {batch_id} がありません")
+    return match_candidates(load_candidates(ledger.conn, batch_id), ledger.list_signs(), today)
+
+
+def gov_batches(ledger: Ledger, today_q: str | None = None) -> dict:
+    today = _today(today_q)
+    out = {"available": _has_gov(ledger), "colors": {c: {"name": COLOR_NAME[c], "meaning": COLOR_MEANING[c]} for c in COLORS},
+           "batches": []}
+    if not out["available"]:
+        return out
+    for b in ledger.conn.execute("SELECT * FROM gov_batches ORDER BY id DESC"):
+        sm = summarize(_gov_results(ledger, b["id"], today))
+        out["batches"].append({"id": b["id"], "created": b["created"], "dir": Path(b["dir"]).name,
+                               "photo_count": b["n_files"], "gps_count": b["n_gps"], "nogps_count": b["n_nogps"],
+                               "candidate_count": sm["total"], "by_color": sm["by_color"]})
+    return out
+
+
+def gov_candidates(ledger: Ledger, batch_id: int, today_q: str | None = None) -> dict:
+    today = _today(today_q)
+    rows = []
+    for r in _gov_results(ledger, batch_id, today):
+        c, sg = r.cand, r.sign
+        rows.append({"id": c.id, "has_position": c.lat is not None, "lat": c.lat, "lng": c.lng, "photo_count": len(c.photos),
+                     "place": c.place, "first_taken": c.first_taken,
+                     "sign": {"id": sg.id, "site_id": sg.site_id, "name": sg.name, "type": sg.type} if sg else None,
+                     "distance_m": None if r.distance_m is None else round(r.distance_m),
+                     "color": r.color, "status": r.status, "label": r.label, "note": r.note,
+                     "permit_expires": r.permit_expires, "days_left": r.days_left})
+    order = {"red": 0, "orange": 1, "green": 2, "gray": 3}
+    rows.sort(key=lambda x: (order[x["color"]], x["days_left"] if x["days_left"] is not None else 10**6))
+    return {"batch": batch_id, "today": today.isoformat(), "colors": {c: COLOR_NAME[c] for c in COLORS}, "candidates": rows}
+
+
+def gov_map_html(ledger: Ledger, batch_id: int, today_q: str | None = None) -> bytes:
+    """write_map を一時ファイルに書いて返す(出典表示つき・地理院タイル。OSM は使わない)。"""
+    today = _today(today_q)
+    results = _gov_results(ledger, batch_id, today)
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "map.html"
+        write_map(out, results, today=today, ledger_signs=ledger.list_signs(), warn_days=WARN_DAYS)
+        return out.read_bytes()
+
+
+# ---- オーナーの1枚撮り(DB に書かない) ----
+def owner_judge(body: dict) -> dict:
+    """住所・面積(・高さ)から自家用(use=self)の法規の判定と根拠条文。安全の判定(ランク・18項目)は出さない。"""
+    address = str(body.get("address") or "").strip()
+    if not address:
+        raise ApiError(400, "住所を入れてください")
+
+    def num(k: str, required: bool = False) -> float | None:
+        v = body.get(k)
+        if v in (None, ""):
+            if required:
+                raise ApiError(400, f"{k} を入れてください")
+            return None
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            raise ApiError(400, f"{k} は数値: {v!r}")
+        if isinstance(v, bool) or not 0 < f < 10000:
+            raise ApiError(400, f"{k} は 0 より大きい数: {v!r}")
+        return f
+
+    area, height = num("area_m2", required=True), num("height_m")
+    try:
+        r = legal_judge(address, use="self", area_m2=area, height_m=height)
+    except Exception as e:
+        raise ApiError(500, f"法規の判定ができませんでした: {type(e).__name__}: {e}")
+    d = r.to_dict()
+    out = {k: d[k] for k in LEGAL_KEYS}
+    out.update({"use": "self", "area_m2": area, "height_m": height, "address": address})
+    return out
 
 
 # ---- 様式の出力 ----
