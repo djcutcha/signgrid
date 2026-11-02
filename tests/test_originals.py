@@ -221,6 +221,36 @@ class RunOverrideTest(unittest.TestCase):
         self.assertNotIn("photo_override", r["config"])
 
 
+class CompareTest(unittest.TestCase):
+    def test_compare_and_coverage(self):
+        def mk(i, rank, src="xlsx_karte", split="eval"):
+            it = item(f"{src}:{i:04d}", src, "s", "n", "2024-01-01", ["/p/x.jpg"], rank=rank)
+            it.split = split
+            return it
+        items = [mk(1, 3), mk(2, 4), mk(3, 1), mk(4, 3, "xlsx_center"), mk(5, 2), mk(6, 2, "paper_scan")]
+        idx = {s.sign_id: {"year": "2024", "originals": ["/o/x.jpg"], "n_matched": 1, "n_pasted": 1, "reason": ""}
+               for s in items[:4]}
+        idx["xlsx_karte:0005"] = {"year": "2024", "originals": [], "n_matched": 0, "n_pasted": 1,
+                                  "reason": "no_site_folder"}
+
+        def rec(sid, pred, cost=0.01):
+            return {"sign_id": sid, "rank_pred": pred, "usage": {"cost_usd": cost}, "reasons": ["あ" * 60]}
+        first = {"records": [rec("xlsx_karte:0001", 2), rec("xlsx_karte:0002", 4), rec("xlsx_karte:0003", 3),
+                             rec("xlsx_center:0004", 2)]}
+        run = {"records": [rec("xlsx_karte:0001", 3, 0.02), rec("xlsx_karte:0002", 2, 0.02),
+                           rec("xlsx_karte:0003", 1, 0.02), rec("xlsx_center:0004", 2, 0.02)]}
+        md, rescued = og.compare(items, idx, first, [run])
+        self.assertEqual([(r["sign_id"], r["rank_true"], r["pasted_pred"], r["original_pred"]) for r in rescued],
+                         [("xlsx_karte:0001", 3, 2, 3)])
+        self.assertEqual(len(rescued[0]["reason"]), 40)
+        self.assertIn("貼り付けで見逃し → 原本で救えた: 1 基 / 逆(貼り付けで拾い、原本で見逃し): 1 基 / どちらでも見逃し: 1 基", md)
+        self.assertIn("| 客先B 2024 | 貼り付け | 3 |", md)
+        self.assertIn("| 客先A | 原本 | 1 |", md)
+        cov = og.coverage(items, idx)
+        self.assertIn("| 客先B 2024 | 4 | 3 | 1 | no_site_folder 1 |", cov)
+        self.assertIn("| 紙(原本が NAS に無い) | 1 | - | - | 対象外 1 |", cov)
+
+
 class LongEdgeTest(unittest.TestCase):
     def test_max_long_edge_applies_to_judged_photos(self):
         with tempfile.TemporaryDirectory() as d:

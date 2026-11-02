@@ -383,6 +383,125 @@ def apply_override(items: list[dataset.EvalItem], index: dict[str, dict]) -> lis
     return out
 
 
+# ---------- 比較・対応率の報告(sign_id と基数だけ。現場名・看板名・パスは出さない) ----------
+
+def _pct(x) -> str:
+    return "n/a" if x is None else f"{x * 100:.1f}%"
+
+
+def _group(row: dict, source: str) -> str:
+    if source == "xlsx_center":
+        return "客先A"
+    y = row.get("year") or "年不明"
+    return f"客先B {y}" + ("(原本 800px)" if y == "2026" else "")
+
+
+def _pairs(items_by_id: dict, recs: dict, ids: list[str]) -> list[tuple]:
+    from .judge import Prediction
+    out = []
+    for sid in ids:
+        r = recs[sid]
+        out.append((items_by_id[sid], Prediction(r.get("rank_pred"), r.get("item_judgments_pred"))))
+    return out
+
+
+def _metrics_row(label: str, m: dict, cost: float | None) -> str:
+    b = m["action_breakdown"]
+    it = m["items"]
+    return (f"| {label} | {m['n']} | {_pct(m['exact_rate'])} | {_pct(m['within1_rate'])} | "
+            f"{m['action_needed_missed']}/{m['action_needed_true']} | {b['missed']['c']}/{b['counts']['c']} | "
+            f"{m['false_alarm']}/{m['not_action_true']} | {_pct(it['item_agreement_rate'])} | "
+            f"{'-' if cost is None else f'${cost:.2f}'} |")
+
+
+def compare(items: list[dataset.EvalItem], index: dict[str, dict], first: dict, runs: list[dict],
+            reason_chars: int = 40) -> tuple[str, list[dict]]:
+    """貼り付け写真(第 1 パス)と原本写真の判定を、原本で判定した看板に揃えて比べる。
+    戻り値 = (Markdown, 救えた看板の行)。"""
+    from . import metrics
+    by_id = {i.sign_id: i for i in items}
+    frecs = {r["sign_id"]: r for r in first["records"]}
+    orecs = {r["sign_id"]: r for r in (x for run in runs for x in run["records"])}
+    ids = sorted(i for i in orecs if i in frecs and i in by_id)
+    groups: dict[str, list[str]] = {}
+    for sid in ids:
+        groups.setdefault(_group(index.get(sid, {}), by_id[sid].source), []).append(sid)
+
+    def cost(recs, sids):
+        cs = [(recs[s].get("usage") or {}).get("cost_usd") for s in sids]
+        return None if any(c is None for c in cs) else sum(cs)
+
+    L = ["| 区分 | 写真 | 基数 | 完全一致 | ±1 | 要対応の見逃し | 見逃し(写真可) | 誤警報 | 項目一致 | 費用 |",
+         "|---|---|---|---|---|---|---|---|---|---|"]
+
+    def block(label, sids):
+        for tag, recs in (("貼り付け", frecs), ("原本", orecs)):
+            L.append(_metrics_row(f"{label} | {tag}", metrics.compute(_pairs(by_id, recs, sids)), cost(recs, sids)))
+
+    for g in sorted(groups):
+        block(g, groups[g])
+    no2026 = [s for g in sorted(groups) if "2026" not in g for s in groups[g]]
+    block("全体(客先B 2026 を除く)", no2026)
+    block("全体", ids)
+    full = [s for s in no2026 if index[s]["n_matched"] == index[s]["n_pasted"]]
+    block("うち貼り付け写真が全て対応(2026 除く)", full)
+
+    rescued, lost = [], 0
+    for sid in ids:
+        t = by_id[sid].rank_true
+        if t not in metrics.ACTION:
+            continue
+        p0, p1 = frecs[sid].get("rank_pred"), orecs[sid].get("rank_pred")
+        if p0 not in metrics.ACTION and p1 in metrics.ACTION:
+            rs = orecs[sid].get("reasons") or []
+            rescued.append({"sign_id": sid, "group": _group(index[sid], by_id[sid].source), "rank_true": t,
+                            "pasted_pred": p0, "original_pred": p1,
+                            "reason": (rs[0] if rs else "")[:reason_chars]})
+        elif p0 in metrics.ACTION and p1 not in metrics.ACTION:
+            lost += 1
+    missed_both = sum(1 for sid in ids if by_id[sid].rank_true in metrics.ACTION
+                      and frecs[sid].get("rank_pred") not in metrics.ACTION
+                      and orecs[sid].get("rank_pred") not in metrics.ACTION)
+    L += ["", f"- 貼り付けで見逃し → 原本で救えた: {len(rescued)} 基 / 逆(貼り付けで拾い、原本で見逃し): {lost} 基 / "
+              f"どちらでも見逃し: {missed_both} 基",
+          f"- 費用: 原本 {_pct(None) if cost(orecs, ids) is None else '$%.2f' % cost(orecs, ids)}、"
+          f"同じ看板の貼り付け写真(第 1 パス) {_pct(None) if cost(frecs, ids) is None else '$%.2f' % cost(frecs, ids)}"]
+    return "\n".join(L), rescued
+
+
+def coverage(items: list[dataset.EvalItem], index: dict[str, dict]) -> str:
+    """評価用の全看板(紙・客先A・B)について、対応あり/なし/対象外の基数と、対応なしの理由。"""
+    from collections import Counter
+    rows = {}
+    for it in items:
+        if it.split != "eval" or it.rank_true is None:
+            continue
+        if it.source == "paper_scan":
+            g = "紙(原本が NAS に無い)"
+            st = "対象外"
+        else:
+            r = index.get(it.sign_id)
+            g = _group(r or {"year": (it.meta.get("inspection_date") or "")[:4]}, it.source)
+            st = "対応あり" if r and r["originals"] else "対応なし"
+            if st == "対応なし":
+                st += ":" + (r["reason"] if r else "not_indexed")
+        rows.setdefault(g, Counter())[st] += 1
+    L = ["| 区分 | 評価基数 | 対応あり | 対応なし | 対応なしの理由 |", "|---|---|---|---|---|"]
+    tot = Counter()
+    for g in sorted(rows):
+        c = rows[g]
+        n = sum(c.values())
+        yes = c["対応あり"]
+        no = sum(v for k, v in c.items() if k.startswith("対応なし"))
+        why = "、".join(f"{k.split(':', 1)[1]} {v}" for k, v in sorted(c.items()) if k.startswith("対応なし"))
+        if g.startswith("紙"):
+            L.append(f"| {g} | {n} | - | - | 対象外 {c['対象外']} |")
+        else:
+            L.append(f"| {g} | {n} | {yes} | {no} | {why or '-'} |")
+        tot.update(c)
+    return "\n".join(L)
+
+
 # ---------- CLI ----------
 
 def _eval_items(config: str | None, split: str) -> list[dataset.EvalItem]:
@@ -401,7 +520,33 @@ def main(argv=None) -> int:
     b.add_argument("--threshold", type=float, default=THRESHOLD)
     b.add_argument("--workers", type=int, default=8)
     b.add_argument("--vocab", default=None, help="顧客固有の語の設定(既定 data/private/originals.toml)")
+    c = sub.add_parser("compare", help="貼り付け写真と原本写真の判定結果を比べる(基数・率だけ出力)")
+    c.add_argument("--index", required=True)
+    c.add_argument("--first-pass", required=True, help="貼り付け写真での結果 JSON(全看板)")
+    c.add_argument("--runs", nargs="+", required=True, help="原本写真での結果 JSON(複数可)")
+    c.add_argument("--sources-config", default=None)
+    c.add_argument("--rescued-out", default=None, help="救えた看板の一覧 TSV の出力先(NAS 側の作業フォルダ)")
+    r = sub.add_parser("coverage", help="評価用の看板の対応率")
+    r.add_argument("--index", required=True)
+    r.add_argument("--sources-config", default=None)
     a = ap.parse_args(argv)
+    if a.cmd in ("compare", "coverage"):
+        import json
+        index = read_index(a.index)
+        if a.cmd == "coverage":
+            print(coverage(dataset.load_all(a.sources_config, dataset.RANKED_SOURCES), index))
+            return 0
+        load = lambda p: json.loads(Path(p).read_text(encoding="utf-8"))
+        md, rescued = compare(dataset.load_all(a.sources_config, SOURCES), index, load(a.first_pass),
+                              [load(p) for p in a.runs])
+        print(md)
+        if a.rescued_out:
+            with open(a.rescued_out, "w", newline="", encoding="utf-8") as f:
+                w = csv.DictWriter(f, ["sign_id", "group", "rank_true", "pasted_pred", "original_pred", "reason"],
+                                   delimiter="\t", lineterminator="\n")
+                w.writeheader()
+                w.writerows(rescued)
+        return 0
     out = Path(a.out)
     items = _eval_items(a.sources_config, a.split)
     cache = SigCache(out.with_suffix(".sigcache.pkl"), a.workers)
