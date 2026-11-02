@@ -271,3 +271,9 @@ dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
   .intake .c-kind{order:1} .intake .c-file{order:2;flex:1 1 60%} .intake .c-state{order:3} .intake .c-count{order:4}
   .intake .c-err{order:5;flex:1 1 100%} .intake .c-go{order:6} .intake .c-act{order:7;flex:1 1 100%}
 }
+.owner .pick2{display:block;margin-top:10px;font-size:13px;color:var(--fg2);text-decoration:underline;cursor:pointer}
+.owner .est-row{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--line,#ddd)}
+.owner .est-row input[type=text]{width:100%;font-size:16px;padding:10px 12px}
+.owner-estimate .est-size{font-size:18px;font-weight:600;margin:4px 0}
+.owner-estimate h2+.three,.owner-estimate .est-size+.sub{margin-top:4px}
+.owner-estimate h2:not(:first-child){margin-top:16px}

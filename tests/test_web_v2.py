@@ -162,5 +162,85 @@ class OwnerTest(WebTest):
             self.assertEqual(before, [tuple(r) for r in lg.conn.execute("SELECT id, status, rank FROM signs ORDER BY id")])
 
 
+class OwnerEstimateTest(WebTest):
+    """寸法の推定(偽の推定役。API は呼ばない)。写真は保存しない・台帳に書かない。"""
+    @classmethod
+    def photo_b64(cls):
+        import base64
+        import io
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new("RGB", (64, 48), (200, 200, 200)).save(buf, "JPEG")
+        return base64.b64encode(buf.getvalue()).decode()
+
+    def setUp(self):
+        from kanban_karte.dim.estimator import DimEstimate
+        self.seen = []
+
+        class Fake:
+            def estimate(s, photos, name):
+                self.seen.append((len(photos), name))
+                return DimEstimate(3200, 900, (2800, 3600), (800, 1000), [{"name": "ドア", "assumed_mm": 2000, "how": "扉"}],
+                                   False, "mid", "板面のみ", "fake", {"input_tokens": 1, "output_tokens": 1})
+        self.app.estimator_factory = Fake
+
+    def tearDown(self):
+        self.app.estimator_factory = None
+
+    def post(self, body):
+        return self.req("/api/owner/estimate", body)
+
+    def test_estimate_and_judge(self):
+        st, d, _ = self.post({"address": "東京都豊島区見本町1-2-3", "photos": [self.photo_b64(), self.photo_b64()], "target_name": "欄間看板"})
+        self.assertEqual(st, 200)
+        self.assertEqual(self.seen, [(2, "欄間看板")])
+        self.assertEqual(d["estimate"]["w_range"], [2800, 3600])
+        j = d["judgement"]
+        self.assertEqual((j["area_low"], j["area_high"], j["permit"]), (2.24, 3.6, "不要"))  # 自家用 10㎡以内
+        self.assertTrue(j["citations"])
+        for banned in ("rank", "items", "draft_rank"):
+            self.assertNotIn(banned, d)
+
+    def test_straddling_10m2_is_needs_measure(self):
+        from kanban_karte.dim.estimator import DimEstimate
+        self.app.estimator_factory = lambda: type("F", (), {"estimate": lambda s, p, n: DimEstimate(
+            3000, 3000, (2500, 3600), (2500, 3600), [], False, "low", "", "fake", {})})()
+        d = self.post({"address": "東京都豊島区", "photos": [self.photo_b64()]})[1]  # 6.25〜12.96 ㎡
+        self.assertEqual(d["judgement"]["permit"], "要実測")
+
+    def test_bad_input(self):
+        ok = self.photo_b64()
+        self.assertEqual(self.post({"photos": [ok]})[0], 400)                                   # 住所なし
+        self.assertEqual(self.post({"address": "東京都豊島区"})[0], 400)                         # 写真なし
+        self.assertEqual(self.post({"address": "東京都豊島区", "photos": []})[0], 400)
+        self.assertEqual(self.post({"address": "東京都豊島区", "photos": [ok] * 3})[0], 400)    # 3枚
+        self.assertEqual(self.post({"address": "東京都豊島区", "photos": ["***"]})[0], 400)      # base64 でない
+        self.assertEqual(self.seen, [])
+
+    def test_estimator_error_is_502(self):
+        from kanban_karte.dim.estimator import DimEstimateError
+
+        def boom():
+            raise DimEstimateError("壊れた")
+        self.app.estimator_factory = lambda: type("F", (), {"estimate": lambda s, p, n: boom()})()
+        self.assertEqual(self.post({"address": "東京都豊島区", "photos": [self.photo_b64()]})[0], 502)
+
+    def test_no_key_is_503(self):
+        from unittest import mock
+        self.app.estimator_factory = None
+        with mock.patch.object(api, "can_draft", return_value=False):
+            st, d, _ = self.post({"address": "東京都豊島区", "photos": [self.photo_b64()]})
+        self.assertEqual(st, 503)
+        self.assertIn("ANTHROPIC_API_KEY", d["error"])
+
+    def test_meta_has_can_estimate_and_no_db_write(self):
+        self.assertIn("can_estimate", self.req("/api/meta")[1])
+        with self.app.ledger() as lg:
+            before = [tuple(r) for r in lg.conn.execute("SELECT id, status, rank FROM signs ORDER BY id")]
+        self.post({"address": "東京都豊島区", "photos": [self.photo_b64()]})
+        with self.app.ledger() as lg:
+            self.assertEqual(before, [tuple(r) for r in lg.conn.execute("SELECT id, status, rank FROM signs ORDER BY id")])
+
+
 if __name__ == "__main__":
     unittest.main()

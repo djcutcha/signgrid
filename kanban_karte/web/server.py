@@ -27,6 +27,7 @@ from . import api
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STATIC = Path(__file__).with_name("static")
 SAMPLE_JSON = REPO_ROOT / "data" / "sample" / "ledger.json"
+MAX_BODY = 30_000_000
 MEDIA_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",
                ".gif": "image/gif"}
 
@@ -39,8 +40,10 @@ OUTPUT = re.compile(r"^/api/sites/([^/]+)/output/([a-z-]+)\.xlsx$")
 class App:
     """サーバの設定。リクエストごとに台帳を開く(SQLite の接続はスレッドを渡さない)。"""
 
-    def __init__(self, db: str | Path, data_dir: str | Path, sample: bool = False, judge_factory=None):
+    def __init__(self, db: str | Path, data_dir: str | Path, sample: bool = False, judge_factory=None,
+                 estimator_factory=None):
         self.db, self.data_dir, self.sample, self.judge_factory = Path(db), Path(data_dir), sample, judge_factory
+        self.estimator_factory = estimator_factory
         self.verbose = False
 
     def ledger(self) -> Ledger:
@@ -150,6 +153,8 @@ def make_handler(app: App):
                 return self._error(415, "Content-Type は application/json")
             try:
                 n = int(self.headers.get("Content-Length") or 0)
+                if n > MAX_BODY:
+                    return self._error(413, "本文が大きすぎます")
                 body = json.loads(self.rfile.read(n) or b"{}")
                 if not isinstance(body, dict):
                     raise ValueError
@@ -158,6 +163,8 @@ def make_handler(app: App):
             try:
                 if path == "/api/owner/judge":  # 台帳を開かない・書かない
                     return self._json(api.owner_judge(body))
+                if path == "/api/owner/estimate":  # 台帳を開かない・書かない。写真は保存しない
+                    return self._json(api.owner_estimate(body, app.estimator_factory))
                 with app.ledger() as ledger:
                     m = SIGN_ACT.match(path)
                     if m:
