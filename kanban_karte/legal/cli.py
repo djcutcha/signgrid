@@ -3,6 +3,8 @@
   python3 -m kanban_karte.legal.cli judge --address "東京都豊島区見本町1-2-3" --use self --area 8.5 --height 3.2
   python3 -m kanban_karte.legal.cli municipality --address "埼玉県越谷市南越谷1-1"
   python3 -m kanban_karte.legal.cli extract --municipality 越谷市 [--dry-run] [--model ...] [--effort ...]
+  python3 -m kanban_karte.legal.cli verify [--stamp]       # rules_*.json の数値を手元の正解と照合(件数と不一致の項目名だけ)
+  python3 -m kanban_karte.legal.cli table3 [--dry-run]     # 東京都 別表第三だけを再抽出(API。概算 $0.2)
 
 extract は Anthropic API を呼ぶ(1自治体あたり概算 $0.1〜0.3)。--dry-run は count_tokens(課金なし)で入力の大きさと概算費用だけ出す。
 """
@@ -13,6 +15,8 @@ import json
 import sys
 
 from . import rules_extract as RX
+from . import table3_extract as T3
+from . import verify as VF
 from .judge import judge
 from .municipality import AddressResolver, coverage_note, ordinance_key
 
@@ -78,6 +82,24 @@ def cmd_extract(a) -> int:
     return 0
 
 
+def cmd_verify(a) -> int:
+    return VF.main(["--stamp"] if a.stamp else [])
+
+
+def cmd_table3(a) -> int:
+    client = RX.make_client()
+    if a.dry_run:
+        n = client.messages.count_tokens(model=a.model, system=T3.SYSTEM_PROMPT,
+                                         messages=[{"role": "user", "content": T3.table3_text()}]).input_tokens
+        print(f"東京都 別表第三: 入力 {n} トークン / 概算 ${RX.cost_usd(a.model, n, 8000):.2f}(出力 8000 トークン仮定)")
+        return 0
+    result, u = T3.extract_table3(client=client, model=a.model, effort=a.effort)
+    p = T3.apply_table3(result)
+    cc = result["citation_check"]
+    print(f"{p}: 基準 {len(result['permit_standards'])} 件  引用 {cc['verified']}/{cc['total']} 一致  ${u['usd']:.3f}  試行 {u['attempts']} 回")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="kanban_karte.legal.cli")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -104,6 +126,16 @@ def main(argv=None) -> int:
     e.add_argument("--effort", default=RX.DEFAULT_EFFORT, choices=["low", "medium", "high", "xhigh", "max"])
     e.add_argument("--dry-run", action="store_true", help="API は count_tokens だけ(課金なし)")
     e.set_defaults(fn=cmd_extract)
+
+    v = sub.add_parser("verify", help="rules_*.json の数値を手元の正解と照合")
+    v.add_argument("--stamp", action="store_true", help="status を第2版(照合済み、一致 x/y)に書き換える")
+    v.set_defaults(fn=cmd_verify)
+
+    t = sub.add_parser("table3", help="東京都 別表第三だけを再抽出して rules_東京都.json に足す(API)")
+    t.add_argument("--model", default=RX.DEFAULT_MODEL)
+    t.add_argument("--effort", default=RX.DEFAULT_EFFORT, choices=["low", "medium", "high", "xhigh", "max"])
+    t.add_argument("--dry-run", action="store_true", help="count_tokens だけ(課金なし)")
+    t.set_defaults(fn=cmd_table3)
 
     a = ap.parse_args(argv)
     if a.cmd == "judge" and not (a.address or a.municipality):

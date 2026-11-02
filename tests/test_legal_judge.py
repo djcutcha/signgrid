@@ -202,7 +202,7 @@ class ExtractedRulesTest(unittest.TestCase):
                 doc = json.loads(p.read_text(encoding="utf-8"))
                 self.assertEqual(S.validate_file(doc), [])
                 self.assertEqual(doc["ordinance_key"], key)
-                self.assertIn("検算前", doc["status"])
+                self.assertTrue("検算前" in doc["status"] or doc["status"].startswith(S.STATUS_SECOND_PREFIX), doc["status"])
                 cc = doc["citation_check"]
                 self.assertGreater(cc["total"], 0)
                 self.assertEqual(cc["verified"], cc["total"], "原文に一致しない引用がある")

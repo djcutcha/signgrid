@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "ordinance_key": "越谷市",
-  "status": "AI抽出の第1版(検算前)",
+  "status": "第2版(手元の正解と照合済み、一致 14/20)",
   "model": "claude-sonnet-5-5",
   "effort": "medium",
   "extracted_at": "2026-11-02T14:34:58+09:00",
@@ -480,5 +480,26 @@
       "Expecting ',' delimiter: line 1 column 7102 (char 7101)"
     ],
     "usd": 0.2548
+  },
+  "verification": {
+    "matched": 14,
+    "total": 20,
+    "mismatch_items": [
+      "self_use.standards[5](広告塔・広告板(建造物から独立した広告)/permit_zone).height_max_m",
+      "self_use.standards[9](屋上広告/prohibited_zone).area_max_m2",
+      "self_use.standards[9](屋上広告/prohibited_zone).height_max_m",
+      "self_use.standards[11](突出し広告/prohibited_zone).area_max_m2",
+      "self_use.standards[12](広告塔・広告板(建造物から独立した広告)/prohibited_zone).area_max_m2",
+      "self_use.standards[12](広告塔・広告板(建造物から独立した広告)/prohibited_zone).height_max_m"
+    ],
+    "mismatch_only_in_source": [
+      "self_use.standards[5](広告塔・広告板(建造物から独立した広告)/permit_zone).height_max_m",
+      "self_use.standards[9](屋上広告/prohibited_zone).area_max_m2",
+      "self_use.standards[9](屋上広告/prohibited_zone).height_max_m",
+      "self_use.standards[11](突出し広告/prohibited_zone).area_max_m2",
+      "self_use.standards[12](広告塔・広告板(建造物から独立した広告)/prohibited_zone).area_max_m2",
+      "self_use.standards[12](広告塔・広告板(建造物から独立した広告)/prohibited_zone).height_max_m"
+    ],
+    "method": "数値の存在照合(正解ファイルに同じ値が在るか。区域・種類までは見ない)"
   }
 }

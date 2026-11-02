@@ -27,7 +27,7 @@ class CliTest(unittest.TestCase):
         d = json.loads(out)
         self.assertEqual(d["ordinance_key"], "東京都")
         self.assertIn(d["permit_required"], ("要", "不要", "要実測"))
-        self.assertIn("検算前", d["status"])
+        self.assertTrue("検算前" in d["status"] or d["status"].startswith("第2版"), d["status"])
 
     def test_judge_text_and_none_area(self):
         rc, out = run("judge", "--municipality", "越谷市", "--use", "self", "--area", "none")

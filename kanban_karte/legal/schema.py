@@ -19,6 +19,7 @@ from __future__ import annotations
 
 SCHEMA_VERSION = 1
 STATUS_FIRST_DRAFT = "AI抽出の第1版(検算前)"
+STATUS_SECOND_PREFIX = "第2版(手元の正解と照合済み"
 
 ZONES = ("all", "permit_zone", "prohibited_zone", "other")
 AREA_BASES = ("per_face", "total", "per_sign", "unspecified")
@@ -129,6 +130,24 @@ def _citations(errs, path, d, required=True):
             errs.append(f"{p}.quote が {MAX_QUOTE_CHARS} 字を超える({len(q)}字)")
 
 
+def validate_permit_standards(items) -> list[str]:
+    """rules["permit_standards"](東京都 別表第三。許可の基準の高さ・地上高・出幅)の検査。"""
+    errs: list[str] = []
+    if not isinstance(items, list) or not items:
+        return ["permit_standards は空でない配列"]
+    for i, s in enumerate(items):
+        p = f"permit_standards[{i}]"
+        if not isinstance(s.get("kind"), str) or not s["kind"]:
+            errs.append(f"{p}.kind がない")
+        if not isinstance(s.get("self_use_only"), bool):
+            errs.append(f"{p}.self_use_only は true/false")
+        for k in ("height_max_m", "ground_clearance_min_m", "protrusion_max_m", "area_max_m2"):
+            _num_or_none(errs, p, s, k)
+        _citations(errs, p, s)
+        _conf(errs, p, s)
+    return errs
+
+
 def validate_rules(rules: dict) -> list[str]:
     """rules(ファイルの "rules" 部分)を検査。問題の文の一覧を返す(空なら適合)。"""
     errs: list[str] = []
@@ -204,6 +223,8 @@ def validate_rules(rules: dict) -> list[str]:
                     _num_or_none(errs, f"inspection.conditions[{i}]", c, k)
         _citations(errs, "inspection", ins, required=ins.get("required") not in ("no", "unknown"))
         _conf(errs, "inspection", ins)
+    if "permit_standards" in rules:  # 任意(東京都 別表第三の再抽出で足す)
+        errs += validate_permit_standards(rules["permit_standards"])
     pz = rules.get("prohibited_zones")
     if not isinstance(pz, dict) or not isinstance(pz.get("summary"), str):
         errs.append("prohibited_zones.summary がない")
@@ -224,7 +245,8 @@ def validate_file(doc: dict) -> list[str]:
     for k in ("ordinance_key", "status", "model", "extracted_at", "sources", "rules"):
         if k not in doc:
             errs.append(f"{k} がない")
-    if "status" in doc and "検算前" not in str(doc["status"]):
-        errs.append("status に『検算前』の明記が必要")
+    st = str(doc.get("status", ""))
+    if "status" in doc and "検算前" not in st and not (st.startswith(STATUS_SECOND_PREFIX) and "一致" in st):
+        errs.append("status は『検算前』か『第2版(手元の正解と照合済み、一致 x/y)』")
     errs += validate_rules(doc.get("rules"))
     return errs
