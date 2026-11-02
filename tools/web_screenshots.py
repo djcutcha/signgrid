@@ -243,14 +243,31 @@ def workflow(page, base, out, tag, db):
     snap("7-effect")
 
 
+def field(page, base: str, out: Path, tag: str, db: Path) -> None:
+    """一周の台帳(data/private/field_site.sqlite)の画面: 台帳一覧・カルテ1基(黄色あり)・様式出力。
+    顧客の写真が写るので、出力先は docs/img ではなく未追跡の runs/ にする。"""
+    from kanban_karte.ledger import Ledger
+    from kanban_karte.output.common import unjudged_item_keys
+    with Ledger(db) as lg:
+        signs = [x for x in lg.list_signs() if x.status == "draft"]
+    pick = max(signs, key=lambda x: (0 < len(unjudged_item_keys(x)) < 18, len(x.photos), x.id))
+    shoot(page, base, out, tag, "/", "field-ledger", wait="main .ledger tbody tr")
+    shoot(page, base, out, tag, f"/sign/{pick.id}", "field-karte", wait="main .karte")
+    shoot(page, base, out, tag, "/rules", "field-output", wait="main .rules .out-site")
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="docs/img")
     ap.add_argument("--only", default=None)
+    ap.add_argument("--field-db", default="data/private/field_site.sqlite", help="--only field のときの台帳")
+    ap.add_argument("--field-data", default="data/private/field_intake", help="--only field の画像置き場")
     a = ap.parse_args(argv)
     only = set(a.only.split(",")) if a.only else None
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
+    if only == {"field"}:
+        return shoot_field(a, out)
     from playwright.sync_api import sync_playwright
 
     web_api.can_draft = lambda: True  # 見本の推定役を使うので、鍵が無くてもボタンを有効にして撮る
@@ -271,6 +288,32 @@ def main(argv=None) -> int:
                 page = ctx.new_page()
                 try:
                     run(page, base, out, tag, only, db)
+                finally:
+                    ctx.close()
+                    srv.shutdown()
+                    srv.server_close()
+        browser.close()
+    return 0
+
+
+def shoot_field(a, out: Path) -> int:
+    import shutil
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        for tag, vp in VIEWPORTS.items():
+            with tempfile.TemporaryDirectory() as td:  # 台帳は複製(画面の操作で元を変えない)
+                db = Path(td) / "l.sqlite"
+                shutil.copyfile(a.field_db, db)
+                srv = make_server(App(db, Path(a.field_data)), "127.0.0.1", 0)
+                base = f"http://127.0.0.1:{srv.server_address[1]}"
+                threading.Thread(target=srv.serve_forever, daemon=True).start()
+                ctx = browser.new_context(viewport=vp, device_scale_factor=2 if tag == "sp" else 1, locale="ja-JP",
+                                          has_touch=tag == "sp", is_mobile=tag == "sp")
+                page = ctx.new_page()
+                try:
+                    field(page, base, out, tag, db)
                 finally:
                     ctx.close()
                     srv.shutdown()
