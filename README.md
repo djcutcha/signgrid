@@ -21,7 +21,7 @@ Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期�
 | 有資格者 | **Web カルテ**(スマホ / PC) | AI の下書きを18項目で確認し、黄色(判断できず)を直して「確定して署名」 |
 | 事務・営業 | **Web PC**(受付・台帳・カルテ・規則と出力) | 受け付けた束、台帳、規則の承認、東京都 第2号様式・客先A型の xlsx 出力 |
 | 店舗オーナー | **Web スマホ**(`#/owner`、QR) | 写真と住所から、許可の要否と点検まわりの4義務を条文つきで調べる |
-| 行政(巡回) | **Web スマホ**(`#/gov`、撮る→送る) | **準備中**(未統合のブランチ `feat/gov-sp` で作成中。このリポジトリの main には無い) |
+| 行政(巡回) | **Web スマホ**(`#/gov`、撮る→送る) | 巡回中にスマホで撮って送るだけ。写真の EXIF GPS(無ければ端末の現在地)で看板ごとに束ね、台帳との一致候補と地図に出す(`docs/GOV.md`「スマホからの投入」) |
 | 行政(窓口) | **Web PC**(`#/gov`) | 職員が撮った写真を位置で束ね、台帳と突き合わせて地図に赤・橙・緑・灰で出す(`docs/GOV.md`) |
 
 **職人(LINE のガイド付き点検の結果を、カルテのバッジ「現場の回答」で確認)**
@@ -36,10 +36,11 @@ Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期�
 **店舗オーナー(さいたま市の条文つき)**
 ![owner-saitama-sp](docs/img/owner-saitama-sp.png)
 
-**行政 窓口(PC)**
-![gov-pc](docs/img/gov-pc.png)
+**行政 巡回(スマホ。撮る→送る、送った直後)**
+![gov-capture-sp](docs/img/gov-capture-sp.png)
 
-行政の巡回(撮る→送る)は準備中。`docs/img/gov-sp.png` は窓口画面をスマホ幅で見たもの。
+**行政 窓口(PC)**
+![gov-capture-pc](docs/img/gov-capture-pc.png)
 
 ## 3. 知識が育つ工程
 
@@ -128,7 +129,7 @@ python3 -m kanban_karte.legal.cli judge --address "東京都豊島区見本町1-
 python3 -m kanban_karte.output.cli tokyo --from-json data/sample/ledger.json --site demo-site-1 --out out.xlsx
 python3 -m kanban_karte.gov.make_sample --db /tmp/gov.sqlite   # 行政の見本(写真10枚・台帳5基)。続きは docs/GOV.md
 python3 -m kanban_karte.eval.run_eval --help          # 評価(正解データは非公開。設定は data/private/sources.example.toml、docs/EVAL.md)
-python3 -m unittest                                   # テスト(625 件)
+python3 -m unittest                                   # テスト(640 件)
 ```
 
 - 下書き(AI)と寸法の推定は `ANTHROPIC_API_KEY`(環境変数か `.env`)があるときだけ動く。無いときは該当のボタンが無効になる。見本の画面は鍵なしで動く。
@@ -195,7 +196,7 @@ python3 -m unittest                                   # テスト(625 件)
 
 SignGrid ("karte" = a per-sign record) puts the inspection and legal checks that signboard makers' qualified inspectors run on paper and phone photos into a one-sign-per-row ledger. Built from scratch during Built with Claude: Japan 2026 (started 2026-11-02 12:30 JST).
 
-- **Six screens**: LINE (photos, guided inspection), Web karte (qualified inspector confirms and signs), Web PC (intake, ledger, rules, xlsx output), owner on phone (permit and duties by ordinance), government patrol on phone (in progress, not on main), government desk on PC (batch photos on a map).
+- **Six screens**: LINE (photos, guided inspection), Web karte (qualified inspector confirms and signs), Web PC (intake, ledger, rules, xlsx output), owner on phone (permit and duties by ordinance), government patrol on phone (shoot and send; photos bundled by GPS), government desk on PC (batch photos on a map).
 - **Knowledge grows by a process**: AI draft, inspector correction, one follow-up question, rule candidate, approval (only approved rules affect later drafts), conflict detection. A measured effect of 6 approved rules on the draft was none (`docs/PIPELINE.md`).
 - **Inspection**: 18 items x 3 grades drafted by Opus 5.5. On our own 829 inspected signs (private, ground truth only), exact match 66.5%, misses 76.7% of signs needing action, 4.9% false alarms. On a real 2026 store (47 signs): 70.2% exact, 5/9 misses, 1/38 false alarms; a full lap took about 9 minutes.
 - **Law**: rules extracted by AI from the original text of 4 ordinances (Tokyo, Saitama, Koshigaya, Saitama City), joined with zoning GIS and height, and four separate duties (maintain, inspect, qualified person, report). Reference values only; check against current law.
