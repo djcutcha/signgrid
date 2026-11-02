@@ -29,7 +29,7 @@
       cell("種類", "c-type", s.type || "—"),
       cell("寸法", "c-size", s.size || "—"),
       cell("自家用", "c-law", KK.triText(s.is_self_use, "自家用", "自家用でない")),
-      cell("許可", "c-law", KK.triText(s.permit_required, "要", "不要")),
+      cell("許可", "c-law", KK.permitChip(s.permit_required) || "—"),
       cell("期限", "c-law", s.permit_expires || s.next_inspection
         ? el("span", {}, s.permit_expires ? el("div", { text: `許可 ${s.permit_expires}` }) : null,
           s.next_inspection ? el("div", { class: s.permit_expires ? "sub" : "", text: `点検 ${s.next_inspection}` }) : null)

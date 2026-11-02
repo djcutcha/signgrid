@@ -54,6 +54,24 @@ KK.resultChip = function (value) {
   return KK.el("span", { class: `chip ${KK.RESULT_CLASS[value]}`, text: value });
 };
 
+// 許可の 要 / 不要 / 要実測 の札。値は真偽(台帳)か文字列(法規役)。無ければ出さない
+KK.permitChip = function (v) {
+  const label = v === true ? "要" : v === false ? "不要" : v;
+  if (!label) return null;
+  const cls = label === "要" ? "req" : label === "不要" ? "none" : "meas";
+  return KK.el("span", { class: `chip permit ${cls}`, title: "許可(屋外広告物条例)", text: `許可 ${label}` });
+};
+
+// 法規役の根拠条文の一覧(条例名・条番号・引用・検算の札)
+KK.citations = function (cites) {
+  if (!cites || !cites.length) return KK.el("p", { class: "sub", text: "根拠条文はありません(条例の写しが無い、または寸法が足りません)。" });
+  return KK.el("ol", { class: "cites" }, cites.map((c) => KK.el("li", {},
+    KK.el("div", { class: "cite-top" }, KK.el("b", { text: `${c.source || "—"} ${c.article || ""}`.trim() }),
+      c.quote_verified ? KK.el("span", { class: "chip verified", title: "原文と照合して引用が一致", text: "✓検算済み" })
+        : KK.el("span", { class: "chip unverified", title: "原文との照合がまだ", text: "引用未検算" })),
+    KK.el("div", { class: "quote", text: c.quote || "" }))));
+};
+
 KK.triText = function (v, yes, no) { return v === null || v === undefined ? "—" : v ? yes : no; };
 
 KK.fmtTime = function (iso) { return (iso || "").replace("T", " ").slice(0, 16); };

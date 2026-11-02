@@ -14,6 +14,7 @@ from pathlib import Path
 
 from ..ledger.db import Ledger, Sign
 from ..ledger.items import _ITEMS, ITEM_KEYS, RESULTS
+from ..legal.judge import judge as legal_judge
 from ..output.common import RANK_LABEL, size_text, unjudged_item_keys
 from ..output.client_a_form import write_client_a
 from ..output.tokyo_form import write_tokyo_form
@@ -74,6 +75,38 @@ def _correction(r, labels: dict[str, str]) -> dict:
             "created": r["created"]}
 
 
+LEGAL_KEYS = ("permit_required", "inspection_required", "permit_term_years", "is_self_use_exempt", "municipality",
+              "ordinance_key", "citations", "notes", "confidence")
+
+
+def sign_area_m2(s: Sign) -> float | None:
+    """size(mm)から表示面積 m2。幅・高さのどちらかが無ければ None(法規役が「要実測」にする)。"""
+    if not s.size_w or not s.size_h:
+        return None
+    return round(s.size_w * s.size_h / 1_000_000, 2)
+
+
+def legal_judgement(address: str | None, municipality: str | None, use: str, area_m2: float | None,
+                    kind: str | None = None) -> dict:
+    """法規役(規則ファイルを読むだけの純粋関数)の結果を画面用の dict に。例外は握って {"error": ...}。"""
+    try:
+        r = legal_judge(address, municipality=None, use=use, area_m2=area_m2, kind=kind)
+    except Exception as e:  # 規則ファイルが無い・住所が引けない等。画面は落とさない
+        return {"error": f"{type(e).__name__}: {e}"}
+    d = r.to_dict()
+    out = {k: d[k] for k in LEGAL_KEYS}
+    out["use"], out["area_m2"] = use, area_m2
+    return out
+
+
+def sign_legal(s: Sign, site) -> dict:
+    """看板の住所(無ければ現場の住所)・自家用か・寸法から、法規の判定と根拠条文。height_m は台帳に看板の
+    全高が無い(size は表示面の寸法)ので渡さない。"""
+    address = s.address or (site.address if site else None) or s.municipality or (site.municipality if site else None)
+    use = "general" if s.is_self_use is False else "self"
+    return legal_judgement(address, None, use, sign_area_m2(s), s.type)
+
+
 def sign_detail(ledger: Ledger, sign_id: str) -> dict:
     s = ledger.get_sign(sign_id)
     if s is None:
@@ -95,7 +128,7 @@ def sign_detail(ledger: Ledger, sign_id: str) -> dict:
               "photos": [{"n": i + 1, "url": _media_url(ledger, p)} for i, p in enumerate(s.photos)],
               "corrections": [_correction(r, {i["key"]: f"{i['group']} {i['no']} {i['text']}" for i in items})
                               for r in rows],
-              "editable": s.status == "draft", "result_choices": list(RESULTS)})
+              "legal": sign_legal(s, site), "editable": s.status == "draft", "result_choices": list(RESULTS)})
     return d
 
 

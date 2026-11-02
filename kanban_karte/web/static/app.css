@@ -187,3 +187,21 @@ dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
 @media (max-width:900px){ .two-col{grid-template-columns:minmax(0,1fr)} }
 @media (max-width:760px){ .out-site .btn{flex:1 1 100%} }
 .two-col>.card{margin-top:0}
+
+/* 許可の札・根拠条文 */
+.chip.permit{font-weight:700}
+.chip.permit.req{background:var(--accent);color:#fff}
+.chip.permit.none{background:transparent;border-color:var(--na);color:var(--fg2)}
+.chip.permit.meas{background:var(--watch);color:#1b1b1b}
+.chip.verified{background:transparent;border-color:var(--good);color:var(--good)}
+.chip.unverified{background:var(--yellow-bg);border-color:var(--watch);color:var(--fg2)}
+.cites{list-style:none;margin:0;padding:0}
+.cites li{padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+.cites li:last-child{border-bottom:0}
+.cite-top{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.quote{color:var(--fg2);font-size:12.5px;margin-top:2px;border-left:3px solid var(--line);padding-left:8px;overflow-wrap:anywhere}
+.legal-card h3{font-size:13px;margin:12px 0 2px}
+.legal-notes{margin:8px 0 0;padding-left:1.2em}
+.legal-card details{margin-top:10px}
+.legal-card summary{cursor:pointer;font-size:12.5px;color:var(--fg2)}
+.kv>span:nth-child(even){min-width:0;overflow-wrap:anywhere}
