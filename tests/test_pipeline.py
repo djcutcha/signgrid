@@ -4,7 +4,7 @@ from pathlib import Path
 from kanban_karte.eval.judge import Judge, Prediction
 from kanban_karte.ledger import Ledger, Sign, Site
 from kanban_karte.ledger.items import ITEM_KEYS
-from kanban_karte.pipeline import draft
+from kanban_karte.pipeline import draft, review
 
 PHOTOS = Path(__file__).resolve().parents[1] / "data" / "sample" / "photos"
 NAME = {k: n for n, k in draft.FORM_ITEMS.items()}
@@ -28,9 +28,9 @@ class FakeJudge(Judge):
                           usage={"cost_usd": 0.01})
 
 
-def line_bundle(lg, n_photos=2, site=True):
+def line_bundle(lg, n_photos=2, site=True, sha="sha-line"):
     """LINE の束(pages_registered、写真は未分類の「不明」)。"""
-    bid = lg.add_bundle("line://u/2026-11-02/m1", "sha-line", pages=n_photos)
+    bid = lg.add_bundle("line://u/2026-11-02/m1", sha, pages=n_photos)
     lg.set_bundle(bid, status="pages_registered")
     for i in range(n_photos):
         lg.upsert_page(bid, i + 1, kind="不明", image_path=str(PHOTOS / f"plain_{'abc'[i]}.png"), image_source="line")
@@ -120,6 +120,94 @@ class DraftTest(unittest.TestCase):
         bid = line_bundle(self.lg)
         s = self.lg.get_sign(draft.draft_bundle(self.lg, bid, Four(4))[0].sign_id)
         self.assertEqual((s.rank, s.items), (4, {"表示部-1": "要改善"}))
+
+
+class ReviewTest(unittest.TestCase):
+    def setUp(self):
+        self.lg = Ledger(":memory:")
+        self.sid = draft.draft_bundle(self.lg, line_bundle(self.lg), FakeJudge(3))[0].sign_id
+
+    def tearDown(self):
+        self.lg.close()
+
+    def test_resolve_item_forms(self):
+        for t in ("支持部-2", "④支持部-2 鉄骨接合部（ボルト、ナット、ビス）のゆるみ、欠落", "支持部 2 鉄骨接合部（ボルト、ナット、ビス）のゆるみ、欠落",
+                  "避雷針", "rank"):
+            self.assertIn(review.resolve_item(t), ("支持部-2", "その他-2", "rank"))
+        with self.assertRaises(ValueError):
+            review.resolve_item("腐食")  # 複数に当たる
+        with self.assertRaises(ValueError):
+            review.resolve_item("存在しない")
+
+    def test_correction_records_diff_rule_and_moves_rank(self):
+        c = review.apply_correction(self.lg, self.sid, "基礎部・上部構造-2", 2, "有資格者A")
+        s = self.lg.get_sign(self.sid)
+        self.assertEqual((c.old_value, c.new_value, c.rank_before, c.rank_after), ("要改善", "経過観察", 3, 2))
+        self.assertEqual((s.items["基礎部・上部構造-2"], s.rank, s.draft_rank), ("経過観察", 2, 3))
+        row = self.lg.list_corrections(self.sid)[0]
+        self.assertEqual((row["item"], row["corrected_by"], row["rule_id"]), ("基礎部・上部構造-2", "有資格者A", c.rule_id))
+        rule = self.lg.list_rules()[0]
+        self.assertIn("支柱の根元に赤錆が広がっている", rule["text"])  # evidence から「写真2の」を除いた所見
+        self.assertNotIn("写真", rule["text"])
+        self.assertTrue(rule["text"].startswith("基礎部・上部構造-2 基礎のクラック"))
+        self.assertIn("は経過観察(下書きは要改善)", rule["text"])
+        self.assertEqual(rule["source"], f"{self.sid} / 有資格者A")
+
+    def test_correction_for_undecided_item_and_note_as_finding(self):
+        c = review.apply_correction(self.lg, self.sid, "その他-2", "要改善", "有資格者A", note="避雷針の根元が腐食")
+        self.assertIsNone(c.old_value)
+        self.assertIn("「避雷針の根元が腐食」は要改善(下書きは判断できず)", self.lg.list_rules()[0]["text"])
+        self.assertEqual(self.lg.get_sign(self.sid).rank, 3)
+
+    def test_same_value_is_not_a_correction(self):
+        self.assertIsNone(review.apply_correction(self.lg, self.sid, "表示部-4", "経過観察", "有資格者A"))
+        self.assertEqual(self.lg.list_corrections(), [])
+        self.assertEqual(self.lg.list_rules(), [])
+
+    def test_same_rule_not_duplicated_and_conflict_flagged(self):
+        review.apply_correction(self.lg, self.sid, "表示部-4", "要改善", "有資格者A", note="退色")
+        review.apply_correction(self.lg, self.sid, "表示部-4", "経過観察", "有資格者A")  # 戻す(別の規則: 所見が違う)
+        review.apply_correction(self.lg, self.sid, "表示部-4", "良好", "有資格者B", note="退色")
+        rules = self.lg.list_rules()
+        self.assertEqual(len(rules), 3)
+        self.assertEqual(rules[2]["conflicts_with"], "[%d]" % rules[0]["id"])
+
+    def test_rank_correction_makes_no_rule_and_keeps_4_on_item_changes(self):
+        c = review.apply_correction(self.lg, self.sid, "rank", 4, "有資格者A", note="倒壊の恐れ")
+        self.assertEqual((c.old_value, c.new_value, c.rule_id), ("3", "4", None))
+        review.apply_correction(self.lg, self.sid, "表示部-4", "良好", "有資格者A")
+        self.assertEqual(self.lg.get_sign(self.sid).rank, 4)
+        self.assertEqual(len(self.lg.list_rules()), 1)
+
+    def test_bad_input(self):
+        for bad in (dict(new_value=5), dict(new_value="x"), dict(by="")):
+            kw = dict(sign_id=self.sid, item="表示部-4", new_value=3, by="有資格者A") | bad
+            with self.assertRaises(ValueError):
+                review.apply_correction(self.lg, **kw)
+        with self.assertRaises(LookupError):
+            review.apply_correction(self.lg, "nope", "表示部-4", 3, "有資格者A")
+
+    def test_finalize_and_locks(self):
+        review.apply_correction(self.lg, self.sid, "基礎部・上部構造-2", 1, "有資格者A")
+        review.finalize(self.lg, self.sid, "有資格者A")
+        s = self.lg.get_sign(self.sid)
+        self.assertEqual((s.status, s.confirmed_by, s.rank, s.draft_rank), ("confirmed", "有資格者A", 2, 3))
+        self.assertRegex(s.confirmed_at, r"^\d{4}-\d\d-\d\dT")
+        with self.assertRaises(ValueError):
+            review.apply_correction(self.lg, self.sid, "表示部-4", 3, "有資格者A")
+        with self.assertRaises(ValueError):
+            review.finalize(self.lg, self.sid, "有資格者A")
+        self.assertEqual(review.rank_changed_count(self.lg), (1, 1))
+
+    def test_finalize_needs_draft(self):
+        bid = line_bundle(self.lg, 0, sha="sha-empty")  # 写真なし → needs_photos
+        sid = draft.draft_bundle(self.lg, bid, FakeJudge())[0].sign_id
+        with self.assertRaises(ValueError):
+            review.finalize(self.lg, sid, "有資格者A")
+
+    def test_rank_changed_count_unchanged(self):
+        review.finalize(self.lg, self.sid, "有資格者A")
+        self.assertEqual(review.rank_changed_count(self.lg), (0, 1))
 
 
 if __name__ == "__main__":

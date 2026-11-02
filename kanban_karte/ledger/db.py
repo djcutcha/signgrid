@@ -263,6 +263,22 @@ class Ledger:
     def list_rules(self) -> list[sqlite3.Row]:
         return list(self.conn.execute("SELECT * FROM rules ORDER BY id"))
 
+    # ---- 訂正(有資格者が下書きを直した記録) ----
+    def add_correction(self, sign_id: str, item: str, old_value: str | None, new_value: str, by: str, *,
+                       rank_before: int | None = None, rank_after: int | None = None,
+                       note: str | None = None, rule_id: int | None = None) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO corrections(sign_id, item, old_value, new_value, rank_before, rank_after, "
+            "corrected_by, note, rule_id) VALUES (?,?,?,?,?,?,?,?,?)",
+            (sign_id, item, old_value, new_value, rank_before, rank_after, by, note, rule_id))
+        self.conn.commit()
+        return cur.lastrowid
+
+    def list_corrections(self, sign_id: str | None = None) -> list[sqlite3.Row]:
+        if sign_id is None:
+            return list(self.conn.execute("SELECT * FROM corrections ORDER BY id"))
+        return list(self.conn.execute("SELECT * FROM corrections WHERE sign_id=? ORDER BY id", (sign_id,)))
+
     # ---- JSON の読み込み(見本データ) ----
     def import_json(self, path: str | Path) -> tuple[int, int]:
         """{"sites": [...], "signs": [...]} を読み込む。戻り値は (現場数, 看板数)。写真パスは JSON のあるフォルダ基準の絶対パスで保存。"""

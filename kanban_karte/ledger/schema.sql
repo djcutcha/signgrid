@@ -92,3 +92,19 @@ CREATE TABLE IF NOT EXISTS rules (
     created       TEXT NOT NULL DEFAULT (datetime('now')),
     conflicts_with TEXT NOT NULL DEFAULT '[]'   -- JSON [矛盾する規則の id, ...]
 );
+
+-- 有資格者の訂正(下書きとの差分)。1行=1回の訂正。確定後は訂正できない(pipeline/review.py)
+CREATE TABLE IF NOT EXISTS corrections (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    sign_id       TEXT NOT NULL REFERENCES signs(id),
+    item          TEXT NOT NULL,        -- 点検項目キー(「点検箇所-番号」)。看板全体のランクの訂正は 'rank'
+    old_value     TEXT,                 -- 訂正前の区分(良好/経過観察/要改善/対象外)。rank は '1'〜'4'。NULL=未記入(判断できず)
+    new_value     TEXT NOT NULL,        -- 訂正後
+    rank_before   INTEGER,              -- 訂正の前後の看板のランク(項目の訂正で看板のランクが動いたか)
+    rank_after    INTEGER,
+    corrected_by  TEXT NOT NULL,        -- 有資格者の呼び名(個人名は台帳の外の運用で決める)
+    note          TEXT,                 -- 訂正の理由・所見(自由記述)
+    rule_id       INTEGER REFERENCES rules(id),  -- この訂正から積んだ規則(積まなかった訂正は NULL)
+    created       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_corrections_sign ON corrections(sign_id);
