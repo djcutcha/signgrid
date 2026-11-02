@@ -1,14 +1,20 @@
+import base64
+import io
 import os
 import tempfile
 import unicodedata
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 from PIL import Image
 
 from kanban_karte.eval import originals as og
+from kanban_karte.eval import run_eval
+from kanban_karte.eval.claude_judge import ClaudeJudge
 from kanban_karte.eval.dataset import EvalItem
+from kanban_karte.eval.judge import build_judge
 
 
 V = og.Vocab(karte_strip=("甲社会館", "甲社"), karte_year_dir=r"甲社(?:目視)?点検(\d{4})",
@@ -183,6 +189,50 @@ class OverrideTest(unittest.TestCase):
         self.assertFalse(out[1].meta["original_photos"])
         self.assertEqual(out[2].photo_paths, [])  # 索引に無い(紙など)
         self.assertEqual(a.photo_paths, ["/p/a.jpg"])  # 元は変えない
+
+
+class RunOverrideTest(unittest.TestCase):
+    """--photo-override: 対応のない看板は母数に数えない。API は呼ばない(constant 判定役)。"""
+
+    def test_run_excludes_unmatched_and_records_counts(self):
+        with tempfile.TemporaryDirectory() as d:
+            idx = Path(d) / "idx.tsv"
+            rows = [{"sign_id": "xlsx_karte:0001", "year": "2024", "folder": "f", "originals": "/o/a.jpg",
+                     "basis": "name", "similarity": "0.99", "long_edge": 1600, "n_pasted": 1, "n_matched": 1, "reason": ""},
+                    {"sign_id": "xlsx_karte:0002", "year": "2024", "folder": "", "originals": "",
+                     "basis": "none", "similarity": "", "long_edge": "", "n_pasted": 1, "n_matched": 0,
+                     "reason": "no_site_folder"}]
+            og.write_index(rows, idx)
+            items = [item(f"xlsx_karte:000{i}", "xlsx_karte", "s", "n", "2024-01-01", ["/p/x.jpg"], rank=2)
+                     for i in (1, 2, 3)]
+            with mock.patch.object(run_eval.dataset, "load_all", return_value=items):
+                r = run_eval.run(build_judge("constant"), "constant", "xlsx_karte", None, "eval", 0, None,
+                                 override=str(idx))
+        self.assertEqual(r["overall"]["n"], 1)
+        po = r["config"]["photo_override"]
+        self.assertEqual((po["matched"], po["unmatched"]), ({"xlsx_karte": 1}, {"xlsx_karte": 2}))
+        self.assertEqual([x["sign_id"] for x in r["records"]], ["xlsx_karte:0001"])
+        self.assertIn("原本写真・対応 1 基", run_eval.log_row(r))
+
+    def test_without_override_nothing_changes(self):
+        items = [item("xlsx_karte:0001", "xlsx_karte", "s", "n", "2024-01-01", ["/p/x.jpg"])]
+        with mock.patch.object(run_eval.dataset, "load_all", return_value=items):
+            r = run_eval.run(build_judge("constant"), "constant", "xlsx_karte", None, "eval", 0, None)
+        self.assertNotIn("photo_override", r["config"])
+
+
+class LongEdgeTest(unittest.TestCase):
+    def test_max_long_edge_applies_to_judged_photos(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = save(scene(1, (3000, 2000)), Path(d) / "big.jpg")
+            it = item("xlsx_karte:0001", "xlsx_karte", "s", "n", "2024-01-01", [p])
+
+            def sent_size(j):
+                blocks = [b for b in j.build_messages(it)[0]["content"] if b["type"] == "image"]
+                return Image.open(io.BytesIO(base64.b64decode(blocks[0]["source"]["data"]))).size
+
+            self.assertEqual(max(sent_size(ClaudeJudge(client=object()))), 1280)
+            self.assertEqual(max(sent_size(ClaudeJudge(client=object(), max_long_edge=1568))), 1568)
 
 
 if __name__ == "__main__":
