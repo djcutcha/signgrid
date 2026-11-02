@@ -40,7 +40,9 @@ def cmd_judge(a) -> int:
         return 0
     print(f"自治体: {d['municipality']}(条例: {d['ordinance_key']})  用途: {'自家用' if d['use'] == 'self' else '一般'}")
     print(f"許可: {d['permit_required']}   自家用の許可不要基準に収まる: {d['is_self_use_exempt']}")
-    print(f"許可期間: {d['permit_term_years']} 年   点検: {d['inspection_required']}   信頼度: {d['confidence']}")
+    print(f"許可期間: {d['permit_term_years']} 年   信頼度: {d['confidence']}")
+    for e in d["duties"].values():
+        print(f"  {e['title']}: {e['text']}")
     for b in d["branches"]:
         print(f"  場合分け: {b['when']} -> {b['verdict']}({b['reason']})")
     for c in d["citations"]:

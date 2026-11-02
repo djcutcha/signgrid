@@ -6,7 +6,12 @@
   is_self_use_exempt : 自家用の許可不要基準に収まるか(True/False/None=決められない。用途が一般なら False)
   permit_required    : "要" / "不要" / "要実測"   <- 3段階。判定に要る寸法・区分が足りないときは 要実測
   permit_term_years  : 許可期間(年。上限が書いてある場合は上限。許可が不要なら None)
-  inspection_required: "要" / "不要" / "要実測"
+  maintenance_duty   : 管理義務(良好な状態に保持)  要 / 不要 / 要実測
+  inspection_duty    : 点検する義務(inspection_interval_years = 周期)  要 / 不要 / 要実測
+  qualified_inspector: 有資格者に点検させる義務  要 / 努力(努力義務)/ 不要 / 要実測(全高不明で 4m 判定ができない時 等)
+  report_duty        : 行政へ点検結果を報告する義務  要 / 不要 / 要実測
+  duties             : 上の4つの画面用の行(title / value / text / refs / reason)。4つは別の義務で、許可の要否とは連動しない物がある
+  inspection_required: 後方互換。= report_duty(旧『点検』1本は、実際には許可・更新時の報告を指していた)。旧形式の規則では旧来の判定
   citations          : 根拠条文(条・項・号と原文の抜粋)
   confidence         : 根拠に使った規則の confidence の最小値(AI抽出の自己申告で、検算前)
   branches           : 要実測のとき『区域がこうなら 要/不要』の場合分け
@@ -26,9 +31,11 @@ from pathlib import Path
 
 from . import rules_extract as RX
 from . import schema as S
+from . import duties as D
 from .municipality import AddressResolver, Municipality, coverage_note, ordinance_key
 
 REQUIRED, NOT_REQUIRED, NEEDS_MEASURE = "要", "不要", "要実測"
+EFFORT = D.EFFORT  # 努力義務(有資格者だけ)
 
 # 台帳の種類(自立・壁面 等)や日本語の呼び名 -> 基準の kind に含まれる語
 KIND_KEYWORDS: dict[str, tuple[str, ...]] = {
@@ -66,6 +73,12 @@ class JudgeResult:
     notes: list[str] = field(default_factory=list)
     branches: list[dict] = field(default_factory=list)
     status: str = S.STATUS_FIRST_DRAFT
+    maintenance_duty: str = NEEDS_MEASURE
+    inspection_duty: str = NEEDS_MEASURE
+    inspection_interval_years: float | None = None
+    qualified_inspector: str = NEEDS_MEASURE
+    report_duty: str = NEEDS_MEASURE
+    duties: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -331,7 +344,40 @@ def judge(address: str | None = None, *, municipality: str | Municipality | None
                 _add_cites(res.citations, "permit_standard", ps)
                 confs.append(ps["confidence"])
 
-    # ----- 点検 -----
+    # ----- 点検まわりの4つの義務 -----
+    if S.has_duties(R):
+        dd = D.judge_duties(R, key, area=area_m2, height=height_m, gc=ground_clearance_m,
+                            permit=res.permit_required, words=words)
+        for field_name, node in dd["_cites"]:
+            _add_cites(res.citations, field_name, node)
+        confs.extend(dd["_confs"])
+        res.duties = {k: dd[k] for k in ("maintenance", "inspection", "qualified", "report")}
+        res.maintenance_duty = dd["maintenance"]["value"]
+        res.inspection_duty = dd["inspection"]["value"]
+        res.inspection_interval_years = dd["inspection"].get("interval_years")
+        res.qualified_inspector = dd["qualified"]["value"]
+        res.report_duty = dd["report"]["value"]
+        res.inspection_required = res.report_duty
+        if dd["inspection"]["value"] == REQUIRED and dd["inspection"]["exclusions"]:
+            res.notes.append("点検の義務が掛からない物: " + "、".join(dd["inspection"]["exclusions"])[:160])
+        if dd["qualified"].get("qualification") and dd["qualified"]["value"] in (REQUIRED, EFFORT):
+            res.notes.append(f"点検できる者: {dd['qualified']['qualification'][:80]}")
+        if dd["report"]["value"] == REQUIRED and dd["report"].get("form"):
+            res.notes.append(f"報告の様式: {dd['report']['form']}")
+    else:
+        _judge_legacy_inspection(res, R, area_m2, height_m, ground_clearance_m, confs)
+
+    # 検算されていない引用が根拠にあるときは信頼度を下げる
+    res.confidence = round(min(confs), 2) if confs else 0.0
+    if any(c.get("quote_verified") is False for c in res.citations):
+        res.confidence = round(max(0.0, res.confidence - 0.2), 2)
+        res.notes.append("原文に一致しない引用がある(引用の機械照合で不一致)")
+    return res
+
+
+def _judge_legacy_inspection(res: JudgeResult, R: dict, area_m2, height_m, ground_clearance_m, confs: list[float]) -> None:
+    """旧形式(inspection 1本)の規則の判定。4つの義務に分ける前の rules_*.json を読む互換用。
+    旧『点検』は report_duty と同じ値として返し、ほかの3つは要実測(旧形式では区別できない)。"""
     ins = R["inspection"]
     r = ins["required"]
     if r == "no":
@@ -376,10 +422,7 @@ def judge(address: str | None = None, *, municipality: str | Municipality | None
     _add_cites(res.citations, "inspection", ins)
     if r not in ("no", "unknown"):
         confs.append(ins["confidence"])
-
-    # 検算されていない引用が根拠にあるときは信頼度を下げる
-    res.confidence = round(min(confs), 2) if confs else 0.0
-    if any(c.get("quote_verified") is False for c in res.citations):
-        res.confidence = round(max(0.0, res.confidence - 0.2), 2)
-        res.notes.append("原文に一致しない引用がある(引用の機械照合で不一致)")
-    return res
+    res.report_duty = res.inspection_required
+    res.duties = {k: D._entry(k, NEEDS_MEASURE, "旧形式の規則のため判定できません(再抽出が要る)", [], "旧形式")
+                  for k in ("maintenance", "inspection", "qualified")}
+    res.duties["report"] = D._entry("report", res.report_duty, f"旧形式の判定: {res.report_duty}", [], "旧形式")
