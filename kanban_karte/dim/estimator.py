@@ -190,13 +190,15 @@ class DimEstimator:
 
 # ---------- 範囲 → 法規役 ----------
 
-def judge_from_range(estimate: DimEstimate, address: str | None, judge=legal.judge) -> dict:
-    """範囲の両端(W_low×H_low と W_high×H_high)で法規役(自家用)を呼ぶ。許可の要否が両端で同じならその値、違えば「要実測」。"""
+def judge_from_range(estimate: DimEstimate, address: str | None, judge=legal.judge,
+                     height_m: float | None = None) -> dict:
+    """範囲の両端(W_low×H_low と W_high×H_high)で法規役(自家用)を呼ぶ。height_m(全高、地上から上端)が分かれば両端とも同じ値を渡す
+    (高さの基準がある条例= 埼玉県系の許可・有資格者 は全高が無いと要実測のまま)。許可の要否が両端で同じならその値、違えば「要実測」。"""
     area_low = round(estimate.w_range[0] * estimate.h_range[0] / 1e6, 2)
     area_high = round(estimate.w_range[1] * estimate.h_range[1] / 1e6, 2)
     area_mid = round(estimate.w_mm * estimate.h_mm / 1e6, 2)
-    lo = judge(address, use="self", area_m2=area_low)
-    hi = judge(address, use="self", area_m2=area_high)
+    lo = judge(address, use="self", area_m2=area_low, height_m=height_m)
+    hi = judge(address, use="self", area_m2=area_high, height_m=height_m)
 
     def same(a: str, b: str) -> str:
         return a if a == b else legal.NEEDS_MEASURE
@@ -218,7 +220,7 @@ def judge_from_range(estimate: DimEstimate, address: str | None, judge=legal.jud
         else:  # 範囲の両端で結論が分かれる -> 要実測(根拠の条文は小さい側のものを残す)
             duties[k] = {**e, "value": legal.NEEDS_MEASURE, "reason": "推定の範囲の両端で結論が分かれる",
                          "text": "要実測(推定の範囲の両端で結論が分かれる)"}
-    return {"permit": permit, "area_low": area_low, "area_high": area_high, "area_mid": area_mid,
+    return {"permit": permit, "area_low": area_low, "area_high": area_high, "area_mid": area_mid, "height_m": height_m,
             "inspection_required": same(lo.inspection_required, hi.inspection_required),
             "maintenance_duty": same(lo.maintenance_duty, hi.maintenance_duty),
             "inspection_duty": same(lo.inspection_duty, hi.inspection_duty),

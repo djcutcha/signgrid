@@ -272,6 +272,20 @@ class OwnerEstimateTest(WebTest):
         for banned in ("rank", "items", "draft_rank"):
             self.assertNotIn(banned, d)
 
+    def test_height_is_forwarded_and_validated(self):
+        # 全高(height_m)は任意。あれば範囲の両端の判定に渡り、応答に残る。不正な値は 400
+        st, d, _ = self.post({"address": "東京都豊島区", "photos": [self.photo_b64()], "height_m": 4})
+        self.assertEqual((st, d["height_m"], d["judgement"]["height_m"]), (200, 4.0, 4.0))
+        st, d, _ = self.post({"address": "東京都豊島区", "photos": [self.photo_b64()]})
+        self.assertEqual((st, d["height_m"], d["judgement"]["height_m"]), (200, None, None))
+        for bad in ("abc", 0, -1, 10000, True):
+            self.assertEqual(self.post({"address": "東京都豊島区", "photos": [self.photo_b64()], "height_m": bad})[0], 400, bad)
+        # 埼玉県(市の条例が無い市)は全高が無いと有資格者が要実測、あれば決まる
+        d = self.post({"address": "埼玉県川口市本町1-1-1", "photos": [self.photo_b64()]})[1]
+        self.assertEqual(d["judgement"]["qualified_inspector"], "要実測")
+        d = self.post({"address": "埼玉県川口市本町1-1-1", "photos": [self.photo_b64()], "height_m": 3})[1]
+        self.assertEqual(d["judgement"]["qualified_inspector"], "不要")
+
     def test_straddling_10m2_is_needs_measure(self):
         from kanban_karte.dim.estimator import DimEstimate
         self.app.estimator_factory = lambda: type("F", (), {"estimate": lambda s, p, n: DimEstimate(

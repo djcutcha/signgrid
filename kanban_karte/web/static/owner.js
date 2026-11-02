@@ -106,7 +106,8 @@
       estBtn.disabled = true; estBtn.textContent = "推定しています…";
       try {
         const photos = await Promise.all(files.filter(Boolean).map((f) => shrink(f)));
-        const res = await KK.api("/api/owner/estimate", { photos, address, target_name: target.value.trim() || null });
+        const height = parseFloat(val("owner-height"));  // 全高(分かれば)。高さの基準がある条例では、これが無いと要実測になる
+        const res = await KK.api("/api/owner/estimate", { photos, address, target_name: target.value.trim() || null, height_m: height > 0 ? height : null });
         document.getElementById("owner-w").value = (res.estimate.w_mm / 1000).toFixed(2);
         document.getElementById("owner-h").value = (res.estimate.h_mm / 1000).toFixed(2);
         refreshArea();

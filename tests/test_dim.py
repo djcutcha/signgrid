@@ -154,6 +154,25 @@ class JudgeFromRangeTest(unittest.TestCase):
         judge_from_range(self.est([2800, 3600], [800, 1000]), "東京都豊島区", spy)
         self.assertEqual(seen, [("東京都豊島区", "self", 2.24), ("東京都豊島区", "self", 3.6)])
 
+    def test_height_is_passed_to_both_ends(self):
+        seen = []
+
+        def spy(address, *, use, area_m2, height_m=None, **kw):
+            seen.append((area_m2, height_m))
+            return fake_judge(10)(address, use=use, area_m2=area_m2)
+        r = judge_from_range(self.est([2800, 3600], [800, 1000]), "東京都豊島区", spy, height_m=4.5)
+        self.assertEqual(seen, [(2.24, 4.5), (3.6, 4.5)])
+        self.assertEqual(r["height_m"], 4.5)
+        self.assertIsNone(judge_from_range(self.est([2800, 3600], [800, 1000]), "東京都", fake_judge(10))["height_m"])
+
+    def test_height_resolves_needs_measure_in_saitama(self):
+        # 実際の規則: 埼玉県(市の条例が無い市)の有資格者は上端の高さの基準。全高なし= 要実測、全高 3m= 不要
+        addr = "埼玉県川口市本町1-1-1"
+        self.assertEqual(judge_from_range(self.est([2800, 3600], [800, 1000]), addr)["qualified_inspector"], "要実測")
+        r = judge_from_range(self.est([2800, 3600], [800, 1000]), addr, height_m=3.0)
+        self.assertEqual(r["qualified_inspector"], "不要")
+        self.assertEqual(r["duties"]["qualified"]["value"], "不要")
+
 
 class ReferenceObjectsTest(unittest.TestCase):
     def test_dictionary_and_empty_custom(self):

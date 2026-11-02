@@ -301,27 +301,28 @@ def gov_map_html(ledger: Ledger, batch_id: int, today_q: str | None = None) -> b
 
 
 # ---- オーナーの1枚撮り(DB に書かない) ----
+def _owner_num(body: dict, k: str, required: bool = False) -> float | None:
+    """オーナー画面の数値欄(面積 ㎡・全高 m)。空は None(required なら 400)、数でない・0 以下・1万以上は 400。"""
+    v = body.get(k)
+    if v in (None, ""):
+        if required:
+            raise ApiError(400, f"{k} を入れてください")
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        raise ApiError(400, f"{k} は数値: {v!r}")
+    if isinstance(v, bool) or not 0 < f < 10000:
+        raise ApiError(400, f"{k} は 0 より大きい数: {v!r}")
+    return f
+
+
 def owner_judge(body: dict, placer=None) -> dict:
     """住所・面積(・高さ)から自家用(use=self)の法規の判定と根拠条文。安全の判定(ランク・18項目)は出さない。"""
     address = str(body.get("address") or "").strip()
     if not address:
         raise ApiError(400, "住所を入れてください")
-
-    def num(k: str, required: bool = False) -> float | None:
-        v = body.get(k)
-        if v in (None, ""):
-            if required:
-                raise ApiError(400, f"{k} を入れてください")
-            return None
-        try:
-            f = float(v)
-        except (TypeError, ValueError):
-            raise ApiError(400, f"{k} は数値: {v!r}")
-        if isinstance(v, bool) or not 0 < f < 10000:
-            raise ApiError(400, f"{k} は 0 より大きい数: {v!r}")
-        return f
-
-    area, height = num("area_m2", required=True), num("height_m")
+    area, height = _owner_num(body, "area_m2", required=True), _owner_num(body, "height_m")
     try:
         r, placed = judge_at(address, use="self", area_m2=area, height_m=height, placer=placer)
     except Exception as e:
@@ -337,11 +338,13 @@ MAX_PHOTO_BYTES = 12_000_000
 
 
 def owner_estimate(body: dict, estimator_factory=None, placer=None) -> dict:
-    """写真1〜2枚(base64)+住所(+看板の名前)→ 寸法の推定(範囲つき)と、範囲の両端での自家用の法規の判定。
-    写真は推定のために API へ送るだけで、保存しない。台帳は開かない。安全の判定(ランク・18項目)は出さない。"""
+    """写真1〜2枚(base64)+住所(+看板の名前、+全高 height_m)→ 寸法の推定(範囲つき)と、範囲の両端での自家用の法規の判定。
+    全高が分かれば判定に渡す(高さの基準がある条例で要実測が減る)。写真は推定のために API へ送るだけで、保存しない。
+    台帳は開かない。安全の判定(ランク・18項目)は出さない。"""
     address = str(body.get("address") or "").strip()
     if not address:
         raise ApiError(400, "住所を入れてください")
+    height = _owner_num(body, "height_m")
     raw = body.get("photos")
     if not isinstance(raw, list) or not 1 <= len(raw) <= MAX_ESTIMATE_PHOTOS or not all(isinstance(x, str) for x in raw):
         raise ApiError(400, f"photos は base64 の文字列を 1〜{MAX_ESTIMATE_PHOTOS} 枚")
@@ -373,10 +376,10 @@ def owner_estimate(body: dict, estimator_factory=None, placer=None) -> dict:
         return r
 
     try:
-        j = judge_from_range(est, address, judge=judge)
+        j = judge_from_range(est, address, judge=judge, height_m=height)
     except Exception as e:
         raise ApiError(500, f"法規の判定ができませんでした: {type(e).__name__}: {e}")
-    return {"estimate": est.to_dict(), "judgement": j, "address": address,
+    return {"estimate": est.to_dict(), "judgement": j, "address": address, "height_m": height,
             "place": place_dict(placed_box[-1] if placed_box else None, placer)}
 
 
