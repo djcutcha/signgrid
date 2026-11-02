@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "ordinance_key": "東京都",
-  "status": "AI抽出の第1版(検算前)",
+  "status": "第2版(手元の正解と照合済み、一致 34/39)",
   "model": "claude-sonnet-5-5",
   "effort": "medium",
   "extracted_at": "2026-11-02T14:37:49+09:00",
@@ -271,7 +271,522 @@
         }
       ],
       "confidence": 0.8
-    }
+    },
+    "permit_standards": [
+      {
+        "kind": "広告塔・広告板(土地に直接設置)",
+        "when": "原則(地上高さ)",
+        "self_use_only": false,
+        "height_max_m": 10,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": null,
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 一(一)1",
+            "quote": "広告塔及び広告板(以下「広告塔等」という。)の高さが地上十メートル以下であること。",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.95
+      },
+      {
+        "kind": "広告塔・広告板(土地に直接設置)",
+        "when": "商業地域内の条例第十三条第五号の広告物等",
+        "self_use_only": true,
+        "height_max_m": 13,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": null,
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 一(一)1",
+            "quote": "については、地上十三メートル以下であること。",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.85
+      },
+      {
+        "kind": "広告塔・広告板(土地に直接設置)",
+        "when": "道路上空に突出、歩車道の区別のある道路の歩道上",
+        "self_use_only": false,
+        "height_max_m": null,
+        "ground_clearance_min_m": 3.5,
+        "protrusion_max_m": 1,
+        "area_max_m2": null,
+        "conditions": "道路境界線からの出幅0.5m以下のものは下端2.5m以上",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 一(一)2",
+            "quote": "道路境界線からの出幅が一メートル以下であり、かつ、道路面から当該突出部分の下端までの高さが歩車道の区別のある道路の歩道上にあつては三・五メートル以上",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.9
+      },
+      {
+        "kind": "広告塔・広告板(土地に直接設置)",
+        "when": "道路上空に突出、歩車道の区別のある道路の歩道上で出幅0.5m以下",
+        "self_use_only": false,
+        "height_max_m": null,
+        "ground_clearance_min_m": 2.5,
+        "protrusion_max_m": 0.5,
+        "area_max_m2": null,
+        "conditions": null,
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 一(一)2",
+            "quote": "道路境界線からの出幅が〇・五メートル以下のものにあつては、二・五メートル以上",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.85
+      },
+      {
+        "kind": "広告塔・広告板(土地に直接設置)",
+        "when": "道路上空に突出、歩車道の区別のない道路上",
+        "self_use_only": false,
+        "height_max_m": null,
+        "ground_clearance_min_m": 4.5,
+        "protrusion_max_m": 1,
+        "area_max_m2": null,
+        "conditions": null,
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 一(一)2",
+            "quote": "歩車道の区別のない道路上にあつては四・五メートル以上であること。",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.9
+      },
+      {
+        "kind": "広告塔・広告板(屋上)",
+        "when": "木造の建築物の屋上",
+        "self_use_only": false,
+        "height_max_m": 10,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": "地盤面から広告塔等上端までの高さ",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 一(二)1",
+            "quote": "地盤面から当該広告塔等の上端までの高さが十メートル以下であること。",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.95
+      },
+      {
+        "kind": "広告塔・広告板(屋上)",
+        "when": "耐火・不燃構造の屋上、第一種住居地域・第二種住居地域・準住居地域又は指定区域内",
+        "self_use_only": false,
+        "height_max_m": 33,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": "広告塔等の高さが地盤面から設置箇所までの高さの3分の2以下。壁面直上垂直面から突出不可",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 一(二)2",
+            "quote": "指定区域内にあつては三十三メートル以下",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.85
+      },
+      {
+        "kind": "広告塔・広告板(屋上)",
+        "when": "耐火・不燃構造の屋上、上記住居系地域又は指定区域外",
+        "self_use_only": false,
+        "height_max_m": 52,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": "広告塔等の高さが地盤面から設置箇所までの高さの3分の2以下。壁面直上垂直面から突出不可",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 一(二)2",
+            "quote": "指定区域外にあつては五十二メートル以下であること。",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.85
+      },
+      {
+        "kind": "建築物の壁面を利用する広告物等",
+        "when": "第一種住居地域・第二種住居地域・準住居地域又は指定区域内",
+        "self_use_only": false,
+        "height_max_m": 33,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": "壁面の外郭線から突出不可。窓・開口部をふさがない",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 二1",
+            "quote": "指定区域内にあつては三十三メートル以下",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.85
+      },
+      {
+        "kind": "建築物の壁面を利用する広告物等",
+        "when": "上記住居系地域又は指定区域外",
+        "self_use_only": false,
+        "height_max_m": 52,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": "壁面の外郭線から突出不可",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 二1",
+            "quote": "指定区域外にあつては五十二メートル以下であること。",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.85
+      },
+      {
+        "kind": "建築物の壁面を利用する広告物等",
+        "when": "商業地域内(広告幕を除く)",
+        "self_use_only": false,
+        "height_max_m": null,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": 100,
+        "conditions": "壁面における表示面積合計は壁面面積の10分の3以下(表示期間7日以内を除く)",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 二5",
+            "quote": "商業地域内にあつては百平方メートル以下",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.9
+      },
+      {
+        "kind": "建築物の壁面を利用する広告物等",
+        "when": "商業地域外(広告幕を除く)",
+        "self_use_only": false,
+        "height_max_m": null,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": 50,
+        "conditions": "壁面における表示面積合計は壁面面積の10分の3以下(表示期間7日以内を除く)",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 二5",
+            "quote": "商業地域外にあつては五十平方メートル以下",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.9
+      },
+      {
+        "kind": "建築物から突出する形式の広告物等",
+        "when": "第一種住居地域・第二種住居地域・準住居地域又は指定区域内",
+        "self_use_only": false,
+        "height_max_m": 33,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": null,
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 三1",
+            "quote": "指定区域内にあつては三十三メートル以下",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.85
+      },
+      {
+        "kind": "建築物から突出する形式の広告物等",
+        "when": "上記住居系地域又は指定区域外",
+        "self_use_only": false,
+        "height_max_m": 52,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": null,
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 三1",
+            "quote": "指定区域外にあつては五十二メートル以下であること。",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.85
+      },
+      {
+        "kind": "建築物から突出する形式の広告物等",
+        "when": "出幅(道路境界線から1m以下、建築物から1.5m以下)",
+        "self_use_only": false,
+        "height_max_m": null,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": 1,
+        "area_max_m2": null,
+        "conditions": "当該建築物からの出幅は1.5m以下",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 三2",
+            "quote": "道路境界線からの出幅が一メートル以下であり、かつ、当該建築物からの出幅が一・五メートル以下であること。",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.9
+      },
+      {
+        "kind": "建築物から突出する形式の広告物等",
+        "when": "歩車道の区別のある道路の歩道上",
+        "self_use_only": false,
+        "height_max_m": null,
+        "ground_clearance_min_m": 3.5,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": "道路境界線からの出幅0.5m以下は2.5m以上",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 三3",
+            "quote": "歩車道の区別のある道路の歩道上にあつては三・五メートル以上",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.9
+      },
+      {
+        "kind": "建築物から突出する形式の広告物等",
+        "when": "歩車道の区別のない道路上",
+        "self_use_only": false,
+        "height_max_m": null,
+        "ground_clearance_min_m": 4.5,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": null,
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 三3",
+            "quote": "歩車道の区別のない道路上にあつては四・五メートル以上であること。",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.9
+      },
+      {
+        "kind": "電柱・街路灯柱を利用する広告物等",
+        "when": "電柱の添架広告、歩道上",
+        "self_use_only": false,
+        "height_max_m": null,
+        "ground_clearance_min_m": 3.5,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": "縦1.20m以下×横0.48m以下、二面以内、案内誘導広告物等",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 四(一)2",
+            "quote": "縦一・二〇以下×横〇・四八以下",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.7
+      },
+      {
+        "kind": "電柱・街路灯柱を利用する広告物等",
+        "when": "街路灯柱から突出して添架、歩道上",
+        "self_use_only": false,
+        "height_max_m": null,
+        "ground_clearance_min_m": 3.5,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": "商店会・自治会・町会等が表示するもの",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 四(二)2",
+            "quote": "歩車道の区別のある道路の歩道上にあつては三・五メートル以上",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.85
+      },
+      {
+        "kind": "電柱・街路灯柱を利用する広告物等",
+        "when": "街路灯柱から突出して添架、歩車道の区別のない道路上",
+        "self_use_only": false,
+        "height_max_m": null,
+        "ground_clearance_min_m": 4.5,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": null,
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 四(二)2",
+            "quote": "歩車道の区別のない道路上にあつては四・五メートル以上であること。",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.85
+      },
+      {
+        "kind": "鉄道・軌道沿線の野立広告物",
+        "when": "特別区及び市の存する区域(商業地域を除く)",
+        "self_use_only": false,
+        "height_max_m": 5,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": 30,
+        "conditions": "境界線から30m以上、間隔50m以上",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 五(二)",
+            "quote": "地上五メートル以下",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.7
+      },
+      {
+        "kind": "鉄道・軌道沿線の野立広告物",
+        "when": "特別区及び市の存する区域以外",
+        "self_use_only": false,
+        "height_max_m": 5,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": 40,
+        "conditions": "境界線から50m以上、間隔100m以上",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 五(二)",
+            "quote": "四十平方メートル以下",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.65
+      },
+      {
+        "kind": "東京国際空港内道路から展望できる広告塔等",
+        "when": "羽田地区の指定地域",
+        "self_use_only": false,
+        "height_max_m": 10,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": "間隔2m以上、長方形、地色は黒又は原色でない",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 五(一)",
+            "quote": "地上十メートル以下",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.75
+      },
+      {
+        "kind": "電車・自動車の外面を利用する広告物等",
+        "when": "ハイヤー・タクシーの車体側面ドア部分",
+        "self_use_only": false,
+        "height_max_m": null,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": 1.4,
+        "conditions": "各側面につき。色彩は車体と調和",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 六(三)3",
+            "quote": "各側面につき一・四平方メートル以下とする。",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.8
+      },
+      {
+        "kind": "標識を利用する広告物等",
+        "when": "消火栓標識を利用するもの、歩道上",
+        "self_use_only": false,
+        "height_max_m": null,
+        "ground_clearance_min_m": 3.5,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": "表示面は縦0.4m以下、横0.8m以下。歩車道の区別のない道路上は4.5m以上",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 七(二)3",
+            "quote": "歩車道の区別のある道路の歩道上にあつては三・五メートル以上",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.8
+      },
+      {
+        "kind": "標識を利用する広告物等",
+        "when": "避難標識又は案内図板等を利用、各面の広告物",
+        "self_use_only": false,
+        "height_max_m": null,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": 0.32,
+        "conditions": "又は標識・案内図の表示面積の2分の1のいずれか小さい面積以下",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 七(三)1",
+            "quote": "表示面積が〇・三二平方メートル又は各面の標識若しくは案内図の表示面積の二分の一に当たる面積のいずれか小さい面積以下であること。",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.85
+      },
+      {
+        "kind": "プロジェクションマッピング(土地に直接設置する広告塔等)",
+        "when": "原則",
+        "self_use_only": false,
+        "height_max_m": 10,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": null,
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "別表第三 八3イ",
+            "quote": "上端の高さが地上十メートル以下であること。",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.85
+      }
+    ]
   },
   "extraction_notes": [
     "別表第二は表が崩れており、区域と面積の対応は推測を含む(信頼度低)。",
@@ -291,5 +806,38 @@
     "attempts": 1,
     "attempt_errors": [],
     "usd": 0.183
+  },
+  "table3_extraction": {
+    "model": "claude-sonnet-5-5",
+    "citation_check": {
+      "total": 27,
+      "verified": 27
+    },
+    "notes": [
+      "表形式の電柱・空港・鉄道の基準は列が崩れており、対応づけに不確実さが残る。",
+      "広告塔等の高さ13mは自家用特例として扱った。",
+      "屋上・壁面の100m超の文字高さ特例(3m/5m)は文字の長さのため数値化していない。",
+      "巻付け広告の下端高さ(1.60/1.20m)は省略した。",
+      "プロジェクションマッピングの他の高さ基準(33/52m等)は省略した。"
+    ]
+  },
+  "verification": {
+    "matched": 34,
+    "total": 39,
+    "mismatch_items": [
+      "self_use.standards[0](全種類/other).area_max_m2",
+      "permit_term.default_years",
+      "permit_term.items[0](広告塔・広告板・アーチ・装飾街路灯・プロジェクションマッピング).years",
+      "permit_term.items[1](小型広告板・電柱又は街路灯柱の利用広告・標識利用広告・宣伝車・車体利用広告).years",
+      "permit_term.items[2](はり紙・はり札等・広告旗・立看板等・アドバルーン・広告幕・店頭装飾).years"
+    ],
+    "mismatch_only_in_source": [
+      "self_use.standards[0](全種類/other).area_max_m2",
+      "permit_term.default_years",
+      "permit_term.items[0](広告塔・広告板・アーチ・装飾街路灯・プロジェクションマッピング).years",
+      "permit_term.items[1](小型広告板・電柱又は街路灯柱の利用広告・標識利用広告・宣伝車・車体利用広告).years",
+      "permit_term.items[2](はり紙・はり札等・広告旗・立看板等・アドバルーン・広告幕・店頭装飾).years"
+    ],
+    "method": "数値の存在照合(正解ファイルに同じ値が在るか。区域・種類までは見ない)"
   }
 }

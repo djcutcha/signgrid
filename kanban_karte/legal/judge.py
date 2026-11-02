@@ -211,6 +211,7 @@ def judge(address: str | None = None, *, municipality: str | Municipality | None
     if key is None:
         res.notes.append("条例の写しが無いため判定できない")
         return res
+    doc_status = None
     if rules is None:
         try:
             doc = RX.load_rules(key, data_dir)
@@ -218,7 +219,10 @@ def judge(address: str | None = None, *, municipality: str | Municipality | None
             res.notes.append(str(e))
             return res
         rules = doc["rules"]
+        doc_status = doc.get("status")
     R = rules
+    if doc_status:
+        res.status = doc_status
 
     pclass, plabel = _norm_place(place, R["prohibited_zones"].get("labels", []))
     words = _kind_words(kind)
@@ -310,6 +314,22 @@ def judge(address: str | None = None, *, municipality: str | Municipality | None
                 res.notes.append("許可期間は種類で違う: " + "、".join(f"{k}={y}年" for k, y in others))
             if pt["items"] and all(i.get("is_maximum") for i in pt["items"]):
                 res.notes.append("許可期間は上限(◯年以内)。実際の期間は許可書で確認")
+
+    # ----- 許可の基準(東京都 別表第三。高さ・地上高・出幅)-----
+    # 許可不要かどうかの判定には使わない。寸法が基準を外れるときだけ注に出す(種類が分かっているときのみ)。
+    if words is not None and (height_m is not None or ground_clearance_m is not None):
+        for ps in R.get("permit_standards") or []:
+            if (ps.get("self_use_only") and use != "self") or not _kind_match(ps["kind"], words):
+                continue
+            when = f"・{ps['when']}" if ps.get("when") else ""
+            for val, lim, label, over in ((height_m, ps.get("height_max_m"), "高さ", True),
+                                          (ground_clearance_m, ps.get("ground_clearance_min_m"), "地上高", False)):
+                if val is None or lim is None or not ((val > lim) if over else (val < lim)):
+                    continue
+                res.notes.append(f"{label} {val}m は許可の基準({ps['kind']}{when})の{lim}m{'以下' if over else '以上'}を外れる。"
+                                 "該当する条件か確認(基準は条件ごとに別項目)")
+                _add_cites(res.citations, "permit_standard", ps)
+                confs.append(ps["confidence"])
 
     # ----- 点検 -----
     ins = R["inspection"]

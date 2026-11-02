@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "ordinance_key": "埼玉県",
-  "status": "AI抽出の第1版(検算前)",
+  "status": "第2版(手元の正解と照合済み、一致 15/20)",
   "model": "claude-sonnet-5-5",
   "effort": "medium",
   "extracted_at": "2026-11-02T14:35:07+09:00",
@@ -438,5 +438,24 @@
       "Expecting ',' delimiter: line 1 column 6832 (char 6831)"
     ],
     "usd": 0.3124
+  },
+  "verification": {
+    "matched": 15,
+    "total": 20,
+    "mismatch_items": [
+      "permit_term.default_years",
+      "permit_term.items[0](全種類(上限)).years",
+      "permit_term.items[2](広告幕(つり下げを含む。)及びアドバルーン).years",
+      "inspection.interval_years",
+      "inspection.conditions[0].height_min_m"
+    ],
+    "mismatch_only_in_source": [
+      "permit_term.default_years",
+      "permit_term.items[0](全種類(上限)).years",
+      "permit_term.items[2](広告幕(つり下げを含む。)及びアドバルーン).years",
+      "inspection.interval_years",
+      "inspection.conditions[0].height_min_m"
+    ],
+    "method": "数値の存在照合(正解ファイルに同じ値が在るか。区域・種類までは見ない)"
   }
 }

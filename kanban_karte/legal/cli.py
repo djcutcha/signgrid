@@ -3,6 +3,12 @@
   python3 -m kanban_karte.legal.cli judge --address "東京都豊島区見本町1-2-3" --use self --area 8.5 --height 3.2
   python3 -m kanban_karte.legal.cli municipality --address "埼玉県越谷市南越谷1-1"
   python3 -m kanban_karte.legal.cli extract --municipality 越谷市 [--dry-run] [--model ...] [--effort ...]
+  python3 -m kanban_karte.legal.cli verify [--stamp]       # rules_*.json の数値を手元の正解と照合(件数と不一致の項目名だけ)
+  python3 -m kanban_karte.legal.cli store-address "見本マート 架空店" [--operator ..] [--prefecture ..] [--ledger 台帳.sqlite] [--refresh] [--no-web]
+                                                          # 店舗名 -> 住所(台帳 -> キャッシュ -> web search。API。1件 概算 $0.05〜0.1)
+  python3 -m kanban_karte.legal.cli store-names [--db signjobz.db] [--since 2022-01-01]
+                                                          # 点検案件の件名から店舗名が何件取れるか(件数と割合だけ。API なし)
+  python3 -m kanban_karte.legal.cli table3 [--dry-run]     # 東京都 別表第三だけを再抽出(API。概算 $0.2)
 
 extract は Anthropic API を呼ぶ(1自治体あたり概算 $0.1〜0.3)。--dry-run は count_tokens(課金なし)で入力の大きさと概算費用だけ出す。
 """
@@ -13,6 +19,10 @@ import json
 import sys
 
 from . import rules_extract as RX
+from . import store_address as SA
+from . import store_names as SN
+from . import table3_extract as T3
+from . import verify as VF
 from .judge import judge
 from .municipality import AddressResolver, coverage_note, ordinance_key
 
@@ -78,6 +88,56 @@ def cmd_extract(a) -> int:
     return 0
 
 
+def cmd_verify(a) -> int:
+    return VF.main(["--stamp"] if a.stamp else [])
+
+
+def cmd_table3(a) -> int:
+    client = RX.make_client()
+    if a.dry_run:
+        n = client.messages.count_tokens(model=a.model, system=T3.SYSTEM_PROMPT,
+                                         messages=[{"role": "user", "content": T3.table3_text()}]).input_tokens
+        print(f"東京都 別表第三: 入力 {n} トークン / 概算 ${RX.cost_usd(a.model, n, 8000):.2f}(出力 8000 トークン仮定)")
+        return 0
+    result, u = T3.extract_table3(client=client, model=a.model, effort=a.effort)
+    p = T3.apply_table3(result)
+    cc = result["citation_check"]
+    print(f"{p}: 基準 {len(result['permit_standards'])} 件  引用 {cc['verified']}/{cc['total']} 一致  ${u['usd']:.3f}  試行 {u['attempts']} 回")
+    return 0
+
+
+def cmd_store_address(a) -> int:
+    ledger = None
+    if a.ledger:
+        from ..ledger.db import Ledger
+        ledger = Ledger(a.ledger)
+    r = SA.lookup(a.store_name, a.operator, a.prefecture, ledger=ledger, refresh=a.refresh, web=not a.no_web)
+    if a.json:
+        print(json.dumps(r, ensure_ascii=False, indent=2))
+        return 0
+    print(f"{r['status']}  確信度 {r['confidence']}  (出所: {r['origin']}{' / ' + r['source_kind'] if r['source_kind'] else ''})")
+    print(f"  住所: {r['address'] or '(見つからず)'}")
+    if r["source_url"]:
+        print(f"  出典: {r['source_url']}")
+    for c in r["candidates"]:
+        print(f"  候補: {c['address']}  {c.get('source_url') or ''}  {c.get('note') or ''}")
+    if r.get("note"):
+        print(f"  注: {r['note']}")
+    if r.get("usd") is not None:
+        print(f"  費用: ${r['usd']:.3f}(検索 {r.get('searches', 0)} 回)")
+    return 0
+
+
+def cmd_store_names(a) -> int:
+    from pathlib import Path
+    subs = SN.inspection_subjects(Path(a.db).expanduser() if a.db else None, since=a.since)
+    r = SN.count_names(subs)
+    print(f"点検案件(受注日 {a.since} 以降、件名に『点検』)  {r['subjects']} 件")
+    print(f"店舗名が取れた: {r['matched']} 件({r['ratio'] * 100:.1f}%)  内訳: チェーン名つき {r['by_kind']['chain']} / 『◯◯店』型 {r['by_kind']['generic']}"
+          f"  (チェーン名の登録 {r['chains_configured']} 件)")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="kanban_karte.legal.cli")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -104,6 +164,31 @@ def main(argv=None) -> int:
     e.add_argument("--effort", default=RX.DEFAULT_EFFORT, choices=["low", "medium", "high", "xhigh", "max"])
     e.add_argument("--dry-run", action="store_true", help="API は count_tokens だけ(課金なし)")
     e.set_defaults(fn=cmd_extract)
+
+    v = sub.add_parser("verify", help="rules_*.json の数値を手元の正解と照合")
+    v.add_argument("--stamp", action="store_true", help="status を第2版(照合済み、一致 x/y)に書き換える")
+    v.set_defaults(fn=cmd_verify)
+
+    t = sub.add_parser("table3", help="東京都 別表第三だけを再抽出して rules_東京都.json に足す(API)")
+    t.add_argument("--model", default=RX.DEFAULT_MODEL)
+    t.add_argument("--effort", default=RX.DEFAULT_EFFORT, choices=["low", "medium", "high", "xhigh", "max"])
+    t.add_argument("--dry-run", action="store_true", help="count_tokens だけ(課金なし)")
+    t.set_defaults(fn=cmd_table3)
+
+    sa = sub.add_parser("store-address", help="店舗名 -> 住所(台帳 -> キャッシュ -> web search。API)")
+    sa.add_argument("store_name")
+    sa.add_argument("--operator", help="運営会社名(分かれば)")
+    sa.add_argument("--prefecture", help="都道府県(分かれば)")
+    sa.add_argument("--ledger", help="台帳の sqlite(sites に同名の現場があればそれを使う)")
+    sa.add_argument("--refresh", action="store_true", help="キャッシュを使わず引き直す")
+    sa.add_argument("--no-web", action="store_true", help="API を呼ばない(台帳とキャッシュだけ)")
+    sa.add_argument("--json", action="store_true")
+    sa.set_defaults(fn=cmd_store_address)
+
+    sn = sub.add_parser("store-names", help="指示書の件名から店舗名が何件取れるか(件数と割合だけ)")
+    sn.add_argument("--db", help="SignJOBZ 複製の sqlite(既定は SN.DEFAULT_DB)")
+    sn.add_argument("--since", default="2022-01-01")
+    sn.set_defaults(fn=cmd_store_names)
 
     a = ap.parse_args(argv)
     if a.cmd == "judge" and not (a.address or a.municipality):

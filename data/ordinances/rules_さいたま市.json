@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "ordinance_key": "さいたま市",
-  "status": "AI抽出の第1版(検算前)",
+  "status": "第2版(手元の正解と照合済み、一致 6/14)",
   "model": "claude-sonnet-5-5",
   "effort": "medium",
   "extracted_at": "2026-11-02T14:34:25+09:00",
@@ -334,5 +334,30 @@
     "attempts": 1,
     "attempt_errors": [],
     "usd": 0.1238
+  },
+  "verification": {
+    "matched": 6,
+    "total": 14,
+    "mismatch_items": [
+      "self_use.standards[4](屋上広告/prohibited_zone).area_max_m2",
+      "self_use.standards[5](壁面広告/prohibited_zone).area_max_m2",
+      "self_use.standards[6](突出し広告/prohibited_zone).area_max_m2",
+      "self_use.standards[7](広告塔・広告板/prohibited_zone).area_max_m2",
+      "permit_term.default_years",
+      "permit_term.items[0](広告塔・広告板・電柱利用広告・標識利用広告・アーチ利用広告・自動車利用広告).years",
+      "permit_term.items[1](広告幕・置き看板・アドバルーン).years",
+      "permit_term.items[2](はり紙・はり札・広告旗・立看板).years"
+    ],
+    "mismatch_only_in_source": [
+      "self_use.standards[4](屋上広告/prohibited_zone).area_max_m2",
+      "self_use.standards[5](壁面広告/prohibited_zone).area_max_m2",
+      "self_use.standards[6](突出し広告/prohibited_zone).area_max_m2",
+      "self_use.standards[7](広告塔・広告板/prohibited_zone).area_max_m2",
+      "permit_term.default_years",
+      "permit_term.items[0](広告塔・広告板・電柱利用広告・標識利用広告・アーチ利用広告・自動車利用広告).years",
+      "permit_term.items[1](広告幕・置き看板・アドバルーン).years",
+      "permit_term.items[2](はり紙・はり札・広告旗・立看板).years"
+    ],
+    "method": "数値の存在照合(正解ファイルに同じ値が在るか。区域・種類までは見ない)"
   }
 }
