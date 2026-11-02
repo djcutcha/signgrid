@@ -203,5 +203,22 @@ class RoundTripTest(unittest.TestCase):
                     self.assertEqual(cm.exception.status, 503)
 
 
+class SampleBadgeTest(unittest.TestCase):
+    """「見本データ」の帯は hidden 属性で消す。CSS の display 指定が hidden に勝つと実データでも帯が出る(2026-11-03 の一周の画面で発覚)。"""
+
+    STATIC = Path(__file__).resolve().parents[1] / "kanban_karte" / "web" / "static"
+
+    def test_hidden_attribute_beats_display_rules(self):
+        css = (self.STATIC / "app.css").read_text(encoding="utf-8")
+        self.assertIn("[hidden]{display:none !important}", css)
+        html = (self.STATIC / "index.html").read_text(encoding="utf-8")
+        self.assertRegex(html, r'id="sample-badge"[^>]*\bhidden\b')
+
+    def test_meta_sample_false_for_real_ledger(self):
+        from kanban_karte.web import api
+        self.assertFalse(api.meta(False)["sample"])
+        self.assertTrue(api.meta(True)["sample"])
+
+
 if __name__ == "__main__":
     unittest.main()
