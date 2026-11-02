@@ -115,14 +115,18 @@ KK.lightbox = (function () {
   };
 })();
 
-// ハッシュで画面を切り替える: #/ (台帳、?site=)、#/sign/<id>、#/rules
+// ハッシュで画面を切り替える: #/intake、#/ (台帳、?site=)、#/sign/<id>、#/gov、#/owner、#/rules
+// seg[0] → [ビュー名, ナビの data-nav]
+KK.ROUTES = {
+  intake: ["intake", "intake"], sign: ["karte", "ledger"], gov: ["gov", "gov"], owner: ["owner", "owner"], rules: ["rules", "rules"],
+};
 KK.route = async function () {
   const [path, query] = location.hash.slice(1).split("?");
   const params = new URLSearchParams(query || "");
   const seg = (path || "/").split("/").filter(Boolean).map(decodeURIComponent);
-  const name = seg[0] === "sign" ? "karte" : seg[0] === "rules" ? "rules" : "ledger";
+  const [name, nav] = KK.ROUTES[seg[0]] || ["ledger", "ledger"];
   document.querySelectorAll("[data-nav]").forEach((a) => {
-    if (a.dataset.nav === (name === "rules" ? "rules" : "ledger")) a.setAttribute("aria-current", "page");
+    if (a.dataset.nav === nav) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
   });
   try {

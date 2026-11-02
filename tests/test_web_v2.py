@@ -41,5 +41,17 @@ class LegalTest(WebTest):
         self.assertIn("RuntimeError", L["error"])
 
 
+class BundlesTest(WebTest):
+    def test_bundle_source_kind(self):
+        with self.app.ledger() as lg:
+            a = lg.add_bundle("/tmp/scan/a.pdf", "sha-a", 3)
+            b = lg.add_bundle("line://Uxxx/2026-11-02/s1", "sha-b", 2)
+        rows = {r["id"]: r for r in self.req("/api/bundles")[1]}
+        self.assertEqual(rows[a]["source"], "PC")
+        self.assertEqual(rows[b]["source"], "LINE")
+        self.assertEqual(rows[b]["file"], "s1")
+        self.assertEqual(rows[b]["status"], "new")
+
+
 if __name__ == "__main__":
     unittest.main()

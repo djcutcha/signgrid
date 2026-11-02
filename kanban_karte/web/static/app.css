@@ -205,3 +205,14 @@ dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
 .legal-card details{margin-top:10px}
 .legal-card summary{cursor:pointer;font-size:12.5px;color:var(--fg2)}
 .kv>span:nth-child(even){min-width:0;overflow-wrap:anywhere}
+
+/* 受付 */
+.chip.src{background:var(--accent-soft);color:var(--accent)}
+.chip.src.line{background:#06c755;color:#fff}
+.intake td{vertical-align:top}
+.intake .c-file{overflow-wrap:anywhere;min-width:12em}
+.intake .notice{margin:0}
+@media (max-width:760px){
+  .intake .c-kind{order:1} .intake .c-file{order:2;flex:1 1 60%} .intake .c-state{order:3} .intake .c-count{order:4}
+  .intake .c-err{order:5;flex:1 1 100%} .intake .c-go{order:6} .intake .c-act{order:7;flex:1 1 100%}
+}

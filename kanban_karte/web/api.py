@@ -184,7 +184,8 @@ def bundles(ledger: Ledger) -> list[dict]:
     out = []
     for b in ledger.list_bundles():
         ss = ledger.list_signs(bundle_id=b["id"])
-        out.append({"id": b["id"], "file": Path(b["file"].split("://")[-1]).name or b["file"], "pages": b["pages"],
+        out.append({"id": b["id"], "source": "LINE" if b["file"].startswith("line://") else "PC",
+                    "file": Path(b["file"].split("://")[-1]).name or b["file"], "pages": b["pages"],
                     "status": b["status"], "site_id": b["site_id"], "error": b["error"],
                     "sign_count": len(ss), "draft_count": sum(s.status == "draft" for s in ss),
                     "kind_counts": json.loads(b["kind_counts"] or "{}")})
