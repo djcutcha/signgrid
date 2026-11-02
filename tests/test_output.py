@@ -368,6 +368,7 @@ class SampleOutputTest(unittest.TestCase):
                  ("client_a_demo-site-1.xlsx", client_a_form.write_client_a))
         with tempfile.TemporaryDirectory() as d:
             lg = Ledger(":memory:")
+            self.addCleanup(lg.close)
             lg.import_json(SAMPLE)
             for name, fn in pairs:
                 self.assertTrue((out_dir / name).exists(), name)
