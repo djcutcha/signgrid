@@ -10,6 +10,7 @@ from unittest import mock
 
 from kanban_karte.intake.line import client as line_client
 from kanban_karte.intake.line import reply as reply_text
+from kanban_karte.intake.line import richmenu
 from kanban_karte.intake.line.address import AddressSearch
 from kanban_karte.intake.line.jobs import Job, jobs_near
 from kanban_karte.intake.line.webhook import LineApp
@@ -258,6 +259,47 @@ class LocationWindowTest(Base):
         self.at(20)  # 最後の写真(9分)から11分 = 窓の外
         self.post(app, img_event("m3"))
         self.assertEqual([b["pages"] for b in self.bundles()], [2, 1])
+
+
+class RichMenuTest(unittest.TestCase):
+    def test_json_shape(self):
+        m = richmenu.menu_json()
+        self.assertEqual(m["size"], {"width": 2500, "height": 843})
+        self.assertEqual([a["action"]["type"] for a in m["areas"]], ["camera", "uri", "postback"])
+        self.assertEqual(m["areas"][1]["action"]["uri"], "https://line.me/R/nv/location")
+        self.assertEqual(m["areas"][2]["action"]["data"], "act=today")
+        self.assertEqual(sum(a["bounds"]["width"] for a in m["areas"]), 2500)
+        xs = [a["bounds"]["x"] for a in m["areas"]]
+        self.assertEqual(xs, sorted(xs))
+        for a in m["areas"]:
+            self.assertLessEqual(len(a["action"]["label"]), 20)
+        json.dumps(m)
+
+    def test_image_size(self):
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as tmp:
+            try:
+                p = richmenu.render_image(Path(tmp) / "m.png")
+            except RuntimeError:
+                self.skipTest("日本語フォントなし")
+            self.assertEqual(Image.open(p).size, (2500, 843))
+
+    def test_apply_calls_in_order(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            img = Path(tmp) / "m.png"
+            img.write_bytes(b"png")
+            seen = []
+
+            def fake_urlopen(req, timeout=0):
+                seen.append((req.full_url, req.get_method(), req.get_header("Content-type")))
+                return _Resp(b'{"richMenuId": "richmenu-1"}')
+            with mock.patch("urllib.request.urlopen", fake_urlopen):
+                self.assertEqual(richmenu.apply("tok", img), "richmenu-1")
+        self.assertEqual([u for u, _, _ in seen], [
+            "https://api.line.me/v2/bot/richmenu",
+            "https://api-data.line.me/v2/bot/richmenu/richmenu-1/content",
+            "https://api.line.me/v2/bot/user/all/richmenu/richmenu-1"])
+        self.assertEqual(seen[1][2], "image/png")
 
 
 class AddressSearchTest(unittest.TestCase):

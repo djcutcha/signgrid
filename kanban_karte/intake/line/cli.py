@@ -1,11 +1,13 @@
-"""python3 -m kanban_karte.intake.line.cli {serve,simulate}
+"""python3 -m kanban_karte.intake.line.cli {serve,simulate,richmenu}
 
 serve     webhook サーバを起動(LINE_CHANNEL_SECRET と LINE_CHANNEL_ACCESS_TOKEN が要る)
 simulate  模擬 webhook を送る。--url なしなら同じプロセスにサーバを立てて一通り流す(LINE も鍵も不要)
+richmenu  リッチメニューの JSON と画像を作る(--dry-run)。--apply で LINE に作成・画像アップロード・既定に設定
 """
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import threading
@@ -15,6 +17,7 @@ from ...ledger import Ledger
 from .address import AddressSearch
 from .client import HttpLineClient
 from .jobs import load_jobs
+from .richmenu import HEIGHT, WIDTH, apply as apply_richmenu, menu_json, render_image
 from .simulate import DirContentClient, build_deliveries, list_images, post, webhook_url
 from .webhook import LineApp, make_server
 
@@ -93,6 +96,21 @@ def cmd_simulate(a) -> int:
     return 0
 
 
+def cmd_richmenu(a) -> int:
+    image = render_image(a.image_out)
+    print(json.dumps(menu_json(), ensure_ascii=False, indent=2))
+    print(f"画像={image} ({WIDTH}x{HEIGHT})", flush=True)
+    if not a.apply:
+        print("--dry-run: LINE には送っていない(--apply で作成・画像アップロード・既定に設定)")
+        return 0
+    token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
+    if not token:
+        print("LINE_CHANNEL_ACCESS_TOKEN が未設定(docs/LINE.md 参照)")
+        return 2
+    print("richMenuId =", apply_richmenu(token, image))
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="kanban_karte.intake.line.cli", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -114,6 +132,12 @@ def main(argv=None) -> int:
     m.add_argument("--url", help="送り先(省略時は同じプロセスに仮のサーバを立てる)")
     m.add_argument("--content-dir", default=str(PRIVATE / "line_sim_content"), help="模擬の画像の置き場")
     m.set_defaults(fn=cmd_simulate)
+    r = sub.add_parser("richmenu", help="リッチメニューの JSON と画像を作る / LINE に設定する")
+    g = r.add_mutually_exclusive_group(required=True)
+    g.add_argument("--dry-run", action="store_true", help="JSON を出し画像を書くだけ(LINE に送らない)")
+    g.add_argument("--apply", action="store_true", help="LINE に作成・画像アップロード・既定に設定")
+    r.add_argument("--image-out", default=str(PRIVATE / "richmenu.png"), help="画像の書き出し先")
+    r.set_defaults(fn=cmd_richmenu)
     a = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
     return a.fn(a)
