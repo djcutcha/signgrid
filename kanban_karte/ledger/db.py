@@ -12,8 +12,9 @@ from pathlib import Path
 
 from .items import validate_items
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 SCHEMA_SQL = Path(__file__).with_name("schema.sql")
+SIGN_STATUSES = ("new", "needs_photos", "draft", "confirmed")
 PAGE_KINDS = ("指示書", "完成報告書", "点検表", "写真", "地図", "危険予知", "その他", "不明")
 
 
@@ -52,9 +53,18 @@ class Sign:
     last_inspected: str | None = None
     prev_rank: int | None = None
     source_bundle: int | None = None
+    # 下書きと確定
+    status: str = "new"
+    draft_rank: int | None = None
+    confidence: float | None = None
+    evidence: dict[str, dict] = field(default_factory=dict)
+    confirmed_at: str | None = None
+    confirmed_by: str | None = None
 
     def validate(self) -> None:
-        for name in ("rank", "prev_rank"):
+        if self.status not in SIGN_STATUSES:
+            raise ValueError(f"status は {SIGN_STATUSES} のどれか: {self.status!r}")
+        for name in ("rank", "prev_rank", "draft_rank"):
             v = getattr(self, name)
             if v is not None and (isinstance(v, bool) or v not in (1, 2, 3, 4)):
                 raise ValueError(f"{name} は 1〜4 か None: {v!r}")
@@ -116,6 +126,13 @@ class Ledger:
         self.conn.executescript(SCHEMA_SQL.read_text(encoding="utf-8"))
         if "site_id" not in {r[1] for r in self.conn.execute("PRAGMA table_info(bundles)")}:
             self.conn.execute("ALTER TABLE bundles ADD COLUMN site_id TEXT REFERENCES sites(id)")
+        # v2: signs に下書き・確定の列(古い台帳に足す。新しい台帳は schema.sql の CREATE が持つ)
+        sign_cols = {r[1] for r in self.conn.execute("PRAGMA table_info(signs)")}
+        for col, ddl in (("status", "TEXT NOT NULL DEFAULT 'new'"), ("draft_rank", "INTEGER"),
+                         ("confidence", "REAL"), ("evidence", "TEXT NOT NULL DEFAULT '{}'"),
+                         ("confirmed_at", "TEXT"), ("confirmed_by", "TEXT")):
+            if col not in sign_cols:
+                self.conn.execute(f"ALTER TABLE signs ADD COLUMN {col} {ddl}")
         self.conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         self.conn.commit()
 
@@ -140,6 +157,7 @@ class Ledger:
             vals[c] = _tri(vals[c])
         vals["items"] = json.dumps(s.items, ensure_ascii=False)
         vals["photos"] = json.dumps(s.photos, ensure_ascii=False)
+        vals["evidence"] = json.dumps(s.evidence, ensure_ascii=False)
         cols = ", ".join(_SIGN_COLS)
         marks = ", ".join("?" for _ in _SIGN_COLS)
         sets = ", ".join(f"{c}=excluded.{c}" for c in _SIGN_COLS if c != "id")
@@ -155,6 +173,7 @@ class Ledger:
             d[c] = None if d[c] is None else bool(d[c])
         d["items"] = json.loads(d["items"])
         d["photos"] = json.loads(d["photos"])
+        d["evidence"] = json.loads(d["evidence"])
         return Sign(**d)
 
     def get_sign(self, sign_id: str) -> Sign | None:

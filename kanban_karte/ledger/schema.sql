@@ -69,6 +69,14 @@ CREATE TABLE IF NOT EXISTS signs (
     last_inspected TEXT,                -- YYYY-MM-DD
     prev_rank     INTEGER CHECK (prev_rank BETWEEN 1 AND 4),  -- 前回のランク(前回との差を出す)
     source_bundle INTEGER REFERENCES bundles(id),             -- 入口2で作った看板の元の束
+    -- 下書きと確定(pipeline/)。status: new=未判定 / needs_photos=写真が無く下書きできない / draft=AI の下書き / confirmed=有資格者が確定
+    status        TEXT NOT NULL DEFAULT 'new'
+                  CHECK (status IN ('new', 'needs_photos', 'draft', 'confirmed')),
+    draft_rank    INTEGER CHECK (draft_rank BETWEEN 1 AND 4),  -- AI の下書きのランク(確定後に rank と比べる)
+    confidence    REAL,                 -- 下書きの確信(0〜1)
+    evidence      TEXT NOT NULL DEFAULT '{}',   -- JSON {点検項目キー: {photos: [写真番号], text: 1文, needs_onsite: bool}}
+    confirmed_at  TEXT,
+    confirmed_by  TEXT,
     created       TEXT NOT NULL DEFAULT (datetime('now')),
     updated       TEXT NOT NULL DEFAULT (datetime('now'))
 );
