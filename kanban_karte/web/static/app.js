@@ -54,6 +54,24 @@ KK.resultChip = function (value) {
   return KK.el("span", { class: `chip ${KK.RESULT_CLASS[value]}`, text: value });
 };
 
+// 許可の 要 / 不要 / 要実測 の札。値は真偽(台帳)か文字列(法規役)。無ければ出さない
+KK.permitChip = function (v) {
+  const label = v === true ? "要" : v === false ? "不要" : v;
+  if (!label) return null;
+  const cls = label === "要" ? "req" : label === "不要" ? "none" : "meas";
+  return KK.el("span", { class: `chip permit ${cls}`, title: "許可(屋外広告物条例)", text: `許可 ${label}` });
+};
+
+// 法規役の根拠条文の一覧(条例名・条番号・引用・検算の札)
+KK.citations = function (cites) {
+  if (!cites || !cites.length) return KK.el("p", { class: "sub", text: "根拠条文はありません(条例の写しが無い、または寸法が足りません)。" });
+  return KK.el("ol", { class: "cites" }, cites.map((c) => KK.el("li", {},
+    KK.el("div", { class: "cite-top" }, KK.el("b", { text: `${c.source || "—"} ${c.article || ""}`.trim() }),
+      c.quote_verified ? KK.el("span", { class: "chip verified", title: "原文と照合して引用が一致", text: "✓検算済み" })
+        : KK.el("span", { class: "chip unverified", title: "原文との照合がまだ", text: "引用未検算" })),
+    KK.el("div", { class: "quote", text: c.quote || "" }))));
+};
+
 KK.triText = function (v, yes, no) { return v === null || v === undefined ? "—" : v ? yes : no; };
 
 KK.fmtTime = function (iso) { return (iso || "").replace("T", " ").slice(0, 16); };
@@ -97,14 +115,18 @@ KK.lightbox = (function () {
   };
 })();
 
-// ハッシュで画面を切り替える: #/ (台帳、?site=)、#/sign/<id>、#/rules
+// ハッシュで画面を切り替える: #/intake、#/ (台帳、?site=)、#/sign/<id>、#/gov、#/owner、#/rules
+// seg[0] → [ビュー名, ナビの data-nav]
+KK.ROUTES = {
+  intake: ["intake", "intake"], sign: ["karte", "ledger"], gov: ["gov", "gov"], owner: ["owner", "owner"], rules: ["rules", "rules"],
+};
 KK.route = async function () {
   const [path, query] = location.hash.slice(1).split("?");
   const params = new URLSearchParams(query || "");
   const seg = (path || "/").split("/").filter(Boolean).map(decodeURIComponent);
-  const name = seg[0] === "sign" ? "karte" : seg[0] === "rules" ? "rules" : "ledger";
+  const [name, nav] = KK.ROUTES[seg[0]] || ["ledger", "ledger"];
   document.querySelectorAll("[data-nav]").forEach((a) => {
-    if (a.dataset.nav === (name === "rules" ? "rules" : "ledger")) a.setAttribute("aria-current", "page");
+    if (a.dataset.nav === nav) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
   });
   try {

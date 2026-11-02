@@ -29,7 +29,7 @@
       cell("種類", "c-type", s.type || "—"),
       cell("寸法", "c-size", s.size || "—"),
       cell("自家用", "c-law", KK.triText(s.is_self_use, "自家用", "自家用でない")),
-      cell("許可", "c-law", KK.triText(s.permit_required, "要", "不要")),
+      cell("許可", "c-law", KK.permitChip(s.permit_required) || "—"),
       cell("期限", "c-law", s.permit_expires || s.next_inspection
         ? el("span", {}, s.permit_expires ? el("div", { text: `許可 ${s.permit_expires}` }) : null,
           s.next_inspection ? el("div", { class: s.permit_expires ? "sub" : "", text: `点検 ${s.next_inspection}` }) : null)
@@ -106,8 +106,8 @@
       : null;
     KK.setView(
       el("div", { class: "page-head" },
-        el("div", {}, el("div", { class: "eyebrow", text: "看板管理台帳(看板1基=1行)" }),
-          picker || el("h1", { text: site.name }),
+        el("div", {}, el("div", { class: "eyebrow", text: "看板管理台帳(看板1基=1行)" }), el("h1", { text: "台帳" }),
+          picker || el("div", { class: "site-name", text: site.name }),
           el("div", { class: "sub", text: [site.address, site.municipality].filter(Boolean).join(" / ") }))),
       stats(signs),
       signs.length ? table(signs) : el("p", { class: "notice", text: "この現場に看板がありません。" }),

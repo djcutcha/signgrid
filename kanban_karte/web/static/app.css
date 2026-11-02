@@ -17,6 +17,7 @@ a{color:var(--accent)}
 .sub{font-size:12px;line-height:1.4}
 h1{font-size:22px;margin:4px 0;line-height:1.3}
 h2{font-size:15px;margin:0 0 8px;padding-left:10px;border-left:4px solid var(--accent);line-height:1.4}
+.site-name,.sign-name{font-size:18px;font-weight:700;line-height:1.35}
 .eyebrow{font-size:12px;letter-spacing:.08em;color:var(--muted)}
 
 .topbar{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:6px;background:var(--surface);
@@ -187,3 +188,86 @@ dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
 @media (max-width:900px){ .two-col{grid-template-columns:minmax(0,1fr)} }
 @media (max-width:760px){ .out-site .btn{flex:1 1 100%} }
 .two-col>.card{margin-top:0}
+
+/* 許可の札・根拠条文 */
+.chip.permit{font-weight:700}
+.chip.permit.req{background:var(--accent);color:#fff}
+.chip.permit.none{background:transparent;border-color:var(--na);color:var(--fg2)}
+.chip.permit.meas{background:var(--watch);color:#1b1b1b}
+.chip.verified{background:transparent;border-color:var(--good);color:var(--good)}
+.chip.unverified{background:var(--yellow-bg);border-color:var(--watch);color:var(--fg2)}
+.cites{list-style:none;margin:0;padding:0}
+.cites li{padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+.cites li:last-child{border-bottom:0}
+.cite-top{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.quote{color:var(--fg2);font-size:12.5px;margin-top:2px;border-left:3px solid var(--line);padding-left:8px;overflow-wrap:anywhere}
+.legal-card h3{font-size:13px;margin:12px 0 2px}
+.legal-notes{margin:8px 0 0;padding-left:1.2em}
+.legal-card details{margin-top:10px}
+.legal-card summary{cursor:pointer;font-size:12.5px;color:var(--fg2)}
+.kv>span:nth-child(even){min-width:0;overflow-wrap:anywhere}
+
+/* 受付 */
+.chip.src{background:var(--accent-soft);color:var(--accent)}
+.chip.src.line{background:#06c755;color:#fff}
+.intake td{vertical-align:top}
+.intake .c-file{overflow-wrap:anywhere;min-width:12em}
+.intake .notice{margin:0}
+
+/* ナビ 5 項目: スマホ幅ではブランドの下の段に回し、折り返さない */
+.topbar nav a{white-space:nowrap}
+@media (max-width:760px){
+  .topbar{flex-wrap:wrap;row-gap:0}
+  .brand{padding:8px 0 0}
+  #sample-badge{order:2}
+  .topbar nav{order:3;flex:1 1 100%;overflow-x:auto}
+  .topbar nav a{padding:8px 10px 7px}
+}
+
+/* オーナー(スマホ幅が基本。PC では中央の細い列) */
+.owner{max-width:560px;margin:0 auto}
+.owner .step+.step,.owner .owner-result{margin-top:12px}
+.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.btn.block.pick{padding:14px}
+.owner-preview img{width:100%;max-height:260px;object-fit:contain;border-radius:8px;margin-top:8px;background:var(--ph);display:block}
+.owner label.txt,.owner label.num{display:flex;flex-direction:column;gap:2px;font-size:12.5px;color:var(--fg2)}
+.owner input[type=text],.owner input[type=number]{width:100%;font-size:16px;padding:10px 12px}
+.dims{display:flex;align-items:flex-end;gap:8px}
+.dims .num{flex:1;min-width:0}
+.dims .times{padding-bottom:10px;color:var(--muted)}
+.area-row{display:flex;gap:10px;align-items:baseline;margin:10px 0}
+.area-row .k{color:var(--muted);font-size:12.5px}
+.area{font-size:20px;font-weight:700}
+.owner label.num.wide{margin-top:4px}
+.three{list-style:none;margin:0;padding:0}
+.three li{display:grid;grid-template-columns:3em minmax(0,1fr);gap:8px;align-items:start;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.three li:last-child{border-bottom:0}
+.three .chip{justify-self:start}
+.three .k{color:var(--muted);font-size:12.5px;padding-top:2px}
+.btn.ask{margin-top:12px}
+
+/* 行政 */
+.chip.gov.c-red{background:#c62828} .chip.gov.c-orange{background:#ef6c00} .chip.gov.c-green{background:#2e7d32} .chip.gov.c-gray{background:#757575}
+.gov-pick{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:4px}
+.gov-chips{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 0 12px}
+.gov-count{border-radius:8px;padding:8px 10px;color:#fff;min-width:0}
+.gov-count.c-red{background:#c62828} .gov-count.c-orange{background:#ef6c00} .gov-count.c-green{background:#2e7d32} .gov-count.c-gray{background:#757575}
+.gov-count b{font-size:22px;line-height:1.1;margin-right:6px}
+.gov-count span{font-weight:700}
+.gov-count small{display:block;font-size:11px;opacity:.92;line-height:1.35}
+.gov-map{margin-bottom:12px}
+.gov-map iframe{width:100%;height:420px;border:1px solid var(--line);border-radius:8px;display:block;background:var(--ph)}
+.gov-table td{vertical-align:top}
+.gov-table tr.cand.c-red{box-shadow:inset 4px 0 0 #c62828} .gov-table tr.cand.c-orange{box-shadow:inset 4px 0 0 #ef6c00}
+.gov-table tr.cand.c-green{box-shadow:inset 4px 0 0 #2e7d32} .gov-table tr.cand.c-gray{box-shadow:inset 4px 0 0 #757575}
+@media (max-width:760px){
+  .gov-chips{grid-template-columns:1fr 1fr}
+  .gov-count small{display:none}
+  .gov-map iframe{height:320px}
+  .gov-table .c-state{order:1;flex:1 1 100%}
+  .gov-table .c-pos,.gov-table .c-photos,.gov-table .c-sign,.gov-table .c-exp{order:2}
+}
+@media (max-width:760px){
+  .intake .c-kind{order:1} .intake .c-file{order:2;flex:1 1 60%} .intake .c-state{order:3} .intake .c-count{order:4}
+  .intake .c-err{order:5;flex:1 1 100%} .intake .c-go{order:6} .intake .c-act{order:7;flex:1 1 100%}
+}

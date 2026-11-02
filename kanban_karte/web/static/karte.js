@@ -108,14 +108,27 @@
   }
 
   function legalCard(d) {
-    const kv = (k, v) => [el("span", { class: "k", text: k }), el("span", { text: v })];
-    return el("section", { class: "card" }, el("h2", { text: "法規" }),
+    const kv = (k, v) => [el("span", { class: "k", text: k }), el("span", {}, v)];
+    const L = d.legal || {};
+    const term = L.permit_term_years === null || L.permit_term_years === undefined ? null : `許可の期限 ${L.permit_term_years} 年(上限)`;
+    const judged = L.error ? el("p", { class: "notice err", text: `法規の判定ができませんでした: ${L.error}` }) : el("div", { class: "legal-judge" },
       el("div", { class: "kv" },
-        kv("自家用", KK.triText(d.is_self_use, "自家用(自分の店の名前)", "自家用でない")),
-        kv("許可", d.permit_required === null ? "—(未判定)" : d.permit_required ? `要${d.permit_expires ? `(期限 ${d.permit_expires})` : ""}` : "不要"),
-        kv("次回点検", d.next_inspection || "—"),
-        kv("場所", [d.address, d.municipality].filter(Boolean).join(" / ") || "—"),
-        kv("前回", d.prev_rank ? `判定 ${KK.RANK[d.prev_rank]}` : "—")));
+        kv("自家用", L.is_self_use_exempt === null || L.is_self_use_exempt === undefined ? "要実測(自家用の基準に収まるか決められない)"
+          : L.is_self_use_exempt ? `自家用の許可不要の基準に収まる${L.area_m2 ? `(${L.area_m2} ㎡)` : ""}` : "自家用の基準を超える、または自家用でない"),
+        kv("許可", KK.permitChip(L.permit_required)),
+        kv("期限・点検", [term, `点検の義務 ${L.inspection_required}`].filter(Boolean).join(" / "))),
+      el("h3", { text: `根拠条文 ${(L.citations || []).length} 件${L.ordinance_key ? `(${L.ordinance_key}の条例)` : ""}` }),
+      KK.citations(L.citations),
+      (L.notes || []).length ? el("ul", { class: "legal-notes" }, L.notes.map((n) => el("li", { class: "sub", text: n }))) : null,
+      el("p", { class: "sub", text: "根拠は条例の写しから機械が抜いたものです。安全の判定ではありません。" }));
+    return el("section", { class: "card legal-card" }, el("h2", { text: "法規" }), judged,
+      el("details", { class: "ledger-law" }, el("summary", { text: "台帳に記録されている法規の値" }),
+        el("div", { class: "kv" },
+          kv("自家用", KK.triText(d.is_self_use, "自家用(自分の店の名前)", "自家用でない")),
+          kv("許可", d.permit_required === null ? "—(未判定)" : d.permit_required ? `要${d.permit_expires ? `(期限 ${d.permit_expires})` : ""}` : "不要"),
+          kv("次回点検", d.next_inspection || "—"),
+          kv("場所", [d.address, d.municipality].filter(Boolean).join(" / ") || "—"),
+          kv("前回", d.prev_rank ? `判定 ${KK.RANK[d.prev_rank]}` : "—"))));
   }
 
   function signCard(d, state, rerender) {
@@ -157,7 +170,7 @@
     const draftNote = d.draft_rank && d.draft_rank !== d.rank ? ` (下書きは ${KK.RANK[d.draft_rank]})` : "";
     return el("section", { class: "card summary" },
       el("div", { class: "sum-top" }, el("div", {}, el("div", { class: "eyebrow", text: [d.site_name, d.id].filter(Boolean).join(" / ") }),
-        el("h1", { text: d.name || d.id }), el("div", { class: "sub", text: [d.type, d.size].filter(Boolean).join(" / ") })),
+        el("h1", { text: "カルテ" }), el("div", { class: "sign-name", text: d.name || d.id }), el("div", { class: "sub", text: [d.type, d.size].filter(Boolean).join(" / ") })),
         el("div", { class: "rank-box" }, KK.rankChip(d.rank, d.status),
           el("div", { class: "sub", text: `${KK.STATUS[d.status] || d.status}${draftNote}` }))),
       d.remark ? el("div", { class: "kv" }, el("span", { class: "k", text: "所見" }), el("span", { text: d.remark })) : null,
