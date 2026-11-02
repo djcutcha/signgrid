@@ -812,21 +812,57 @@
       "confidence": 0.6
     },
     "qualified_inspector": {
-      "required": "no",
+      "required": "duty",
+      "duty_kind": "manager",
       "conditions": {
         "area_min_m2": null,
         "height_min_m": null,
         "height_min_inclusive": false,
         "ground_clearance_min_m": null,
-        "permit_required_only": false,
-        "kinds": [],
+        "permit_required_only": true,
+        "kinds": [
+          "広告塔",
+          "広告板",
+          "アーチ",
+          "装飾街路灯"
+        ],
         "excluded_kinds": [],
-        "note": "有資格者に点検させる旨の条文は見当たらない"
+        "any_of": [
+          {
+            "height_min_m": 4,
+            "height_min_inclusive": false
+          },
+          {
+            "area_min_m2": 10,
+            "area_min_inclusive": false
+          }
+        ],
+        "note": "広告塔・広告板は高さ4m超または表示面積10㎡超に限る。アーチ・装飾街路灯は寸法によらない。義務の中身は『有資格の屋外広告物管理者を置く(設置届)』であり、点検をさせる義務の条文ではない"
       },
+      "scope": "許可物件のうち 高さ4m超または10㎡超の広告塔・広告板、アーチ、装飾街路灯",
       "effort": null,
-      "qualification": null,
-      "citations": [],
-      "confidence": 0.7
+      "qualification": "規則第2条: 建築士(建築士法第2条第1項)/ 電気工事士(電気工事士法第2条第4項)またはネオン工事に係る特種電気工事資格者認定証の交付を受けている者 / 第一種〜第三種電気主任技術者免状の交付を受けている者 / 屋外広告物法第10条第2項第3号イの登録試験機関の試験に合格した者(屋外広告士)",
+      "citations": [
+        {
+          "source": "条例",
+          "article": "第25条",
+          "quote": "この条例の規定による許可に係る広告物等で規則で定めるものを表示し、又は設置する者は、規則で定める屋外広告物管理者を置かなければならない。",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第2条",
+          "quote": "条例第二十五条の規則で定める屋外広告物管理者は、次の各号のいずれかに該当する者とする。",
+          "quote_verified": true
+        },
+        {
+          "source": "施行規則",
+          "article": "第3条",
+          "quote": "広告塔(高さが四メートルを超えるもの又は表示面積が十平方メートルを超えるものに限る。)",
+          "quote_verified": true
+        }
+      ],
+      "confidence": 0.9
     },
     "report_duty": {
       "required": "conditional",
@@ -874,8 +910,8 @@
     "許可期間は一月以内を約0.083年で換算した。"
   ],
   "citation_check": {
-    "total": 43,
-    "verified": 43
+    "total": 46,
+    "verified": 46
   },
   "usage": {
     "input_tokens": 74557,
