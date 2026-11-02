@@ -1,0 +1,85 @@
+-- 看板カルテの台帳(SQLite)。看板1基=1行(signs)が製品の芯。
+-- マイグレーションはこの1本。全て IF NOT EXISTS で、何度流しても同じ。版は PRAGMA user_version(db.py が管理)。
+
+-- 現場(店・施設)。看板の置き場所
+CREATE TABLE IF NOT EXISTS sites (
+    id            TEXT PRIMARY KEY,
+    name          TEXT NOT NULL,
+    address       TEXT,
+    lat           REAL,
+    lng           REAL,
+    municipality  TEXT,                 -- 住所から引いた自治体名(legal/ の Municipality 判定)
+    created       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 入口2の束(紙のスキャン PDF 1本)
+CREATE TABLE IF NOT EXISTS bundles (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    file          TEXT NOT NULL,        -- 取り込んだ PDF のパス
+    sha256        TEXT NOT NULL UNIQUE, -- 同じ PDF の二重取り込みを防ぐ
+    pages         INTEGER NOT NULL DEFAULT 0,
+    kind_counts   TEXT NOT NULL DEFAULT '{}',  -- JSON {ページ種別: 件数}
+    status        TEXT NOT NULL DEFAULT 'new'
+                  CHECK (status IN ('new', 'pages_registered', 'classified', 'signs_drafted', 'error')),
+    error         TEXT,
+    created       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 束のページ
+CREATE TABLE IF NOT EXISTS pages (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    bundle_id     INTEGER NOT NULL REFERENCES bundles(id),
+    page_no       INTEGER NOT NULL,     -- 1 始まり
+    kind          TEXT NOT NULL DEFAULT '不明'
+                  CHECK (kind IN ('指示書', '完成報告書', '点検表', '写真', '地図', '危険予知', 'その他', '不明')),
+    kind_basis    TEXT,                 -- 種別の根拠(判定役の名前と理由)
+    image_path    TEXT,                 -- 取り出したページ画像(無ければ NULL)
+    image_source  TEXT,                 -- 'embedded'(埋め込み画像)/ 'rendered'(描画)
+    src_rotate    INTEGER NOT NULL DEFAULT 0,  -- PDF の /Rotate(画像には反映済み)
+    rotation      INTEGER NOT NULL DEFAULT 0,  -- さらに起こす角度(PIL 反時計回り 0/90/180/270)
+    width         INTEGER,
+    height        INTEGER,
+    dpi           REAL,                 -- 保存した画像の解像度(切り出しの検出が縮尺に使う)
+    UNIQUE (bundle_id, page_no)
+);
+
+-- 看板1基=1行。法規の列と安全の列が並ぶ
+CREATE TABLE IF NOT EXISTS signs (
+    id            TEXT PRIMARY KEY,
+    site_id       TEXT REFERENCES sites(id),
+    name          TEXT,
+    type          TEXT,                 -- 広告塔・自立・壁面・袖など
+    size_w        INTEGER,              -- mm。不明は NULL
+    size_h        INTEGER,
+    address       TEXT,
+    lat           REAL,
+    lng           REAL,
+    municipality  TEXT,
+    -- 法規の列(住所/位置から条例を引いて埋める。この段階では空)
+    is_self_use   INTEGER CHECK (is_self_use IN (0, 1)),       -- 自家用広告物か
+    permit_required INTEGER CHECK (permit_required IN (0, 1)), -- 許可が要るか
+    permit_expires TEXT,                -- 許可の期限(YYYY-MM-DD)
+    next_inspection TEXT,               -- 次回点検(YYYY-MM-DD)
+    -- 安全の列(有資格者が確定する)
+    rank          INTEGER CHECK (rank BETWEEN 1 AND 4),  -- 1良好 2経過観察 3要改善 4即時対応
+    items         TEXT NOT NULL DEFAULT '{}',   -- JSON {点検項目キー: 良好/経過観察/要改善/対象外}(18項目)
+    remark        TEXT,                 -- 所見
+    photos        TEXT NOT NULL DEFAULT '[]',   -- JSON [画像パス, ...]
+    last_inspected TEXT,                -- YYYY-MM-DD
+    prev_rank     INTEGER CHECK (prev_rank BETWEEN 1 AND 4),  -- 前回のランク(前回との差を出す)
+    source_bundle INTEGER REFERENCES bundles(id),             -- 入口2で作った看板の元の束
+    created       TEXT NOT NULL DEFAULT (datetime('now')),
+    updated       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_signs_site ON signs(site_id);
+CREATE INDEX IF NOT EXISTS idx_signs_bundle ON signs(source_bundle);
+CREATE INDEX IF NOT EXISTS idx_pages_bundle ON pages(bundle_id);
+
+-- 有資格者の訂正から育つ規則(次回の下書きに先に反映する。既存の規則と矛盾すれば知らせる)
+CREATE TABLE IF NOT EXISTS rules (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    text          TEXT NOT NULL,
+    source        TEXT,                 -- 由来(どの看板・どの訂正か)
+    created       TEXT NOT NULL DEFAULT (datetime('now')),
+    conflicts_with TEXT NOT NULL DEFAULT '[]'   -- JSON [矛盾する規則の id, ...]
+);
