@@ -50,9 +50,9 @@ class JudgeAtTest(unittest.TestCase):
         self.assertEqual(p.calls, [])
 
     def test_place_info(self):
-        self.assertEqual(L.place_info(Placed("zone", "商業地域"))["zone"], "商業地域")
-        self.assertIsNone(L.place_info(Placed("outside"))["zone"])
-        self.assertEqual(L.place_info(None)["status"], "none")
+        self.assertEqual(L.place_dict(Placed("zone", "商業地域"))["zone"], "商業地域")
+        self.assertIsNone(L.place_dict(Placed("outside"))["zone"])
+        self.assertEqual(L.place_dict(None)["status"], "none")
 
 
 class MakePlacerTest(unittest.TestCase):

@@ -22,6 +22,7 @@ from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit, parse_qs
 
 from ..ledger.db import Ledger
+from ..legal.locate import SamplePlacer, make_placer
 from . import api
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -41,9 +42,11 @@ class App:
     """サーバの設定。リクエストごとに台帳を開く(SQLite の接続はスレッドを渡さない)。"""
 
     def __init__(self, db: str | Path, data_dir: str | Path, sample: bool = False, judge_factory=None,
-                 estimator_factory=None):
+                 estimator_factory=None, placer=None):
         self.db, self.data_dir, self.sample, self.judge_factory = Path(db), Path(data_dir), sample, judge_factory
         self.estimator_factory = estimator_factory
+        # 用途地域を引く部品。起動時に1回だけ作って共有する。見本データは通信も GIS 読み込みもしない(固定の商業地域)
+        self.placer = SamplePlacer() if sample and placer is None else placer
         self.verbose = False
 
     def ledger(self) -> Ledger:
@@ -136,7 +139,7 @@ def make_handler(app: App):
                         return self._json(api.rules(ledger))
                     m = SIGN.match(path)
                     if m:
-                        return self._json(api.sign_detail(ledger, m[1]))
+                        return self._json(api.sign_detail(ledger, m[1], app.placer))
                     m = OUTPUT.match(path)
                     if m:
                         data, name = api.export(ledger, m[1], m[2])
@@ -162,9 +165,9 @@ def make_handler(app: App):
                 return self._error(400, "本文が JSON のオブジェクトではありません")
             try:
                 if path == "/api/owner/judge":  # 台帳を開かない・書かない
-                    return self._json(api.owner_judge(body))
+                    return self._json(api.owner_judge(body, app.placer))
                 if path == "/api/owner/estimate":  # 台帳を開かない・書かない。写真は保存しない
-                    return self._json(api.owner_estimate(body, app.estimator_factory))
+                    return self._json(api.owner_estimate(body, app.estimator_factory, app.placer))
                 with app.ledger() as ledger:
                     m = SIGN_ACT.match(path)
                     if m:
@@ -211,7 +214,9 @@ def main(argv=None) -> int:
         data_dir = SAMPLE_JSON.parent
         if not db.exists():
             seed_sample(db, data_dir)
-    app = App(db, data_dir, sample=sample)
+    app = App(db, data_dir, sample=sample, placer=None if sample else make_placer())
+    if not sample:
+        print("用途地域: " + ("GIS を読み込んだ" if app.placer else "GIS が無いので区分なしで判定(python3 -m kanban_karte.geo.fetch_gis)"), file=sys.stderr)
     app.verbose = True
     srv = make_server(app, a.host, a.port)
     print(f"台帳 {db}{'(見本データ)' if sample else ''}\nhttp://{a.host}:{a.port}/ を開く。止めるのは Ctrl-C", file=sys.stderr)

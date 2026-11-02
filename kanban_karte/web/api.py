@@ -19,7 +19,7 @@ from ..ledger.items import _ITEMS, ITEM_KEYS, RESULTS
 from ..gov.map import COLOR_NAME, COLORS, COLOR_MEANING, summarize, write_map
 from ..gov.match import WARN_DAYS, load_candidates, match_candidates
 from ..dim.estimator import DimEstimateError, DimEstimator, judge_from_range
-from ..legal.judge import judge as legal_judge
+from ..legal.locate import judge_at, place_dict
 from ..output.common import RANK_LABEL, size_text, unjudged_item_keys
 from ..output.client_a_form import write_client_a
 from ..output.tokyo_form import write_tokyo_form
@@ -92,27 +92,27 @@ def sign_area_m2(s: Sign) -> float | None:
 
 
 def legal_judgement(address: str | None, municipality: str | None, use: str, area_m2: float | None,
-                    kind: str | None = None) -> dict:
-    """法規役(規則ファイルを読むだけの純粋関数)の結果を画面用の dict に。例外は握って {"error": ...}。"""
+                    kind: str | None = None, placer=None, height_m: float | None = None) -> dict:
+    """法規役(規則ファイルを読むだけの純粋関数)の結果を画面用の dict に。例外は握って {"error": ...}。
+    placer(legal.locate.make_placer)があれば住所から用途地域を引いて判定に渡す。結果に place を付ける。"""
     try:
-        r = legal_judge(address, municipality=None, use=use, area_m2=area_m2, kind=kind)
+        r, placed = judge_at(address, use=use, area_m2=area_m2, height_m=height_m, kind=kind, placer=placer)
     except Exception as e:  # 規則ファイルが無い・住所が引けない等。画面は落とさない
         return {"error": f"{type(e).__name__}: {e}"}
     d = r.to_dict()
     out = {k: d[k] for k in LEGAL_KEYS}
-    out["use"], out["area_m2"] = use, area_m2
+    out["use"], out["area_m2"], out["place"] = use, area_m2, place_dict(placed, placer)
     return out
 
 
-def sign_legal(s: Sign, site) -> dict:
-    """看板の住所(無ければ現場の住所)・自家用か・寸法から、法規の判定と根拠条文。height_m は台帳に看板の
-    全高が無い(size は表示面の寸法)ので渡さない。"""
+def sign_legal(s: Sign, site, placer=None) -> dict:
+    """看板の住所(無ければ現場の住所)・自家用か・寸法から、法規の判定と根拠条文。"""
     address = s.address or (site.address if site else None) or s.municipality or (site.municipality if site else None)
     use = "general" if s.is_self_use is False else "self"
-    return legal_judgement(address, None, use, sign_area_m2(s), s.type)
+    return legal_judgement(address, None, use, sign_area_m2(s), s.type, placer)
 
 
-def sign_detail(ledger: Ledger, sign_id: str) -> dict:
+def sign_detail(ledger: Ledger, sign_id: str, placer=None) -> dict:
     s = ledger.get_sign(sign_id)
     if s is None:
         raise ApiError(404, f"看板 {sign_id} が台帳にありません")
@@ -133,7 +133,7 @@ def sign_detail(ledger: Ledger, sign_id: str) -> dict:
               "photos": [{"n": i + 1, "url": _media_url(ledger, p)} for i, p in enumerate(s.photos)],
               "corrections": [_correction(r, {i["key"]: f"{i['group']} {i['no']} {i['text']}" for i in items})
                               for r in rows],
-              "legal": sign_legal(s, site), "editable": s.status == "draft", "result_choices": list(RESULTS)})
+              "legal": sign_legal(s, site, placer), "editable": s.status == "draft", "result_choices": list(RESULTS)})
     return d
 
 
@@ -277,7 +277,7 @@ def gov_map_html(ledger: Ledger, batch_id: int, today_q: str | None = None) -> b
 
 
 # ---- オーナーの1枚撮り(DB に書かない) ----
-def owner_judge(body: dict) -> dict:
+def owner_judge(body: dict, placer=None) -> dict:
     """住所・面積(・高さ)から自家用(use=self)の法規の判定と根拠条文。安全の判定(ランク・18項目)は出さない。"""
     address = str(body.get("address") or "").strip()
     if not address:
@@ -299,12 +299,12 @@ def owner_judge(body: dict) -> dict:
 
     area, height = num("area_m2", required=True), num("height_m")
     try:
-        r = legal_judge(address, use="self", area_m2=area, height_m=height)
+        r, placed = judge_at(address, use="self", area_m2=area, height_m=height, placer=placer)
     except Exception as e:
         raise ApiError(500, f"法規の判定ができませんでした: {type(e).__name__}: {e}")
     d = r.to_dict()
     out = {k: d[k] for k in LEGAL_KEYS}
-    out.update({"use": "self", "area_m2": area, "height_m": height, "address": address})
+    out.update({"use": "self", "area_m2": area, "height_m": height, "address": address, "place": place_dict(placed, placer)})
     return out
 
 
@@ -312,7 +312,7 @@ MAX_ESTIMATE_PHOTOS = 2
 MAX_PHOTO_BYTES = 12_000_000
 
 
-def owner_estimate(body: dict, estimator_factory=None) -> dict:
+def owner_estimate(body: dict, estimator_factory=None, placer=None) -> dict:
     """写真1〜2枚(base64)+住所(+看板の名前)→ 寸法の推定(範囲つき)と、範囲の両端での自家用の法規の判定。
     写真は推定のために API へ送るだけで、保存しない。台帳は開かない。安全の判定(ランク・18項目)は出さない。"""
     address = str(body.get("address") or "").strip()
@@ -341,11 +341,19 @@ def owner_estimate(body: dict, estimator_factory=None) -> dict:
         raise ApiError(502, f"寸法を推定できませんでした: {e}")
     except Exception as e:  # 鍵の誤り・接続など
         raise ApiError(502, f"寸法を推定できませんでした: {type(e).__name__}")
+    placed_box = []
+
+    def judge(addr, **kw):
+        r, placed = judge_at(addr, placer=placer, **kw)
+        placed_box.append(placed)
+        return r
+
     try:
-        j = judge_from_range(est, address)
+        j = judge_from_range(est, address, judge=judge)
     except Exception as e:
         raise ApiError(500, f"法規の判定ができませんでした: {type(e).__name__}: {e}")
-    return {"estimate": est.to_dict(), "judgement": j, "address": address}
+    return {"estimate": est.to_dict(), "judgement": j, "address": address,
+            "place": place_dict(placed_box[-1] if placed_box else None, placer)}
 
 
 # ---- 様式の出力 ----

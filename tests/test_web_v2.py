@@ -33,13 +33,36 @@ class LegalTest(WebTest):
         L = api.sign_legal(s, None)
         self.assertEqual(L["permit_required"], "要実測")
 
+    def test_place_in_sample(self):
+        L = self.req("/api/signs/demo-001")[1]["legal"]
+        self.assertEqual(L["place"]["status"], "sample")
+        self.assertEqual(L["place"]["zone"], "商業地域")
+        self.assertIn("国土交通省", L["place"]["source"])
+
+    def test_place_from_placer_and_fallback(self):
+        from kanban_karte.impact.place import Placed
+
+        class P:
+            def __init__(self, placed):
+                self.placed = placed
+
+            def place(self, address, muni):
+                return self.placed
+
+        L = api.legal_judgement("東京都新宿区西新宿2-8-1", None, "self", 7.0, placer=P(Placed("zone", "商業地域")))
+        self.assertEqual((L["place"]["status"], L["place"]["zone"], L["permit_required"]), ("zone", "商業地域", "不要"))
+        L = api.legal_judgement("東京都新宿区西新宿2-8-1", None, "self", 7.0, placer=P(Placed("not_found")))
+        self.assertEqual((L["place"]["status"], L["place"]["zone"], L["permit_required"]), ("not_found", None, "要実測"))
+        L = api.legal_judgement("東京都新宿区西新宿2-8-1", None, "self", 7.0)
+        self.assertEqual(L["place"]["status"], "none")
+
     def test_legal_error_is_caught(self):
-        orig = api.legal_judge
-        api.legal_judge = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("壊れた"))
+        orig = api.judge_at
+        api.judge_at = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("壊れた"))
         try:
             L = api.legal_judgement("東京都豊島区", None, "self", 1.0)
         finally:
-            api.legal_judge = orig
+            api.judge_at = orig
         self.assertIn("RuntimeError", L["error"])
 
 
@@ -138,6 +161,11 @@ class OwnerTest(WebTest):
         self.assertTrue(d["citations"])
         for banned in ("rank", "items", "draft_rank"):     # 安全の判定は出さない
             self.assertNotIn(banned, d)
+
+    def test_owner_has_place(self):
+        d = self.post({"address": "東京都新宿区西新宿2-8-1", "area_m2": 7})[1]
+        self.assertEqual(d["place"]["zone"], "商業地域")
+        self.assertEqual(d["permit_required"], "不要")     # 見本は商業地域(5㎡超10㎡以下でも区分があれば決まる)
 
     def test_over_10m2_needs_permit(self):
         d = self.post({"address": "東京都豊島区", "area_m2": 12})[1]

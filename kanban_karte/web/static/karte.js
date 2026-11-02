@@ -115,6 +115,7 @@
       el("div", { class: "kv" },
         kv("自家用", L.is_self_use_exempt === null || L.is_self_use_exempt === undefined ? "要実測(自家用の基準に収まるか決められない)"
           : L.is_self_use_exempt ? `自家用の許可不要の基準に収まる${L.area_m2 ? `(${L.area_m2} ㎡)` : ""}` : "自家用の基準を超える、または自家用でない"),
+        KK.placeText(L.place) ? kv("用途地域", KK.placeText(L.place)) : null,
         kv("許可", KK.permitChip(L.permit_required)),
         kv("期限・点検", [term, `点検の義務 ${L.inspection_required}`].filter(Boolean).join(" / "))),
       el("h3", { text: `根拠条文 ${(L.citations || []).length} 件${L.ordinance_key ? `(${L.ordinance_key}の条例)` : ""}` }),

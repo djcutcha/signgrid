@@ -72,6 +72,13 @@ KK.citations = function (cites) {
     KK.el("div", { class: "quote", text: c.quote || "" }))));
 };
 
+// 設置場所の区分(用途地域)の1行。place は API の {status, zone}。引けないときは区分なしで判定したと書く
+KK.placeText = function (place) {
+  if (!place || place.status === "none") return null;
+  if (place.zone) return `${place.zone}(${place.status === "sample" ? "見本の固定値" : "国土交通省 GIS、暫定"})`;
+  return "引けず(区分なしで判定)";
+};
+
 KK.triText = function (v, yes, no) { return v === null || v === undefined ? "—" : v ? yes : no; };
 
 KK.fmtTime = function (iso) { return (iso || "").replace("T", " ").slice(0, 16); };

@@ -8,12 +8,23 @@ judge_at      住所から自治体 → 用途地域を引き、引けたら jud
 """
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 from . import judge as J
 from .municipality import AddressResolver
 
 PLACE_SOURCE = "国土交通省 都市計画決定GIS(用途地域ベースの暫定)"
+SAMPLE_ZONE = "商業地域"
+_LOCK = threading.Lock()    # 住所検索の間隔(1秒1回)とキャッシュ書き込みを、サーバのスレッド間で守る
+
+
+class SamplePlacer:
+    """見本データ用。通信も GIS 読み込みもせず、どの住所も商業地域として返す。"""
+
+    def place(self, address, muni):
+        from ..impact.place import Placed
+        return Placed("zone", SAMPLE_ZONE, SAMPLE_ZONE)
 
 
 def make_placer(gis_root=None, geocode_cache=None, reverse_cache=None):
@@ -39,15 +50,19 @@ def judge_at(address: str | None, *, use: str, area_m2: float | None, height_m: 
              kind: str | None = None, placer=None):
     """(JudgeResult, Placed | None)。Placed は placer を使って場所を引こうとしたときだけ(住所なし・placer なしは None)。"""
     muni = AddressResolver().resolve(address) if address else None
-    placed = placer.place(address, muni) if (placer is not None and address) else None
+    placed = None
+    if placer is not None and address:
+        with _LOCK:
+            placed = placer.place(address, muni)
     place = placed.vocab if placed is not None and placed.status == "zone" else None
     r = J.judge(address, municipality=muni, use=use, area_m2=area_m2, height_m=height_m, place=place, kind=kind)
     return r, placed
 
 
-def place_info(placed) -> dict:
-    """画面用 {"status", "zone", "source"}。placed が None(引こうとしなかった)は status='none'。"""
+def place_dict(placed, placer=None) -> dict:
+    """画面用 {"status", "zone", "source"}。placed が None(引こうとしなかった)は status='none'、見本は 'sample'。"""
     if placed is None:
         return {"status": "none", "zone": None, "source": PLACE_SOURCE}
     zone = placed.vocab if placed.status == "zone" else None
-    return {"status": placed.status, "zone": zone, "source": PLACE_SOURCE}
+    status = "sample" if isinstance(placer, SamplePlacer) else placed.status
+    return {"status": status, "zone": zone, "source": PLACE_SOURCE}
