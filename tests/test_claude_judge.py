@@ -295,6 +295,49 @@ class ExamplesTest(unittest.TestCase):
         self.assertEqual(cj.select_examples(pool, "xlsx_center", 0), [])
         self.assertEqual(cj.select_examples(pool, "paper_scan", 6), [])  # 例示用が無い様式は 0 基
 
+    def test_mix_parse(self):
+        self.assertEqual(cj.parse_mix("1,1,2, 2,3,3,4"), [1, 1, 2, 2, 3, 3, 4])
+        for bad in ("", "0,1", "1,5", "a", ",".join(["1"] * 10)):
+            with self.assertRaises(ValueError):
+                cj.parse_mix(bad)
+
+    def test_select_by_mix_and_equals_default(self):
+        pool = self._pool()
+        a = cj.select_examples(pool, "xlsx_center", 0, 0, [1, 1, 2, 2, 3, 4])
+        self.assertEqual(a, cj.select_examples(pool, "xlsx_center", 6))  # 構成指定と --examples 6 は同じ選び方
+        b = cj.select_examples(pool, "xlsx_center", 0, 0, [1, 2, 3, 3, 4])
+        self.assertEqual(sorted(e.rank_true for e in b), [1, 2, 3, 3, 4])
+
+    def test_select_mix_drops_missing_rank_and_prefers_photos(self):
+        pool = [i for i in self._pool() if i.rank_true != 4]
+        x = cj.select_examples(pool, "xlsx_center", 0, 0, [1, 3, 4, 4])
+        self.assertEqual(sorted(e.rank_true for e in x), [1, 3])  # 4 は無いので省く
+        pool = [self._item("xlsx_center", 1, "example", f"p{k}", n_photos=k) for k in (1, 2, 3, 4, 5)]
+        for seed in range(5):
+            (e,) = cj.select_examples(pool, "xlsx_center", 0, seed, [1])
+            self.assertGreaterEqual(len(e.photo_paths), cj.EXAMPLE_MIN_PHOTOS)
+        only_small = [self._item("xlsx_center", 1, "example", "s", n_photos=1)]
+        self.assertEqual(len(cj.select_examples(only_small, "xlsx_center", 0, 0, [1])), 1)  # 無ければ少なくても使う
+
+    def test_why_line(self):
+        it = self._item("xlsx_center", 2, "example", "w")
+        it.item_judgments_true = {"腐食": 2, "破損": 1, "固定": 1}
+        self.assertEqual(cj.example_why_text(it), "なぜこのランクか: 項目別= 腐食2・破損1・固定1 → 最悪値2")
+        it.item_judgments_true = {"腐食": 1}
+        self.assertIn("看板全体の評価でランク 2", cj.example_why_text(it))
+        it.item_judgments_true = None
+        self.assertIn("項目別の判定が無く", cj.example_why_text(it))
+        self.assertNotIn("なぜ", cj.example_answer_text(it))
+        self.assertIn("なぜ", cj.example_answer_text(it, why=True))
+
+    def test_judge_with_mix_and_why(self):
+        j = ClaudeJudge(client=FakeClient(['{"rank": 2}']), example_mix=[1, 2, 3], example_why=True)
+        self.assertEqual(j.n_examples, 3)
+        j.set_example_pool(self._pool())
+        text = " ".join(b.get("text", "") for b in j.example_blocks("xlsx_center"))
+        self.assertEqual(text.count("なぜこのランクか"), 3)
+        self.assertNotIn("秘密の看板", text)
+
     def test_blocks_cached_hidden_names_and_photo_cap(self):
         j = ClaudeJudge(client=FakeClient(['{"rank": 2}']), examples=6)
         j.set_example_pool(self._pool())

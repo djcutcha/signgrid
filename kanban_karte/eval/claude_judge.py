@@ -46,7 +46,8 @@ PRICES = {
 # claude-api スキルが読み込めなかったため、公開されている標準の倍率を仮置きしている(請求で要確認)。
 CACHE_WRITE_MULT = 1.25
 CACHE_READ_MULT = 0.10
-EXAMPLE_MAX = 6      # 例示の最大基数
+EXAMPLE_MAX = 9      # 例示の最大基数
+EXAMPLE_MIN_PHOTOS = 3  # 例示に優先して選ぶ写真枚数(これ未満しか無ければ枚数の少ない看板も使う)
 EXAMPLE_PHOTOS = 3   # 例示 1 基あたりの最大写真枚数
 ASSUMED_OUTPUT_TOKENS = 800  # dry-run の出力トークン仮定(1看板あたり。根拠なしの仮置き)
 
@@ -256,23 +257,44 @@ def _h(seed: int, sign_id: str) -> str:
     return hashlib.sha256(f"{seed}:{sign_id}".encode("utf-8")).hexdigest()
 
 
-def select_examples(items: list[EvalItem], source: str, n: int, seed: int = 0) -> list[EvalItem]:
-    """同じ様式(source)の例示用(split="example")から、正解ランクが 1〜4 に散るように最大 n 基を選ぶ。
+def parse_mix(text: str) -> list[int]:
+    """"1,1,2,2,3,4" → [1,1,2,2,3,4]。ランクは 1〜4、最大 EXAMPLE_MAX 基。不正なら ValueError。"""
+    try:
+        mix = [int(x) for x in text.replace(" ", "").split(",") if x != ""]
+    except ValueError as e:
+        raise ValueError(f"例示の構成は 1〜4 のカンマ区切りで指定: {text!r}") from e
+    if not mix or len(mix) > EXAMPLE_MAX or any(r not in (1, 2, 3, 4) for r in mix):
+        raise ValueError(f"例示の構成は 1〜4 を 1〜{EXAMPLE_MAX} 個: {text!r}")
+    return mix
 
-    - 各ランク最低 1 基(無ければある分だけ)。まず 1,2,3,4 を 1 基ずつ、残りは 1 と 2 を交互に足す
-      (ゼロショットの外れが「正解1→予測2」に集中しているため、同じ様式の 1 と 2 を必ず対で入れる)
-    - 同じ現場(group_key)から重ならないように、未使用の現場を先に取る
-    - 決定論(sign_id のハッシュ順)。評価用(split="eval")の看板は絶対に入れない
+
+def select_examples(items: list[EvalItem], source: str, n: int, seed: int = 0,
+                    mix: list[int] | None = None) -> list[EvalItem]:
+    """同じ様式(source)の例示用(split="example")から、mix で指定したランク構成の例示を選ぶ。
+
+    - mix 省略時は n 基(各ランク最低 1 基、残りは 1 と 2 を交互。無いランクは次で埋める)。mix 指定時は n を無視する
+    - 選ぶ順は「ランクごとに 1 基ずつを回す」(1,1,2,2,3,4 なら 1,2,3,4,1,2)。ランクに該当する看板が
+      例示側に無ければ、その分は省く(実際に選べた構成は返す看板の rank_true で分かる)
+    - 同じ現場(group_key)から重ならないように、未使用の現場を先に取り、その中で写真が
+      EXAMPLE_MIN_PHOTOS 枚以上の看板を優先する。以降は sign_id のハッシュ順(決定論)
+    - 評価用(split="eval")の看板は絶対に入れない
     """
     n = max(0, min(n, EXAMPLE_MAX))
     cands = [i for i in items if i.source == source and i.split == "example"
              and i.rank_true in (1, 2, 3, 4) and i.photo_paths]
-    by_rank = {r: sorted((i for i in cands if i.rank_true == r), key=lambda i: _h(seed, i.sign_id))
+    by_rank = {r: sorted((i for i in cands if i.rank_true == r),
+                         key=lambda i: (len(i.photo_paths) < EXAMPLE_MIN_PHOTOS, _h(seed, i.sign_id)))
                for r in (1, 2, 3, 4)}
+    if mix is None:  # --examples N: 該当ランクが無ければ次のランクで N 基まで埋める
+        order, limit = [1, 2, 3, 4] + [1, 2] * EXAMPLE_MAX, n
+    else:            # --example-mix: 無いランクは省く
+        want = {r: mix.count(r) for r in (1, 2, 3, 4)}
+        order = [r for k in range(max(want.values(), default=0)) for r in (1, 2, 3, 4) if want[r] > k]
+        limit = len(mix)
     chosen: list[EvalItem] = []
     used_groups: set = set()
-    for r in [1, 2, 3, 4] + [1, 2] * EXAMPLE_MAX:
-        if len(chosen) >= n:
+    for r in order:
+        if len(chosen) >= limit:
             break
         pool = [i for i in by_rank[r] if i not in chosen]
         fresh = [i for i in pool if i.meta.get("group_key") not in used_groups]
@@ -294,13 +316,28 @@ def spread(paths: list[str], k: int) -> list[str]:
 RANK_NAME = {1: "良好", 2: "経過観察", 3: "要改善", 4: "即時対応・危険"}
 
 
-def example_answer_text(it: EvalItem) -> str:
+def example_why_text(it: EvalItem) -> str:
+    """「なぜそのランクか」の 1 行。項目別の正解から機械的に作る(様式の項目名だけ。現場名・店名は出さない)。"""
+    j = it.item_judgments_true
+    if not j:
+        return f"なぜこのランクか: この様式は項目別の判定が無く、看板全体の評価でランク {it.rank_true}"
+    worst = max(j.values())
+    body = "・".join(f"{k}{v}" for k, v in j.items())
+    if worst == it.rank_true:
+        return f"なぜこのランクか: 項目別= {body} → 最悪値{worst}"
+    return (f"なぜこのランクか: 項目別= {body} → 項目の最悪値は{worst}、"
+            f"看板全体の評価でランク {it.rank_true}")
+
+
+def example_answer_text(it: EvalItem, why: bool = False) -> str:
     L = [f"有資格者の判定: ランク {it.rank_true}({RANK_NAME[it.rank_true]})"]
     if it.item_judgments_true:
         L.append("項目の判定: " + "、".join(f"{k}={v}" for k, v in it.item_judgments_true.items())
                  + "(ここに無い項目は、判定されていません)")
     else:
         L.append("項目の判定: なし(この様式は看板全体のランクだけ)")
+    if why:
+        L.append(example_why_text(it))
     return "\n".join(L)
 
 
@@ -328,12 +365,15 @@ class ClaudeJudge(Judge):
 
     def __init__(self, model: str = DEFAULT_MODEL, max_photos: int = 6, workers: int = MAX_WORKERS,
                  effort: str | None = None, client=None, examples: int = 0, example_seed: int = 0,
-                 guard: bool = False, rubric: bool = False):
+                 guard: bool = False, rubric: bool = False,
+                 example_mix: list[int] | None = None, example_why: bool = False):
         self.model = model
         self.max_photos = max_photos
         self.workers = max(1, min(workers, MAX_WORKERS))
         self.effort = effort
-        self.n_examples = max(0, min(examples, EXAMPLE_MAX))
+        self.example_mix = list(example_mix) if example_mix else None  # 指定時は examples を無視
+        self.n_examples = len(self.example_mix) if self.example_mix else max(0, min(examples, EXAMPLE_MAX))
+        self.example_why = example_why
         self.example_seed = example_seed
         self.guard = guard
         self.rubric = rubric
@@ -368,7 +408,7 @@ class ClaudeJudge(Judge):
             return []
         if source not in self._examples:
             self._examples[source] = select_examples(
-                self._example_pool, source, self.n_examples, self.example_seed)
+                self._example_pool, source, self.n_examples, self.example_seed, self.example_mix)
         return self._examples[source]
 
     def example_blocks(self, source: str) -> list[dict]:
@@ -384,7 +424,7 @@ class ClaudeJudge(Judge):
                     blocks.append({"type": "text", "text": f"例{k} 写真{j}"})
                     blocks.append({"type": "image", "source": {
                         "type": "base64", "media_type": "image/jpeg", "data": prepare_image(pth)}})
-                blocks.append({"type": "text", "text": example_answer_text(ex)})
+                blocks.append({"type": "text", "text": example_answer_text(ex, self.example_why)})
             blocks.append({"type": "text", "text": "【判定例ここまで。以下が判定対象の看板です】",
                            "cache_control": {"type": "ephemeral"}})
             self._example_blocks[source] = blocks
@@ -414,7 +454,7 @@ class ClaudeJudge(Judge):
             for pth in spread(ex.photo_paths, EXAMPLE_PHOTOS):
                 ex_img += estimate_image_tokens(pth)
                 ex_text += 8
-            ex_text += len(example_answer_text(ex)) + 20
+            ex_text += len(example_answer_text(ex, self.example_why)) + 20
         return {"photos": len(photos), "image_tokens": img, "text_tokens": text,
                 "example_image_tokens": ex_img, "example_text_tokens": ex_text,
                 "input_tokens": img + text + ex_img + ex_text}

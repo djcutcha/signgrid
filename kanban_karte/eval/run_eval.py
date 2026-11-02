@@ -170,9 +170,12 @@ def run(judge, judge_name: str, source: str, limit: int | None, split: str, seed
 def judge_config(judge, sources) -> dict:
     """結果 JSON に残す判定役の条件。例示に使った看板の sign_id も残す(どの看板を見せたかの記録)。"""
     n = getattr(judge, "n_examples", 0)
-    return {"examples": n, "guard": bool(getattr(judge, "guard", False)),
+    return {"examples": n, "example_mix": getattr(judge, "example_mix", None),
+            "example_why": bool(getattr(judge, "example_why", False)), "guard": bool(getattr(judge, "guard", False)),
             "rubric": bool(getattr(judge, "rubric", False)),
-            "examples_used": {s: [e.sign_id for e in judge.examples_for(s)] for s in sources} if n else {}}
+            "examples_used": {s: [e.sign_id for e in judge.examples_for(s)] for s in sources} if n else {},
+            # 実際に使えた構成(要求した構成から、該当する例示用の看板が無いランクを省いたもの)
+            "example_mix_used": {s: sorted(e.rank_true for e in judge.examples_for(s)) for s in sources} if n else {}}
 
 
 def _pct(x) -> str:
@@ -254,6 +257,8 @@ def log_row(r: dict, note: str = "", max_photos: int | None = None) -> str:
     if r["judge"] == "claude":
         n_ex = (r.get("config") or {}).get("examples", 0)
         cond += f" / 例示{n_ex}" if n_ex else " / ゼロショット"
+        if (r.get("config") or {}).get("example_why"):
+            cond += "(理由行つき)"
         if (r.get("config") or {}).get("guard"):
             cond += " / 見逃し対策"
         if (r.get("config") or {}).get("rubric"):
@@ -301,8 +306,13 @@ def main(argv=None) -> int:
     g.add_argument("--workers", type=int, default=4, help="並列数(1〜4、既定 4)")
     g.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"], default=None,
                    help="output_config.effort(省略時は API の既定)")
-    g.add_argument("--examples", type=int, default=0, choices=range(0, 7), metavar="N",
-                   help="同じ様式の例示用(split=example)から N 基(0〜6)を判定例として先頭に置く。0 でゼロショット")
+    g.add_argument("--examples", type=int, default=0, choices=range(0, 10), metavar="N",
+                   help="同じ様式の例示用(split=example)から N 基(0〜9)を判定例として先頭に置く。0 でゼロショット")
+    g.add_argument("--example-mix", default=None, metavar="RANKS",
+                   help='例示のランク構成(例 "1,1,2,2,3,3,4")。指定時は --examples を無視。'
+                        "該当ランクの看板が例示用に無ければその分は省き、使った構成を結果 JSON に記録")
+    g.add_argument("--example-why", action="store_true",
+                   help="各例示に「なぜそのランクか」の 1 行(項目別の正解から機械的に作る)を付ける")
     g.add_argument("--guard", action="store_true",
                    help="見逃し対策の指示を足し、項目ごとに evidence と needs_onsite(写真では判定できない= 判断できず)を出させる")
     g.add_argument("--rubric", action="store_true",
@@ -312,11 +322,18 @@ def main(argv=None) -> int:
 
     opts = {}
     if a.judge == "claude":
-        opts = {"max_photos": a.max_photos, "workers": a.workers, "effort": a.effort, "examples": a.examples, "guard": a.guard, "rubric": a.rubric}
+        opts = {"max_photos": a.max_photos, "workers": a.workers, "effort": a.effort, "examples": a.examples, "guard": a.guard, "rubric": a.rubric,
+                "example_why": a.example_why}
+        if a.example_mix:
+            from .claude_judge import parse_mix
+            try:
+                opts["example_mix"] = parse_mix(a.example_mix)
+            except ValueError as e:
+                ap.error(str(e))
         if a.model:
             opts["model"] = a.model
-    elif a.examples or a.guard or a.rubric:
-        ap.error("--examples / --guard / --rubric は --judge claude のときだけ使えます")
+    elif a.examples or a.guard or a.rubric or a.example_mix or a.example_why:
+        ap.error("--examples / --example-mix / --example-why / --guard / --rubric は --judge claude のときだけ使えます")
     elif a.dry_run:
         ap.error("--dry-run は --judge claude のときだけ使えます")
     if a.append_log and a.judge == "oracle":
