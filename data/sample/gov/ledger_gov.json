@@ -1,0 +1,63 @@
+{
+ "_comment": "gov 見本の施工台帳。店名・看板・日付はすべて架空。位置は公共の場所の周辺の目安。",
+ "sites": [],
+ "signs": [
+  {
+   "id": "gov-001",
+   "name": "見本商店 ポール看板",
+   "type": "自立",
+   "address": "埼玉県越谷市(市役所前の目安)",
+   "lat": 35.89109,
+   "lng": 139.79085,
+   "municipality": "埼玉県越谷市",
+   "is_self_use": true,
+   "permit_required": true,
+   "permit_expires": "2027-09-30"
+  },
+  {
+   "id": "gov-002",
+   "name": "見本クリニック 壁面看板",
+   "type": "壁面",
+   "address": "埼玉県越谷市(レイクタウン駅近くの目安)",
+   "lat": 35.87685,
+   "lng": 139.82256,
+   "municipality": "埼玉県越谷市",
+   "is_self_use": true,
+   "permit_required": true,
+   "permit_expires": "2027-01-15"
+  },
+  {
+   "id": "gov-003",
+   "name": "見本不動産 野立て看板",
+   "type": "野立て",
+   "address": "埼玉県さいたま市(県庁近くの目安)",
+   "lat": 35.85695,
+   "lng": 139.64895,
+   "municipality": "埼玉県さいたま市",
+   "is_self_use": false,
+   "permit_required": true,
+   "permit_expires": "2026-10-15"
+  },
+  {
+   "id": "gov-004",
+   "name": "見本食堂 袖看板",
+   "type": "袖",
+   "address": "東京都足立区(区役所近くの目安)",
+   "lat": 35.77525,
+   "lng": 139.80495,
+   "municipality": "東京都足立区",
+   "permit_required": null
+  },
+  {
+   "id": "gov-005",
+   "name": "見本書店 自立看板",
+   "type": "自立",
+   "address": "埼玉県越谷市(巡回で写っていない看板)",
+   "lat": 35.8876,
+   "lng": 139.7905,
+   "municipality": "埼玉県越谷市",
+   "is_self_use": true,
+   "permit_required": false
+  }
+ ]
+}
