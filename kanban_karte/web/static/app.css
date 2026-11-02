@@ -174,3 +174,16 @@ dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
   .card{padding:12px}
   .item.yellow{margin-left:-8px}
 }
+
+/* 規則と出力 */
+.two-col{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+.rule-list{list-style:none;margin:0;padding:0}
+.rule{padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.rule.conflict{border-left:4px solid var(--fix);padding-left:8px}
+.rule-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.out-site{padding:10px 0;border-bottom:1px solid var(--line)}
+.out-site:last-child{border-bottom:0}
+.out-site .btn-row{margin:8px 0 4px}
+@media (max-width:900px){ .two-col{grid-template-columns:minmax(0,1fr)} }
+@media (max-width:760px){ .out-site .btn{flex:1 1 100%} }
+.two-col>.card{margin-top:0}

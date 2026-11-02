@@ -26,6 +26,7 @@ def shoot(page, base: str, out: Path, tag: str, hash_: str, name: str, full=True
     page.wait_for_selector(wait or "main h1, main .karte, main table", timeout=8000)
     page.wait_for_timeout(300)
     path = out / f"{name}-{tag}.png"
+    page.evaluate("window.scrollTo(0, 0)")
     page.screenshot(path=str(path), full_page=full)
     print(path)
 
@@ -47,6 +48,7 @@ def run(page, base, out, tag, only):
         page.wait_for_selector(".history li")
         page.wait_for_timeout(300)
         if want("karte-edit"):
+            page.evaluate("window.scrollTo(0, 0)")
             page.screenshot(path=str(out / f"karte-edit-{tag}.png"), full_page=True)
             print(out / f"karte-edit-{tag}.png")
     if want("karte-confirmed"):
@@ -54,11 +56,15 @@ def run(page, base, out, tag, only):
         page.click("button:has-text('確定する')")
         page.wait_for_selector(".banner.confirmed")
         page.wait_for_timeout(300)
+        page.evaluate("window.scrollTo(0, 0)")
         page.screenshot(path=str(out / f"karte-confirmed-{tag}.png"), full_page=True)
         print(out / f"karte-confirmed-{tag}.png")
     if want("ledger-after"):
         shoot(page, base, out, tag, "/", "ledger-after", wait="main .ledger tbody tr")
     if want("rules"):
+        # 同じ所見で別の区分の訂正を2件(規則の矛盾の印を見せる)
+        for v in ("要改善", "経過観察"):
+            page.request.post(f"{base}/api/signs/demo-002/items", data={"item": "取付部-1", "value": v, "by": "見本 花子", "note": "根元に錆"})
         shoot(page, base, out, tag, "/rules", "rules", wait="main .rules")
 
 
