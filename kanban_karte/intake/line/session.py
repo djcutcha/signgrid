@@ -1,4 +1,6 @@
 """同じ送信者から WINDOW(10分)以内に続けて届いた写真・用紙・メモ・位置を1件の「現場の束」にまとめる。
+位置情報メッセージだけは例外で、窓の外でも、同じ送信者の直近 LOCATION_WINDOW(60分)以内で現場の無い最新の束に付ける
+(LINE の写真は位置を落とすので、写真の後に位置を送る運用がある)。無ければ従来どおり(10分窓の束、なければ新しい束)。
 
 台帳への登録:
   bundles  1束=1行。file は "line://<userId>/<日付>/<最初のメッセージID>"(台帳に kind 列が無いので、
@@ -7,7 +9,7 @@
   sites    位置(写真の EXIF か LINE の位置情報メッセージ)が取れた時だけ作る。id は line-<束id>。
 
 画像は <inbox>/<userId>/<日付>/<メッセージID>.<拡張子> に保存(未追跡の data/private 配下)。
-束の進み具合は <inbox>/<userId>/current.json、受信の記録は <inbox>/<userId>/<日付>/messages.jsonl。
+束の進み具合は <inbox>/<userId>/current.json(今の束)と recent.json(直近 RECENT_MAX 束)、受信の記録は <inbox>/<userId>/<日付>/messages.jsonl。
 """
 from __future__ import annotations
 
@@ -22,7 +24,9 @@ from ...ledger import Ledger, Site
 from .exif import gps_from_bytes, image_format
 
 JST = timezone(timedelta(hours=9))
-WINDOW = timedelta(minutes=10)
+WINDOW = timedelta(minutes=10)           # 写真・用紙・メモを同じ束にまとめる窓
+LOCATION_WINDOW = timedelta(minutes=60)  # 位置情報メッセージを、位置の無い直近の束に付ける窓
+RECENT_MAX = 20
 _EXT = {"JPEG": ".jpg", "PNG": ".png", "GIF": ".gif", "WEBP": ".webp", "HEIC": ".heic", "MPO": ".jpg"}
 _SAFE = re.compile(r"[^A-Za-z0-9_-]")
 SEEN_MAX = 200
@@ -75,13 +79,32 @@ class SessionStore:
         except (OSError, ValueError, TypeError):
             return None
 
-    def _save(self, user_id: str, st: SessionState) -> None:
+    def _recent(self, user_id: str) -> list[SessionState]:
+        """直近の束(新しい順ではない。今の束は必ず含む)。"""
+        out: list[SessionState] = []
+        try:
+            for r in json.loads((self._user_dir(user_id) / "recent.json").read_text(encoding="utf-8")):
+                out.append(SessionState(**r))
+        except (OSError, ValueError, TypeError):
+            out = []
+        cur = self._load(user_id)
+        if cur is not None and all(r.session_id != cur.session_id for r in out):
+            out.append(cur)
+        return out
+
+    def _write_json(self, path: Path, doc) -> None:
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(path)
+
+    def _save(self, user_id: str, st: SessionState, current: bool = True) -> None:
         d = self._user_dir(user_id)
         d.mkdir(parents=True, exist_ok=True)
         st.seen = st.seen[-SEEN_MAX:]
-        tmp = d / "current.json.tmp"
-        tmp.write_text(json.dumps(st.__dict__, ensure_ascii=False), encoding="utf-8")
-        tmp.replace(d / "current.json")
+        if current:
+            self._write_json(d / "current.json", st.__dict__)
+        recent = [r for r in self._recent(user_id) if r.session_id != st.session_id] + [st]
+        self._write_json(d / "recent.json", [r.__dict__ for r in recent[-RECENT_MAX:]])
 
     def _log(self, user_id: str, date: str, rec: dict) -> None:
         d = self._user_dir(user_id) / date
@@ -177,17 +200,36 @@ class SessionStore:
         self._log(user_id, st.date, {"id": mid, "type": "text", "at": st.last_at, "text": text})
         return AddResult(st, new)
 
+    def _bundle_without_site(self, user_id: str, now: datetime) -> SessionState | None:
+        """同じ送信者の LOCATION_WINDOW 以内で、現場(位置)の無い最新の束。"""
+        for st in sorted(self._recent(user_id), key=lambda r: r.last_at, reverse=True):
+            if not timedelta(0) <= now - datetime.fromisoformat(st.last_at) <= LOCATION_WINDOW:
+                continue
+            row = self.ledger.get_bundle(st.bundle_id)
+            if row is not None and row["site_id"] is None:
+                return st
+        return None
+
     def add_location(self, user_id: str, message_id: str, lat: float, lng: float, address: str | None,
                      title: str | None, now: datetime) -> AddResult:
-        st, new = self._session_for(user_id, message_id, now)
         mid = safe_name(message_id)
-        if mid in st.seen:
-            return AddResult(st, False, duplicate=True)
+        for r in self._recent(user_id):
+            if mid in r.seen:
+                return AddResult(r, False, duplicate=True)
+        cand = self._bundle_without_site(user_id, now)
+        if cand is not None:
+            st, new = cand, False
+            cur = self._load(user_id)
+            is_current = cur is not None and cur.session_id == st.session_id
+        else:
+            st, new = self._session_for(user_id, message_id, now)
+            is_current = True
         gps = (float(lat), float(lng))
         self._set_site(st, now, gps, address=address)
         st.seen.append(mid)
-        st.last_at = now.isoformat()
-        self._save(user_id, st)
+        if is_current:
+            st.last_at = now.isoformat()
+        self._save(user_id, st, current=is_current)
         self._log(user_id, st.date, {"id": mid, "type": "location", "at": st.last_at, "gps": list(gps),
                                     "address": address, "title": title})
         return AddResult(st, new, gps=gps)

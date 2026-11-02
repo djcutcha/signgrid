@@ -4,7 +4,7 @@ import json
 import tempfile
 import unittest
 import urllib.error
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from unittest import mock
 
@@ -14,7 +14,7 @@ from kanban_karte.intake.line.address import AddressSearch
 from kanban_karte.intake.line.jobs import Job, jobs_near
 from kanban_karte.intake.line.webhook import LineApp
 from kanban_karte.ledger import Ledger
-from tests.test_line import SECRET, USER, Base, img_event, jpeg
+from tests.test_line import SECRET, T0, USER, Base, img_event, jpeg
 
 
 class _Resp(io.BytesIO):
@@ -170,6 +170,94 @@ class SiteChoiceTest(Base):
         app = self.app()
         _, res = self.post(app, postback("act=today"))
         self.assertEqual(res.replies[0][1], "今日の案件\n・テスト一号店\n・テスト二号店\n・テスト三号店")
+
+
+def loc_event(mid, lat=35.7, lng=139.7, user=USER):
+    return {"type": "message", "replyToken": f"tok-{mid}", "source": {"type": "user", "userId": user},
+            "message": {"type": "location", "id": mid, "latitude": lat, "longitude": lng, "address": "東京都豊島区"}}
+
+
+class LocationWindowTest(Base):
+    def app(self):
+        return LineApp(SECRET, self.client, lambda: Ledger(self.db), self.inbox, now=lambda: self.clock[0],
+                       jobs=lambda: [])
+
+    def at(self, minutes):
+        self.clock[0] = T0 + timedelta(minutes=minutes)
+
+    def site_of(self, bundle_id):
+        with Ledger(self.db) as led:
+            return led.get_bundle(bundle_id)["site_id"]
+
+    def test_location_18min_after_photos_joins_the_photo_bundle(self):
+        app = self.app()
+        self.client.contents.update(m1=jpeg(), m2=jpeg("blue"))
+        self.post(app, img_event("m1"), img_event("m2"))
+        self.at(18)  # 10分窓は閉じている
+        self.post(app, loc_event("L1"))
+        bs = self.bundles()
+        self.assertEqual(len(bs), 1)
+        self.assertEqual(self.site_of(1), "line-1")
+        with Ledger(self.db) as led:
+            self.assertEqual(led.get_site("line-1").lat, 35.7)
+
+    def test_location_after_61min_makes_a_new_bundle(self):
+        app = self.app()
+        self.client.contents["m1"] = jpeg()
+        self.post(app, img_event("m1"))
+        self.at(61)
+        self.post(app, loc_event("L1"))
+        self.assertEqual(len(self.bundles()), 2)
+        self.assertIsNone(self.site_of(1))
+        self.assertEqual(self.site_of(2), "line-2")
+
+    def test_picks_latest_bundle_without_a_position(self):
+        app = self.app()
+        self.client.contents.update(m1=jpeg(), m2=jpeg("blue"), m3=jpeg("red"))
+        self.post(app, img_event("m1"))                 # 束1(位置なし)
+        self.at(15)
+        self.post(app, img_event("m2"))                 # 束2(位置なし、最新)
+        self.at(40)
+        self.post(app, loc_event("L1"))
+        self.assertEqual(len(self.bundles()), 2)
+        self.assertIsNone(self.site_of(1))
+        self.assertEqual(self.site_of(2), "line-2")
+        self.at(45)
+        self.post(app, loc_event("L2", 35.8))           # 次の位置は残った束1へ
+        self.assertEqual(self.site_of(1), "line-1")
+        self.assertEqual(len(self.bundles()), 2)
+
+    def test_skips_bundle_that_already_has_a_site(self):
+        app = self.app()
+        self.client.contents.update(m1=jpeg(gps=(35.6, 139.6)), m2=jpeg("blue"))
+        self.post(app, img_event("m1"))                 # EXIF で位置あり
+        self.at(15)
+        self.post(app, img_event("m2"))                 # 位置なし
+        self.at(20)
+        self.post(app, loc_event("L1"))
+        self.assertEqual(self.site_of(2), "line-2")
+        self.assertEqual(len(self.bundles()), 2)
+
+    def test_redelivered_location_is_ignored(self):
+        app = self.app()
+        self.client.contents["m1"] = jpeg()
+        self.post(app, img_event("m1"))
+        self.at(18)
+        self.post(app, loc_event("L1"))
+        self.at(30)
+        _, res = self.post(app, loc_event("L1"))
+        self.assertEqual(res.replies, [])
+        self.assertEqual(len(self.bundles()), 1)
+
+    def test_photos_still_group_by_ten_minutes(self):
+        app = self.app()
+        self.client.contents.update(m1=jpeg(), m2=jpeg("blue"), m3=jpeg("red"))
+        self.post(app, img_event("m1"))
+        self.at(9)
+        self.post(app, img_event("m2"))
+        self.at(20)  # 最後の写真(9分)から11分 = 窓の外
+        self.post(app, img_event("m3"))
+        self.assertEqual([b["pages"] for b in self.bundles()], [2, 1])
 
 
 class AddressSearchTest(unittest.TestCase):
