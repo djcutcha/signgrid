@@ -35,7 +35,25 @@ def select(pool: list, limit: int | None, seed: int, source: str) -> list:
     return sorted(rng.sample(pool, limit), key=lambda i: i.sign_id)
 
 
-def _pools(items, sources, split, limit, seed):
+def select_spread(pool: list, limit: int, seed: int, source: str) -> list:
+    """現場(group_key)をばらして limit 件: 現場ごとにシャッフルし、現場を順に回って1基ずつ取る。"""
+    rng = random.Random(f"{seed}:{source}:spread")
+    by_site: dict[str, list] = {}
+    for i in pool:
+        by_site.setdefault(i.meta.get("group_key", ""), []).append(i)
+    sites = sorted(by_site)
+    rng.shuffle(sites)
+    for k in sites:
+        rng.shuffle(by_site[k])
+    out = []
+    while len(out) < limit and any(by_site.values()):
+        for k in sites:
+            if by_site[k] and len(out) < limit:
+                out.append(by_site[k].pop())
+    return sorted(out, key=lambda i: i.sign_id)
+
+
+def _pools(items, sources, split, limit, seed, spread=False, exclude_ids=None):
     """(source, 判定する看板, 正解ランクなしの除外数, 写真なしの除外数)。
 
     正解のない看板と、入力の写真が1枚もない看板(紙の束で写真セルを切り出せなかった物など)は
@@ -44,8 +62,10 @@ def _pools(items, sources, split, limit, seed):
     for s in sources:
         inside = [i for i in items if i.source == s and (split == "all" or i.split == split)]
         with_truth = [i for i in inside if i.rank_true is not None]
-        pool = sorted((i for i in with_truth if i.photo_paths), key=lambda i: i.sign_id)
-        yield (s, select(pool, limit, seed, s), len(inside) - len(with_truth),
+        pool = sorted((i for i in with_truth if i.photo_paths
+                       and i.sign_id not in (exclude_ids or ())), key=lambda i: i.sign_id)
+        pick = select_spread if spread and limit is not None and limit < len(pool) else select
+        yield (s, pick(pool, limit, seed, s), len(inside) - len(with_truth),
                len(with_truth) - len(pool))
 
 
@@ -118,7 +138,7 @@ def dry_run_text(d: dict) -> str:
 
 
 def run(judge, judge_name: str, source: str, limit: int | None, split: str, seed: int,
-        config_path: str | None) -> dict:
+        config_path: str | None, spread: bool = False, exclude_shown: bool = False) -> dict:
     sources = dataset.RANKED_SOURCES if source == "all" else (source,)
     items = dataset.load_all(config_path, sources)
     counts = dataset.summarize(items)
@@ -130,7 +150,8 @@ def run(judge, judge_name: str, source: str, limit: int | None, split: str, seed
     records: list[dict] = []
     all_pairs, all_preds = [], []
     ex_truth_total = ex_photo_total = 0
-    for s, pool, ex_truth, ex_photo in _pools(items, sources, split, limit, seed):
+    shown = {e.sign_id for s in sources for e in judge.examples_for(s)} if exclude_shown else None
+    for s, pool, ex_truth, ex_photo in _pools(items, sources, split, limit, seed, spread, shown):
         preds = judge.judge_many(pool)
         pairs = list(zip(pool, preds))
         per_source[s] = _add_excluded(metrics.compute(pairs), ex_truth, ex_photo)
@@ -297,6 +318,10 @@ def main(argv=None) -> int:
     ap.add_argument("--limit", type=int, default=None,
                     help="ソースごとの最大件数(seed で決まるランダム抽出。省略時は全件)")
     ap.add_argument("--seed", type=int, default=0, help="--limit の抽出に使う(既定 0)")
+    ap.add_argument("--spread-sites", action="store_true",
+                    help="--limit のとき現場(group_key)をばらして抽出する(較正の学習データ用)")
+    ap.add_argument("--exclude-shown", action="store_true",
+                    help="判定役に例示として見せた看板を判定の対象から外す(--split example の較正用。答えを見た看板を学習に使わない)")
     ap.add_argument("--out", default=None, help="結果 JSON のパス(省略時 runs/YYYY-MM-DD_HHMM_<judge>.json)")
     ap.add_argument("--sources-config", default=None, help="sources.toml のパス")
     ap.add_argument("--append-log", action="store_true",
@@ -349,7 +374,8 @@ def main(argv=None) -> int:
         return 0
 
     try:
-        r = run(judge, a.judge, a.source, a.limit, a.split, a.seed, a.sources_config)
+        r = run(judge, a.judge, a.source, a.limit, a.split, a.seed, a.sources_config,
+                a.spread_sites, a.exclude_shown)
     except RuntimeError as e:  # 鍵が無いなど
         print(f"エラー: {e}", file=sys.stderr)
         return 2
