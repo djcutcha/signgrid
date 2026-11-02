@@ -29,6 +29,7 @@ MAINTENANCE_REQUIRED = ("yes", "no", "unknown")
 INSPECTION_DUTY_REQUIRED = ("yes", "conditional", "no", "unknown")
 QUALIFIED_REQUIRED = ("duty", "effort", "no", "unknown")        # duty=義務 / effort=努力義務
 REPORT_REQUIRED = ("yes", "conditional", "no", "unknown")
+DUTY_KINDS = ("inspection", "manager")   # 有資格者の義務の中身。inspection= 点検をさせる / manager= 有資格の管理者を置く(東京都 条例第25条)
 DUTY_KEYS = ("maintenance_duty", "inspection_duty", "qualified_inspector", "report_duty")
 SOURCES = ("条例", "施行規則")
 MAX_QUOTE_CHARS = 100
@@ -180,11 +181,25 @@ def validate_conditions(errs, path, c):
         return
     for k in ("area_min_m2", "height_min_m", "ground_clearance_min_m"):
         _num_or_none(errs, path, c, k)
+    # 任意: any_of= 寸法の OR 条件(例: 高さ4m超 または 面積10㎡超)。各要素は area/height/ground_clearance の下限だけ
+    any_of = c.get("any_of", [])
+    if not isinstance(any_of, list) or any(not isinstance(a, dict) for a in any_of):
+        errs.append(f"{path}.any_of はオブジェクトの配列")
+    else:
+        for i, a in enumerate(any_of):
+            for k in ("area_min_m2", "height_min_m", "ground_clearance_min_m"):
+                if a.get(k) is not None and (isinstance(a[k], bool) or not isinstance(a[k], (int, float))):
+                    errs.append(f"{path}.any_of[{i}].{k} は数値か null")
+            for k in ("height_min_inclusive", "area_min_inclusive"):
+                if k in a and not isinstance(a[k], bool):
+                    errs.append(f"{path}.any_of[{i}].{k} は true/false")
+    if "area_min_inclusive" in c and not isinstance(c["area_min_inclusive"], bool):
+        errs.append(f"{path}.area_min_inclusive は true/false")
     if not isinstance(c.get("permit_required_only"), bool):
         errs.append(f"{path}.permit_required_only は true/false")
     if "height_min_inclusive" in c and not isinstance(c["height_min_inclusive"], bool):
         errs.append(f"{path}.height_min_inclusive は true/false")
-    for k in ("kinds", "excluded_kinds"):
+    for k in ("kinds", "excluded_kinds", "size_kinds"):
         v = c.get(k, [])
         if not isinstance(v, list) or any(not isinstance(x, str) for x in v):
             errs.append(f"{path}.{k} は文字列の配列")
@@ -220,6 +235,8 @@ def validate_duties(rules: dict) -> list[str]:
     _conf(errs, "inspection_duty", idt)
 
     need("qualified_inspector", qi, QUALIFIED_REQUIRED)
+    if qi.get("duty_kind", "inspection") not in DUTY_KINDS:   # 任意。既定 inspection
+        errs.append(f"qualified_inspector.duty_kind は {DUTY_KINDS}")
     validate_conditions(errs, "qualified_inspector.conditions", qi.get("conditions"))
     eff = qi.get("effort")
     if eff is not None:

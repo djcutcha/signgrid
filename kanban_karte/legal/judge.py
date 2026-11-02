@@ -361,7 +361,7 @@ def judge(address: str | None = None, *, municipality: str | Municipality | None
         if dd["inspection"]["value"] == REQUIRED and dd["inspection"]["exclusions"]:
             res.notes.append("点検の義務が掛からない物: " + "、".join(dd["inspection"]["exclusions"])[:160])
         if dd["qualified"].get("qualification") and dd["qualified"]["value"] in (REQUIRED, EFFORT):
-            res.notes.append(f"点検できる者: {dd['qualified']['qualification'][:80]}")
+            res.notes.append(f"{'屋外広告物管理者になれる者' if dd['qualified'].get('duty_kind') == 'manager' else '点検できる者'}: {dd['qualified']['qualification'][:80]}")
         if dd["report"]["value"] == REQUIRED and dd["report"].get("form"):
             res.notes.append(f"報告の様式: {dd['report']['form']}")
     else:

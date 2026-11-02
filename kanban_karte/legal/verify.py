@@ -123,6 +123,9 @@ def rule_numbers(rules: dict) -> list[tuple[str, str, float]]:
         for cn, c in conds:
             for k, unit in (("area_min_m2", "area"), ("height_min_m", "length"), ("ground_clearance_min_m", "length")):
                 add(f"{dk}.{cn}.{k}", unit, (c or {}).get(k))
+            for j, a in enumerate((c or {}).get("any_of") or []):
+                for k, unit in (("area_min_m2", "area"), ("height_min_m", "length"), ("ground_clearance_min_m", "length")):
+                    add(f"{dk}.{cn}.any_of[{j}].{k}", unit, a.get(k))
     return items
 
 

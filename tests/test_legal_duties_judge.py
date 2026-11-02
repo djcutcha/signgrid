@@ -156,6 +156,27 @@ class CompatTest(unittest.TestCase):
         self.assertEqual(J(r, area_m2=20, height_m=None).qualified_inspector, NEEDS_MEASURE)
 
 
+class AnyOfTest(unittest.TestCase):
+    """寸法の OR 条件(高さ4m超 または 面積10㎡超)。"""
+    C = cond(height_min_inclusive=False, any_of=[{"height_min_m": 4, "height_min_inclusive": False},
+                                                 {"area_min_m2": 10, "area_min_inclusive": False}])
+
+    def ev(self, area, height):
+        from kanban_karte.legal.duties import eval_conditions
+        return eval_conditions(self.C, area=area, height=height, gc=None, permit=REQUIRED, words=None)[0]
+
+    def test_cases(self):
+        for area, height, want in ((5, 5, "hit"), (12, 3, "hit"), (12, None, "hit"), (None, 5, "hit"), (5, 3, "miss"),
+                                   (10, 4, "miss"), (5, None, "unknown"), (None, 3, "unknown"), (None, None, "unknown")):
+            with self.subTest(area=area, height=height):
+                self.assertEqual(self.ev(area, height), want)
+
+    def test_duty_kind_default_is_inspection(self):
+        res = J(koshigaya_like(), municipality="越谷市", area_m2=5, height_m=3)
+        self.assertNotIn("duty_kind", res.duties["qualified"])
+        self.assertIn("有資格者に点検させる義務", res.duties["qualified"]["text"])
+
+
 class RealRulesTest(unittest.TestCase):
     """抽出済みの rules_*.json で、条文が明確な物を固定値で。種類= 自立(広告塔・広告板)、場所= 許可区域。"""
 
@@ -195,8 +216,40 @@ class RealRulesTest(unittest.TestCase):
             with self.subTest(use=use, area=area):
                 res = self.go("東京都", use, area, 5.0)
                 self.assertEqual(res.permit_required, permit)
-                self.assertEqual(vals(res), (REQUIRED, NOT_REQUIRED, NOT_REQUIRED, report))     # 点検・資格者の条文なし
+                self.assertEqual(vals(res), (REQUIRED, NOT_REQUIRED, report, report))           # 点検の条文なし。有資格者は『管理者を置く』(許可物件のみ)
         self.assertIn("見当たりません", self.go("東京都", "general", 5.0, 5.0).duties["inspection"]["text"])
+
+    def test_tokyo_manager_text_and_size_or(self):
+        t = self.go("東京都", "general", 5.0, 5.0).duties["qualified"]
+        self.assertEqual(t["duty_kind"], "manager")
+        self.assertIn("有資格の屋外広告物管理者を置く義務: 要", t["text"])
+        self.assertIn("条例 第25条", t["text"])
+        self.assertIn("規則 第2条", t["text"])
+        small = self.go("東京都", "general", 5.0, 3.0)                                       # 3m かつ 5㎡: どちらも超えない
+        self.assertEqual(small.qualified_inspector, NOT_REQUIRED)
+        self.assertEqual(small.duties["inspection"]["value"], NOT_REQUIRED)
+        self.assertEqual(self.go("東京都", "general", 12.0, 3.0).qualified_inspector, REQUIRED)   # 面積だけ超過
+        self.assertEqual(self.go("東京都", "general", 12.0, None).qualified_inspector, REQUIRED)  # 片方が超えていれば全高不明でも確定
+        self.assertEqual(self.go("東京都", "general", 5.0, None).qualified_inspector, NEEDS_MEASURE)
+        self.assertEqual(self.go("東京都", "general", None, None).qualified_inspector, NEEDS_MEASURE)
+        self.assertEqual(self.go("東京都", "general", None, 5.0).qualified_inspector, REQUIRED)   # 高さだけ超過
+        self.assertEqual(self.go("東京都", "general", 10.0, 4.0).qualified_inspector, NOT_REQUIRED)  # 4m・10㎡ちょうどは『超える』でない
+
+    def test_tokyo_manager_permit_exempt_self_use(self):
+        res = self.go("東京都", "self", 1.0, 5.0)
+        self.assertEqual(res.qualified_inspector, NOT_REQUIRED)
+        self.assertIn("許可物件のみ", res.duties["qualified"]["text"])
+
+    def test_tokyo_manager_unknown_kind_small_is_needs_measure(self):
+        res = judge(municipality="東京都", use="general", area_m2=5, height_m=3, place="許可区域")
+        self.assertEqual(res.qualified_inspector, NEEDS_MEASURE)   # アーチかもしれないので寸法で『不要』にしない
+
+    def test_tokyo_manager_kind(self):
+        g = dict(municipality="東京都", use="general", area_m2=5, height_m=3, place="許可区域")
+        self.assertEqual(judge(kind="壁面", **g).qualified_inspector, NOT_REQUIRED)
+        for kind in ("アーチ", "装飾街路灯"):
+            self.assertEqual(judge(kind=kind, **g).qualified_inspector, REQUIRED)   # 寸法によらない
+        self.assertEqual(judge(kind="自立", **g).qualified_inspector, NOT_REQUIRED)  # 3m かつ 5㎡ の広告塔・広告板
 
     def test_kind_not_in_tokyo_report_kinds(self):
         res = judge(municipality="東京都", use="general", area_m2=5, height_m=3, kind="壁面", place="許可区域")
