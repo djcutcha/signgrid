@@ -297,9 +297,25 @@ class ExamplesTest(unittest.TestCase):
 
     def test_mix_parse(self):
         self.assertEqual(cj.parse_mix("1,1,2, 2,3,3,4"), [1, 1, 2, 2, 3, 3, 4])
-        for bad in ("", "0,1", "1,5", "a", ",".join(["1"] * 10)):
+        for bad in ("", "0,1", "1,5", "a", ",".join(["1"] * 13)):
             with self.assertRaises(ValueError):
                 cj.parse_mix(bad)
+
+    def test_mix_parse_accepts_12(self):
+        self.assertEqual(len(cj.parse_mix(",".join(["1"] * 12))), 12)
+        self.assertEqual(cj.EXAMPLE_MAX, 12)
+        self.assertEqual(ClaudeJudge(client=FakeClient([]), examples=99).n_examples, 12)
+
+    def test_mix_by_source(self):
+        m = cj.parse_mix_by_source("paper_scan=1,1,2; xlsx_center=1,2,3,4")
+        self.assertEqual(m, {"paper_scan": [1, 1, 2], "xlsx_center": [1, 2, 3, 4]})
+        for bad in ("", "paper_scan", "=1,2", "paper_scan=1,5", "a=" + ",".join(["1"] * 13)):
+            with self.assertRaises(ValueError):
+                cj.parse_mix_by_source(bad)
+        j = ClaudeJudge(client=FakeClient([]), example_mix_by_source=m)
+        self.assertEqual(j.n_examples, 4)
+        j.set_example_pool(self._pool())
+        self.assertEqual(sorted(e.rank_true for e in j.examples_for("xlsx_center")), [1, 2, 3, 4])
 
     def test_select_by_mix_and_equals_default(self):
         pool = self._pool()

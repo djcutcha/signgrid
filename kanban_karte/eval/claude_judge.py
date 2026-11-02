@@ -46,7 +46,7 @@ PRICES = {
 # claude-api スキルが読み込めなかったため、公開されている標準の倍率を仮置きしている(請求で要確認)。
 CACHE_WRITE_MULT = 1.25
 CACHE_READ_MULT = 0.10
-EXAMPLE_MAX = 9      # 例示の最大基数
+EXAMPLE_MAX = 12     # 例示の最大基数
 EXAMPLE_MIN_PHOTOS = 3  # 例示に優先して選ぶ写真枚数(これ未満しか無ければ枚数の少ない看板も使う)
 EXAMPLE_PHOTOS = 3   # 例示 1 基あたりの最大写真枚数
 RULES_MAX = 20       # 有資格者の規則として送る最大件数(最新から)
@@ -280,6 +280,21 @@ def parse_mix(text: str) -> list[int]:
     return mix
 
 
+def parse_mix_by_source(text: str) -> dict[str, list[int]]:
+    """"paper_scan=1,1,2;xlsx_center=1,2,3" → {"paper_scan": [1,1,2], ...}。様式間は ; で区切る。不正なら ValueError。"""
+    out: dict[str, list[int]] = {}
+    for part in text.split(";"):
+        if not part.strip():
+            continue
+        src, sep, mix = part.partition("=")
+        if not sep or not src.strip():
+            raise ValueError(f"様式ごとの構成は 様式=1,2,... を ; で区切って指定: {text!r}")
+        out[src.strip()] = parse_mix(mix)
+    if not out:
+        raise ValueError(f"様式ごとの構成が空: {text!r}")
+    return out
+
+
 def select_examples(items: list[EvalItem], source: str, n: int, seed: int = 0,
                     mix: list[int] | None = None) -> list[EvalItem]:
     """同じ様式(source)の例示用(split="example")から、mix で指定したランク構成の例示を選ぶ。
@@ -445,6 +460,7 @@ class ClaudeJudge(Judge):
                  effort: str | None = None, client=None, examples: int = 0, example_seed: int = 0,
                  guard: bool = False, rubric: bool = False,
                  example_mix: list[int] | None = None, example_why: bool = False,
+                 example_mix_by_source: dict[str, list[int]] | None = None,
                  example_select: str = "rank", example_pred: dict | None = None, example_scale: bool = False,
                  rules: list[str] | None = None):
         self.model = model
@@ -452,7 +468,9 @@ class ClaudeJudge(Judge):
         self.workers = max(1, min(workers, MAX_WORKERS))
         self.effort = effort
         self.example_mix = list(example_mix) if example_mix else None  # 指定時は examples を無視
-        self.n_examples = len(self.example_mix) if self.example_mix else max(0, min(examples, EXAMPLE_MAX))
+        self.example_mix_by_source = {k: list(v) for k, v in (example_mix_by_source or {}).items()}  # 様式ごとの構成(example_mix より優先)
+        lens = [len(v) for v in self.example_mix_by_source.values()] + ([len(self.example_mix)] if self.example_mix else [])
+        self.n_examples = max(lens) if lens else max(0, min(examples, EXAMPLE_MAX))
         self.example_why = example_why
         self.example_scale = example_scale
         if example_select not in ("rank", "boundary"):
@@ -461,6 +479,7 @@ class ClaudeJudge(Judge):
             if not example_pred:
                 raise ValueError("--example-select boundary には --example-pred(例示側の予測)が要ります")
             self.example_mix = None
+            self.example_mix_by_source = {}
             self.n_examples = len(BOUNDARY_PLAN)
         self.example_select = example_select
         self.example_pred = dict(example_pred or {})
@@ -507,8 +526,9 @@ class ClaudeJudge(Judge):
                 self._examples[source] = [i for i, _ in sel]
                 self.example_notes[source] = [{"sign_id": i.sign_id, **n} for i, n in sel]
             else:
+                mix = self.example_mix_by_source.get(source, self.example_mix)
                 self._examples[source] = select_examples(
-                    self._example_pool, source, self.n_examples, self.example_seed, self.example_mix)
+                    self._example_pool, source, len(mix) if mix else self.n_examples, self.example_seed, mix)
         return self._examples[source]
 
     def example_blocks(self, source: str) -> list[dict]:
