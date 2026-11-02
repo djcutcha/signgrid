@@ -86,5 +86,5 @@ class LedgerSink:
             new = None
         self.ledger.upsert_sign(s)
         if new is not None and new != old:
-            self.ledger.add_correction(s.id, key, old, new, BY, note=ANSWER_LABEL[ans])
+            self.ledger.add_correction(s.id, key, old, new, BY)
 

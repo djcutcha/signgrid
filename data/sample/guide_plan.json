@@ -1,0 +1,18 @@
+{
+  "_note": "ガイド付き点検の試走の台本(simulate --guide)。写真は見本(無地の画像)。答えは架空",
+  "job": "J-001",
+  "signs": [
+    {
+      "name": "① 正面の袖看板",
+      "overview": "photos/plain_a.png",
+      "parts": [
+        {"photos": ["photos/plain_b.png", "photos/plain_c.png"], "answers": ["a", "b", "unknown"]},
+        {"photos": ["photos/plain_d.png"], "answers": ["a", "a"]},
+        {"photos": ["photos/plain_e.png"], "answers": ["c", "unknown", "a"]},
+        {"photos": ["photos/plain_f.png", "photos/plain_b.png", "photos/plain_c.png"], "answers": ["a", "a", "b", "na"]},
+        {"photos": []},
+        {"photos": ["photos/plain_d.png"], "answers": ["a", "unknown", "na"]}
+      ]
+    }
+  ]
+}

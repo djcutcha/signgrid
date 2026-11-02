@@ -33,9 +33,10 @@
       onclick: toggle, onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } } },
       el("span", { class: "no", text: String(it.no) }), el("span", { class: "txt", text: it.text }),
       el("span", { class: "val" },
-        it.value ? KK.resultChip(it.value) : el("span", { class: "chip q", text: "判断できず(要実測)" }),
+        it.value ? KK.resultChip(it.value) : it.guide === "na" ? KK.resultChip("対象外") : el("span", { class: "chip q", text: "判断できず(要実測)" }),
         it.value && it.yellow ? el("span", { class: "chip q", text: "要実測" }) : null,
-        it.corrected ? el("span", { class: "tag", text: "訂正済み" }) : null));
+        it.corrected ? el("span", { class: "tag", text: "訂正済み" }) : null,
+        it.guide ? el("span", { class: "tag guide", text: it.guide === "unknown" ? "現場: 分からない" : it.guide === "na" ? "現場: 対象外" : "現場の回答(ガイド)" }) : null));
     const kids = [head, evidenceLine(d, it.evidence)];
     if (open) kids.push(editor(d, it, state, rerender));
     return el("div", { class: "item" + (it.yellow ? " yellow" : "") + (open ? " open" : ""), dataset: { key: it.key } }, kids);
@@ -127,7 +128,7 @@
       el("div", {}, c.item === "rank" ? `${KK.RANK[c.old_value] || c.old_value || "—"} → ${KK.RANK[c.new_value]}` : `${c.old_value || "判断できず"} → ${c.new_value}`,
         c.rank_before !== c.rank_after ? el("span", { class: "sub", text: `(ランク ${KK.RANK[c.rank_before] || "—"} → ${KK.RANK[c.rank_after] || "—"})` }) : null),
       c.note ? el("div", { class: "sub", text: `所見: ${c.note}` }) : null,
-      el("div", { class: "sub", text: `${c.by}${c.rule_id ? ` / 規則候補 #${c.rule_id} を積んだ` : ""}` }));
+      el("div", { class: "sub", text: `${c.by === "line_guide" ? "現場の回答(ガイド)" : c.by}${c.rule_id ? ` / 規則候補 #${c.rule_id} を積んだ` : ""}` }));
     return el("section", { class: "card" }, el("h2", { text: `訂正の履歴 ${d.corrections.length} 件` }),
       d.corrections.length ? el("ol", { class: "history" }, d.corrections.slice().reverse().map(li))
         : el("p", { class: "sub", text: "まだ訂正はありません。AI の下書きのままです。" }));
