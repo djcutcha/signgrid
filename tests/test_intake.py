@@ -40,7 +40,10 @@ class IntakeTest(unittest.TestCase):
         pages = self.ledger.list_pages(r.bundle_id)
         self.assertEqual([p["page_no"] for p in pages], [1, 2, 3])
         self.assertEqual([p["kind"] for p in pages], ["指示書", "完成報告書", "不明"])
-        self.assertTrue(all(Path(p["image_path"]).exists() for p in pages))
+        # 台帳には data_dir 基準の相対パスが入り、読む側(resolve_path)で開ける
+        self.assertTrue(all(not Path(p["image_path"]).is_absolute() for p in pages))
+        self.assertEqual(pages[0]["image_path"], f"pages/{r.bundle_id:06d}/p-001.jpg")
+        self.assertTrue(all(self.ledger.resolve_path(p["image_path"]).exists() for p in pages))
         self.assertEqual(pages[1]["image_source"], "embedded")
         self.assertAlmostEqual(pages[1]["dpi"], 90.0, delta=0.5)
         self.assertIn("heuristic", pages[1]["kind_basis"])
@@ -49,7 +52,8 @@ class IntakeTest(unittest.TestCase):
         self.assertEqual(len(r.signs), 1)
         s = self.ledger.get_sign(r.signs[0])
         self.assertEqual(len(s.photos), 4)
-        self.assertTrue(all(Path(p).exists() for p in s.photos))
+        self.assertTrue(all(not Path(p).is_absolute() for p in s.photos))
+        self.assertTrue(all(self.ledger.resolve_path(p).exists() for p in s.photos))
         self.assertEqual((s.rank, s.items, s.source_bundle), (None, {}, r.bundle_id))
 
     def test_same_pdf_not_imported_twice(self):
@@ -60,6 +64,29 @@ class IntakeTest(unittest.TestCase):
         self.assertEqual(b.bundle_id, a.bundle_id)
         self.assertEqual(len(self.ledger.list_bundles()), 1)
         self.assertEqual(len(self.ledger.list_signs()), 1)
+
+    def test_paths_independent_of_cwd_and_relocatable(self):
+        import os
+        data = self.root / "data"
+        cwd = os.getcwd()
+        os.chdir(self.root)  # 取り込み時のカレントが何であっても、保存されるパスは同じ
+        try:
+            r = intake_pdf(self.ledger, self.pdf, Path("data"))
+        finally:
+            os.chdir(cwd)
+        photos = self.ledger.get_sign(r.signs[0]).photos
+        self.assertEqual(photos[0], f"cells/{r.bundle_id:06d}/{r.signs[0]}/c01.jpg")
+        # data_dir ごと移しても、新しい data_dir を渡して開き直せば画像が見つかる
+        moved = self.root / "moved"
+        shutil.move(str(data), str(moved))
+        other = Ledger(data_dir=moved)
+        try:
+            self.assertTrue(other.resolve_path(photos[0]).exists())
+            self.assertEqual(other.resolve_path("/abs/x.jpg"), Path("/abs/x.jpg"))  # 絶対パスはそのまま
+            self.assertEqual(other.rel_path(moved / "pages" / "a.jpg"), "pages/a.jpg")
+            self.assertEqual(other.rel_path("/elsewhere/a.jpg"), "/elsewhere/a.jpg")
+        finally:
+            other.close()
 
     def test_max_pages(self):
         r = intake_pdf(self.ledger, self.pdf, self.root / "data", max_pages=2)
@@ -105,7 +132,7 @@ class IntakeTest(unittest.TestCase):
         if shutil.which("pdftoppm"):  # 埋め込み画像が無ければ 150dpi で描画する
             self.assertEqual(pg["image_source"], "rendered")
             self.assertAlmostEqual(pg["dpi"], 150.0, delta=0.1)
-            self.assertTrue(Path(pg["image_path"]).exists())
+            self.assertTrue(self.ledger.resolve_path(pg["image_path"]).exists())
         else:
             self.assertIsNone(pg["image_path"])
         self.assertEqual(pg["kind"], "不明" if not pg["image_path"] else "指示書")

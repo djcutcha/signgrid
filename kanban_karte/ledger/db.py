@@ -74,13 +74,30 @@ def _tri(v):
 class Ledger:
     """台帳への入口。Ledger(path) か Ledger(":memory:")。"""
 
-    def __init__(self, path: str | Path = ":memory:"):
+    def __init__(self, path: str | Path = ":memory:", data_dir: str | Path | None = None):
         if str(path) != ":memory:":
             Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(str(path))
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA foreign_keys = ON")
+        self.data_dir = Path(data_dir) if data_dir is not None else None
         self.ensure_schema()
+
+    def resolve_path(self, p: str | Path) -> Path:
+        """台帳に入っている画像のパスを、開けるパスにする。相対パスは data_dir 基準(取り込みが書く形)、
+        絶対パス(見本データなど)はそのまま。data_dir が無いときの相対パスは実行時のカレント基準。"""
+        p = Path(p)
+        return p if p.is_absolute() or self.data_dir is None else self.data_dir / p
+
+    def rel_path(self, p: str | Path) -> str:
+        """data_dir の下にある画像のパスを、台帳に入れる相対パス(/ 区切り)にする。下になければそのまま。"""
+        p = Path(p)
+        if self.data_dir is not None:
+            try:
+                return p.relative_to(self.data_dir).as_posix()
+            except ValueError:
+                pass
+        return str(p)
 
     def close(self) -> None:
         self.conn.close()
@@ -226,8 +243,8 @@ class Ledger:
 
     # ---- JSON の読み込み(見本データ) ----
     def import_json(self, path: str | Path) -> tuple[int, int]:
-        """{"sites": [...], "signs": [...]} を読み込む。戻り値は (現場数, 看板数)。写真パスは JSON のあるフォルダ基準で保存。"""
-        p = Path(path)
+        """{"sites": [...], "signs": [...]} を読み込む。戻り値は (現場数, 看板数)。写真パスは JSON のあるフォルダ基準の絶対パスで保存。"""
+        p = Path(path).resolve()
         doc = json.loads(p.read_text(encoding="utf-8"))
         for s in doc.get("sites", []):
             self.upsert_site(Site(**s))

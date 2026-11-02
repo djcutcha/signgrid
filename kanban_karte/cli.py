@@ -40,7 +40,8 @@ def _diff(prev, cur) -> str:
     return f"前回 {_rank(prev)} から" + ("悪化" if cur > prev else "改善")
 
 
-def format_sign(s: Sign, site_name: str | None = None, site_municipality: str | None = None) -> str:
+def format_sign(s: Sign, site_name: str | None = None, site_municipality: str | None = None,
+                resolve=None) -> str:
     L = [f"看板 {s.id}  {s.name or '(名前未確定)'}"]
     where = site_name or s.site_id or "未確定"
     addr = s.address or ""
@@ -67,7 +68,7 @@ def format_sign(s: Sign, site_name: str | None = None, site_municipality: str | 
         L.append("      (未記入)")
     L.append(f"    写真 {len(s.photos)} 枚" + ("" if not s.photos else ":"))
     for p in s.photos:
-        L.append(f"      {p}")
+        L.append(f"      {resolve(p) if resolve else p}")
     if s.source_bundle is not None:
         L.append(f"  元の束: #{s.source_bundle}")
     return "\n".join(L)
@@ -104,7 +105,8 @@ def _cmd_ledger(a, ledger: Ledger, out) -> int:
             print(f"看板 {a.id} はありません。", file=sys.stderr)
             return 1
         site = ledger.get_site(s.site_id) if s.site_id else None
-        print(format_sign(s, site.name if site else None, site.municipality if site else None), file=out)
+        print(format_sign(s, site.name if site else None, site.municipality if site else None,
+                          resolve=ledger.resolve_path), file=out)
         return 0
     if a.ledger_cmd == "bundles":
         for b in ledger.list_bundles():
@@ -145,7 +147,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv=None, out=None) -> int:
     out = out or sys.stdout
     a = build_parser().parse_args(argv)
-    with Ledger(a.db) as ledger:
+    with Ledger(a.db, a.data_dir) as ledger:
         if a.cmd == "intake":
             return _cmd_intake(a, ledger, out)
         return _cmd_ledger(a, ledger, out)

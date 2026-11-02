@@ -55,6 +55,11 @@ class CliTest(unittest.TestCase):
         self.assertIn("b.pdf", o)
         rc, o = run(*self.base, "ledger", "list", "--bundle", "1")
         self.assertIn("計 1 基", o)
+        # show は相対パスを data_dir 基準の実在するパスにして見せる
+        rc, o = run(*self.base, "ledger", "show", "b1-s001")
+        shown = [l.strip() for l in o.splitlines() if l.strip().endswith(".jpg")]
+        self.assertEqual(len(shown), 4)
+        self.assertTrue(all(Path(p).is_absolute() and Path(p).exists() for p in shown))
 
     def test_format_unknowns_are_shown_not_guessed(self):
         o = format_sign(Sign("x1"))

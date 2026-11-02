@@ -78,7 +78,7 @@ def register_pages(ledger: Ledger, bundle_id: int, pdf: Path, pages_dir: Path,
             dpi = dpi * im.width / w0
         path = out_dir / f"p-{no:03d}.jpg"
         im.save(path, quality=88)
-        ledger.upsert_page(bundle_id, no, image_path=str(path), image_source=source, src_rotate=src_rot,
+        ledger.upsert_page(bundle_id, no, image_path=ledger.rel_path(path), image_source=source, src_rotate=src_rot,
                            width=im.width, height=im.height, dpi=dpi)
     ledger.set_bundle(bundle_id, pages=n, status="pages_registered")
     return n
@@ -89,7 +89,7 @@ def classify_pages(ledger: Ledger, bundle_id: int, classifier: PageClassifier, s
     for r in rows:
         if not r["image_path"]:
             continue
-        with Image.open(r["image_path"]) as im:
+        with Image.open(ledger.resolve_path(r["image_path"])) as im:
             im.load()
             img = im.convert("RGB")
         dpi = r["dpi"] or 150.0
@@ -123,7 +123,7 @@ def draft_signs(ledger: Ledger, bundle_id: int, cells_dir: Path, grouper: SignGr
     faces: list[tuple[int, str, list[crop.Cell]]] = []
     imgs: dict[int, Image.Image] = {}
     for r in rows:
-        with Image.open(r["image_path"]) as im:
+        with Image.open(ledger.resolve_path(r["image_path"])) as im:
             im.load()
             img = im.convert("RGB")
         if r["rotation"]:
@@ -145,7 +145,7 @@ def draft_signs(ledger: Ledger, bundle_id: int, cells_dir: Path, grouper: SignGr
             if max(sub.size) > crop.MAX_EDGE:
                 sub.thumbnail((crop.MAX_EDGE, crop.MAX_EDGE), Image.LANCZOS)
             sub.save(dst, quality=90)
-            photos.append(str(dst))
+            photos.append(ledger.rel_path(dst))
         ledger.upsert_sign(Sign(id=sid, name=None, photos=photos, source_bundle=bundle_id,
                                 remark="入口2で作った下書き(束ね・判定は未確定)"))
         ids.append(sid)
@@ -168,6 +168,7 @@ def intake_pdf(ledger: Ledger, pdf: str | Path, data_dir: str | Path,
     """PDF 1本を取り込む。同じ PDF(sha256 が同じ)は取り込み直さず、既存の束を返す。"""
     pdf = Path(pdf)
     data_dir = Path(data_dir)
+    ledger.data_dir = data_dir  # 台帳に入れる画像のパスは data_dir 基準の相対パス
     sha = sha256_file(pdf)
     old = ledger.find_bundle_by_sha(sha)
     if old is not None:
