@@ -124,6 +124,19 @@ class SessionStore:
         if address and not site.address:
             site.address = address
         self.ledger.upsert_site(site)
+        self.ledger.set_bundle(st.bundle_id, site_id=site.id)
+
+    def current(self, user_id: str) -> SessionState | None:
+        return self._load(user_id)
+
+    def bind_site(self, user_id: str, bundle_id: int, site: Site) -> None:
+        """束に現場(案件から引いた物)を紐づける。台帳の bundles.site_id と、その束が今の束なら状態ファイルも更新。"""
+        self.ledger.upsert_site(site)
+        self.ledger.set_bundle(bundle_id, site_id=site.id)
+        st = self._load(user_id)
+        if st is not None and st.bundle_id == bundle_id:
+            st.site_id = site.id
+            self._save(user_id, st)
 
     # ---- 受信 ----
     def add_image(self, user_id: str, message_id: str, data: bytes, now: datetime) -> AddResult:

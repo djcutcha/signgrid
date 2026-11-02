@@ -46,6 +46,7 @@ class FakeClient:
     def __init__(self, contents=None):
         self.contents = contents or {}
         self.replies = []
+        self.extras = []
         self.fetched = []
 
     def get_content(self, mid):
@@ -54,8 +55,9 @@ class FakeClient:
             raise IOError("取得できない")
         return self.contents[mid]
 
-    def reply(self, token, text):
+    def reply(self, token, text, quick_replies=None, button=None):
         self.replies.append((token, text))
+        self.extras.append({"quick_replies": quick_replies, "button": button})
 
 
 def img_event(mid, user=USER, token=None):
@@ -171,7 +173,7 @@ class WebhookTest(Base):
         self.assertEqual(len(res.saved), 1)
         self.assertEqual(len(res.replies), 1)
         self.assertEqual(res.replies[0][1],
-                         "受け取りました。写真 1 枚。看板カルテの下書きを作っています。1 枚は取得できませんでした。もう一度送ってください")
+                         "受け取りました。写真 1 枚。看板カルテの下書きを作っています。1 枚は取得できませんでした。もう一度送ってください\n" + reply_text.ask_site())
 
     def test_ignored_events(self):
         app = self.app()
@@ -305,7 +307,7 @@ class ReplyTest(Base):
             evs.append(img_event(f"m{i}"))
         code, res = self.post(app, *evs)
         self.assertEqual(len(res.replies), 1)
-        self.assertEqual(res.replies[0], ("tok-m5", "受け取りました。写真 6 枚。看板カルテの下書きを作っています"))
+        self.assertEqual(res.replies[0], ("tok-m5", "受け取りました。写真 6 枚。看板カルテの下書きを作っています\n" + reply_text.ask_site()))
         self.assertEqual(self.client.replies, list(res.replies))
 
     def test_count_is_cumulative_across_deliveries(self):
@@ -314,7 +316,7 @@ class ReplyTest(Base):
             self.client.contents[f"m{i}"] = jpeg(color=(i * 30, 0, 0))
         self.post(app, img_event("m0"), img_event("m1"))
         _, res = self.post(app, img_event("m2"))
-        self.assertEqual(res.replies[0][1], "受け取りました。写真 3 枚。看板カルテの下書きを作っています")
+        self.assertEqual(res.replies[0][1], "受け取りました。写真 3 枚。看板カルテの下書きを作っています\n" + reply_text.ask_site())
 
     def test_no_greeting_or_ticket_number(self):
         text = reply_text.receipt(6)
@@ -325,7 +327,7 @@ class ReplyTest(Base):
         app = self.app()
         self.client.contents["m1"] = jpeg()
 
-        def boom(token, text):
+        def boom(token, text, **kw):
             raise IOError("LINE 側のエラー")
         self.client.reply = boom
         code, res = self.post(app, img_event("m1"))

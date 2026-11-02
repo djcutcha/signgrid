@@ -3,7 +3,7 @@
 環境変数:
   LINE_CHANNEL_SECRET        署名検証(X-Line-Signature = base64(HMAC-SHA256(secret, 生の本文)))
   LINE_CHANNEL_ACCESS_TOKEN  画像の取得と返信
-処理するイベント: message(image / text / location)、follow。それ以外は無視する。
+処理するイベント: message(image / text / location)、postback(現場の選択)、follow。それ以外は無視する。
 """
 from __future__ import annotations
 
@@ -13,16 +13,20 @@ import hmac
 import json
 import logging
 import threading
+from urllib.parse import parse_qs
 from dataclasses import dataclass, field
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from ...ledger import Ledger
+from ...ledger import Ledger, Site
+from ...legal.municipality import AddressResolver
 from . import reply as reply_text
+from .address import AddressSearch
 from .client import LineClient
-from .session import JST, SessionStore
+from .jobs import Job, find_job, jobs_near, load_jobs
+from .session import JST, SessionStore, safe_name
 
 log = logging.getLogger("kanban_karte.line")
 MAX_BODY = 2 * 1024 * 1024
@@ -48,6 +52,7 @@ class _UserTally:
     failed: int = 0
     touched: bool = False       # この配信で新しく受け取った物がある(再送だけなら返事しない)
     bundle_id: int | None = None
+    site_id: str | None = None  # 束の現場。None なら現場を尋ねる
 
 
 @dataclass
@@ -61,12 +66,15 @@ class Delivery:
 
 class LineApp:
     def __init__(self, secret: str, client: LineClient, ledger_factory: Callable[[], Ledger],
-                 inbox: str | Path, now: Callable[[], datetime] | None = None):
+                 inbox: str | Path, now: Callable[[], datetime] | None = None,
+                 jobs: Callable[[], list[Job]] | None = None, address_search: AddressSearch | None = None):
         self.secret = secret
         self.client = client
         self.ledger_factory = ledger_factory
         self.inbox = Path(inbox)
         self.now = now or (lambda: datetime.now(JST))
+        self.jobs = jobs or load_jobs  # 今日の案件。実運用は SignJOBZ の点検指示書に差し替える
+        self.address_search = address_search  # None なら座標は引かない
         self._lock = threading.Lock()  # 束の判定と台帳書き込みは1本ずつ
 
     # ---- 入口 ----
@@ -104,7 +112,11 @@ class LineApp:
                 continue
             text = reply_text.receipt(t.state_photos, has_position_only=t.position_only, notes=t.notes,
                                       failed=t.failed)
-            if text:
+            if text and t.state_photos > 0 and t.site_id is None:
+                # 位置も現場も無い束: 今日の現場を尋ねる
+                self._reply(t.reply_token, f"{text}\n{reply_text.ask_site()}", out, bundle_id=t.bundle_id,
+                            quick_replies=reply_text.site_choices(self._today_jobs(), t.bundle_id))
+            elif text:
                 self._reply(t.reply_token, text, out, bundle_id=t.bundle_id)
         return out
 
@@ -114,6 +126,9 @@ class LineApp:
         src = ev.get("source") or {}
         user_id = src.get("userId")
         token = ev.get("replyToken")
+        if etype == "postback" and user_id:
+            self._postback(ev, user_id, store, out)
+            return
         if etype == "follow":
             if token:
                 follows.append((token, reply_text.follow()))
@@ -150,12 +165,70 @@ class LineApp:
         t.touched = True
         t.state_photos = res.state.photos
         t.bundle_id = res.state.bundle_id
+        t.site_id = res.state.site_id
         t.position_only = mtype == "location" and res.state.photos == 0
 
-    def _reply(self, token: str, text: str, out: Delivery, bundle_id: int | None = None) -> None:
+    # ---- 現場の選択 ----
+    def _today_jobs(self) -> list[Job]:
+        return jobs_near(self.jobs(), self.now().astimezone(JST).date())
+
+    def _postback(self, ev: dict, user_id: str, store: SessionStore, out: Delivery) -> None:
+        token = ev.get("replyToken")
+        q = {k: v[0] for k, v in parse_qs((ev.get("postback") or {}).get("data", "")).items()}
+        act = q.get("act")
+        if not token or act not in ("site", "other", "today"):
+            return
+        st = store.current(user_id)
+        try:
+            bundle_id = int(q["b"]) if "b" in q else (st.bundle_id if st else None)
+        except ValueError:
+            bundle_id = None
+        if bundle_id is not None and not self._owns(store, user_id, bundle_id):
+            bundle_id = None
+        if act == "other":
+            self._reply(token, reply_text.other_prompt(), out, bundle_id=bundle_id,
+                        button=("現在地を送る", reply_text.LOCATION_URI))
+        elif act == "today":
+            jobs = self._today_jobs()
+            if bundle_id is not None and st is not None and st.bundle_id == bundle_id and st.site_id is None:
+                self._reply(token, reply_text.ask_site(), out, bundle_id=bundle_id,
+                            quick_replies=reply_text.site_choices(jobs, bundle_id))
+            else:
+                self._reply(token, reply_text.today_list(jobs), out, bundle_id=bundle_id)
+        else:
+            job = find_job(self.jobs(), q.get("job", ""))
+            if job is None:
+                self._reply(token, reply_text.job_not_found(), out, bundle_id=bundle_id)
+            elif bundle_id is None:
+                self._reply(token, reply_text.no_bundle(), out)
+            else:
+                store.bind_site(user_id, bundle_id, self._job_site(job, store.ledger))
+                self._reply(token, reply_text.site_accepted(job.site_name), out, bundle_id=bundle_id)
+
+    @staticmethod
+    def _owns(store: SessionStore, user_id: str, bundle_id: int) -> bool:
+        b = store.ledger.get_bundle(bundle_id)
+        return b is not None and str(b["file"]).startswith(f"line://{safe_name(user_id)}/")
+
+    def _job_site(self, job: Job, ledger: Ledger) -> Site:
+        """案件の現場。同じ案件は同じ sites 行(job-<案件ID>)。座標は住所検索 API(キャッシュ済み)。"""
+        site = ledger.get_site(f"job-{job.id}") or Site(id=f"job-{job.id}", name=job.site_name)
+        site.name, site.address = job.site_name, job.address
+        if site.lat is None and self.address_search is not None:
+            pos = self.address_search.lookup(job.address)
+            if pos is None:
+                log.warning("address search: no position for job %s", job.id)
+            else:
+                site.lat, site.lng = pos
+        m = AddressResolver().resolve(job.address)
+        if m is not None:
+            site.municipality = m.city or m.prefecture
+        return site
+
+    def _reply(self, token: str, text: str, out: Delivery, bundle_id: int | None = None, **extra) -> None:
         where = f" bundle=#{bundle_id}" if bundle_id is not None else ""
         try:
-            self.client.reply(token, text)
+            self.client.reply(token, text, **extra)
             out.replies.append((token, text))
             log.info("reply ok 1通%s", where)
         except Exception as e:

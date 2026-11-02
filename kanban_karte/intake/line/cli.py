@@ -12,7 +12,9 @@ import threading
 from pathlib import Path
 
 from ...ledger import Ledger
+from .address import AddressSearch
 from .client import HttpLineClient
+from .jobs import load_jobs
 from .simulate import DirContentClient, build_deliveries, list_images, post, webhook_url
 from .webhook import LineApp, make_server
 
@@ -45,7 +47,9 @@ def cmd_serve(a) -> int:
             return 2
         client = HttpLineClient(token)
     db, inbox = _paths(a)
-    app = LineApp(secret, client, lambda: Ledger(db), inbox)
+    jobs_path = a.jobs
+    app = LineApp(secret, client, lambda: Ledger(db), inbox, jobs=lambda: load_jobs(jobs_path),
+                  address_search=AddressSearch(inbox / "address_cache.json"))
     srv = make_server(app, a.host, a.port)
     print(f"待ち受け http://{a.host}:{srv.server_address[1]}/line/webhook  台帳={db}  受信箱={inbox}", flush=True)
     try:
@@ -98,6 +102,7 @@ def main(argv=None) -> int:
     s = sub.add_parser("serve", help="webhook サーバを起動")
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8787)
+    s.add_argument("--jobs", default=None, help="今日の案件の JSON(既定 data/sample/jobs.json。形は jobs.py)")
     s.add_argument("--sim-content-dir", default=None,
                    help="画像をここから読み、返信は画面に出すだけ(simulate --url の相手用。LINE に繋がない)")
     s.set_defaults(fn=cmd_serve)
