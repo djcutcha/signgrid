@@ -1,10 +1,15 @@
+import io
+import tempfile
 import unittest
 from pathlib import Path
+
+from openpyxl import load_workbook
 
 from kanban_karte.eval.judge import Judge, Prediction
 from kanban_karte.ledger import Ledger, Sign, Site
 from kanban_karte.ledger.items import ITEM_KEYS
-from kanban_karte.pipeline import draft, review
+from kanban_karte.output.tokyo_form import write_tokyo_form
+from kanban_karte.pipeline import cli, draft, review
 
 PHOTOS = Path(__file__).resolve().parents[1] / "data" / "sample" / "photos"
 NAME = {k: n for n, k in draft.FORM_ITEMS.items()}
@@ -208,6 +213,70 @@ class ReviewTest(unittest.TestCase):
     def test_rank_changed_count_unchanged(self):
         review.finalize(self.lg, self.sid, "有資格者A")
         self.assertEqual(review.rank_changed_count(self.lg), (0, 1))
+
+
+class FlowTest(unittest.TestCase):
+    """見本データの写真で、束 → 下書き → 訂正 → 確定 → 様式出力 を CLI から一連で流す(判定役は偽)。"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db = str(Path(self.tmp.name) / "l.sqlite")
+        with Ledger(self.db) as lg:
+            self.bid = line_bundle(lg, 3)
+        self.judges = []
+
+        def factory(rules, examples, cfg):
+            self.judges.append((list(rules), examples))
+            return FakeJudge(3)
+        self.factory = factory
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_cli(self, *argv, code=0):
+        out, err = io.StringIO(), io.StringIO()
+        import contextlib
+        with contextlib.redirect_stderr(err):
+            rc = cli.main(["--db", self.db, *argv], out=out, judge_factory=self.factory)
+        self.assertEqual(rc, code, err.getvalue())
+        return out.getvalue()
+
+    def test_full_flow(self):
+        sid = f"b{self.bid}-s001"
+        o = self.run_cli("draft", "--bundle", str(self.bid))
+        self.assertIn(f"{sid}: 下書き ランク 3、判断できず 16/18 項目", o)
+        self.assertEqual(self.judges, [([], 6)])  # 初回は規則なし、例示6
+
+        o = self.run_cli("review", "--sign", sid, "--item", "基礎部・上部構造-2", "--value", "2", "--by", "有資格者A")
+        self.assertIn("要改善 → 経過観察  ランク 3 → 2", o)
+        self.assertIn("規則候補 #1 を積みました", o)
+        self.run_cli("review", "--sign", sid, "--item", "照明装置-1", "--value", "良好", "--by", "有資格者A", "--note", "全灯")
+        self.assertIn("下書きと同じ値", self.run_cli("review", "--sign", sid, "--item", "表示部-4", "--value", "2", "--by", "有資格者A"))
+
+        o = self.run_cli("finalize", "--sign", sid, "--by", "有資格者A")
+        self.assertIn("ランク 2(下書き 3)", o)
+        self.assertIn("1 基のうち、ランクが下書きから変わった: 1 基", self.run_cli("changed"))
+        self.run_cli("review", "--sign", sid, "--item", "表示部-4", "--value", "3", "--by", "有資格者A", code=1)  # 確定後は訂正できない
+
+        # 次の束の下書きには、積んだ規則が先に渡る
+        with Ledger(self.db) as lg:
+            bid2 = line_bundle(lg, 1, sha="sha-2")
+        self.run_cli("draft", "--bundle", str(bid2))
+        self.assertEqual(len(self.judges[-1][0]), 2)
+        self.run_cli("draft", "--bundle", str(bid2), "--no-rules")
+        self.assertEqual(self.judges[-1][0], [])
+
+        with Ledger(self.db) as lg:
+            s = lg.get_sign(sid)
+            self.assertEqual((s.status, s.rank, s.items["基礎部・上部構造-2"], s.items["照明装置-1"]), ("confirmed", 2, "経過観察", "良好"))
+            self.assertEqual([c["item"] for c in lg.list_corrections(sid)], ["基礎部・上部構造-2", "照明装置-1"])
+            out = Path(self.tmp.name) / "t.xlsx"
+            self.assertEqual(write_tokyo_form(lg, "line-1", out), [f"様式_{sid}", f"写真_{sid}", f"様式_b{bid2}-s001", f"写真_b{bid2}-s001"])
+        self.assertEqual(load_workbook(out).sheetnames[0], f"様式_{sid}")
+
+    def test_missing_ledger_and_unknown_sign(self):
+        self.assertEqual(cli.main(["--db", str(Path(self.tmp.name) / "none.sqlite"), "changed"], out=io.StringIO()), 1)
+        self.run_cli("finalize", "--sign", "nope", "--by", "有資格者A", code=1)
 
 
 if __name__ == "__main__":
