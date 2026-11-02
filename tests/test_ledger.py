@@ -17,10 +17,30 @@ class SchemaTest(unittest.TestCase):
             with Ledger(p) as lg:
                 names = {r[0] for r in lg.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
                 self.assertTrue({"sites", "signs", "bundles", "pages", "rules"} <= names)
-                self.assertEqual(lg.conn.execute("PRAGMA user_version").fetchone()[0], 1)
+                self.assertEqual(lg.conn.execute("PRAGMA user_version").fetchone()[0], 2)
                 lg.upsert_site(Site("s1", "テスト店"))
             with Ledger(p) as lg:  # 開き直しても壊れない・データが残る
                 self.assertEqual(lg.get_site("s1").name, "テスト店")
+
+    def test_v1_ledger_gets_draft_columns(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "l.sqlite"
+            Ledger(p).close()
+            c = sqlite3.connect(p)  # 版1の signs(下書き・確定の列なし)を作り直す
+            c.execute("DROP TABLE signs")
+            c.execute("CREATE TABLE signs (id TEXT PRIMARY KEY, site_id TEXT, name TEXT, type TEXT, size_w INTEGER, "
+                      "size_h INTEGER, address TEXT, lat REAL, lng REAL, municipality TEXT, is_self_use INTEGER, "
+                      "permit_required INTEGER, permit_expires TEXT, next_inspection TEXT, rank INTEGER, "
+                      "items TEXT NOT NULL DEFAULT '{}', remark TEXT, photos TEXT NOT NULL DEFAULT '[]', "
+                      "last_inspected TEXT, prev_rank INTEGER, source_bundle INTEGER, "
+                      "created TEXT NOT NULL DEFAULT (datetime('now')), updated TEXT NOT NULL DEFAULT (datetime('now')))")
+            c.execute("INSERT INTO signs(id, rank) VALUES ('old', 2)")
+            c.execute("PRAGMA user_version = 1")
+            c.commit()
+            c.close()
+            with Ledger(p) as lg:
+                s = lg.get_sign("old")
+                self.assertEqual((s.rank, s.status, s.evidence), (2, "new", {}))
 
     def test_newer_schema_refused(self):
         with tempfile.TemporaryDirectory() as d:
@@ -144,3 +164,13 @@ class SampleDataTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RecentRulesTest(unittest.TestCase):
+    def test_latest_n_oldest_first(self):
+        with Ledger() as lg:
+            for i in range(25):
+                lg.add_rule(f"r{i}")
+            self.assertEqual(lg.recent_rules(3), ["r22", "r23", "r24"])
+            self.assertEqual(len(lg.recent_rules()), 20)
+            self.assertEqual(lg.recent_rules()[0], "r5")

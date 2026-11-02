@@ -394,3 +394,52 @@ class ExamplesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RulesTest(unittest.TestCase):
+    """有資格者の規則: 例示ブロックの後ろ(キャッシュ印の外)に入る。既定(空)では送る物が変わらない。"""
+    setUp, tearDown, _item, _pool = ExamplesTest.setUp, ExamplesTest.tearDown, ExamplesTest._item, ExamplesTest._pool
+
+    def _judge(self, **kw):
+        j = ClaudeJudge(client=FakeClient([]), **kw)
+        if not hasattr(self, "pool"):
+            self.pool = self._pool()
+        j.set_example_pool(self.pool)
+        return j
+
+    def _item_to_judge(self):
+        return self._item("xlsx_center", 3, "eval", "target", n_photos=2)
+
+    def test_default_sends_nothing_extra(self):
+        it = self._item_to_judge()
+        a = self._judge(examples=2).build_messages(it)
+        b = self._judge(examples=2, rules=[]).build_messages(it)
+        self.assertEqual(a, b)
+        self.assertFalse(any("有資格者の規則" in x.get("text", "") for x in a[0]["content"]))
+
+    def test_rules_block_after_examples_cache_mark(self):
+        it = self._item_to_judge()
+        j = self._judge(examples=2, rules=["規則A", "規則B"])
+        content = j.build_messages(it)[0]["content"]
+        texts = [x.get("text", "") for x in content]
+        k_mark = next(i for i, x in enumerate(content) if x.get("cache_control"))
+        k_rules = next(i for i, t in enumerate(texts) if "有資格者の規則" in t)
+        self.assertEqual(k_rules, k_mark + 1)  # 例示の末尾(キャッシュ印)の直後。写真より前
+        self.assertIn("- 規則A\n- 規則B", texts[k_rules])
+        self.assertIn("最新 2 件", texts[k_rules])
+        self.assertTrue(content[k_rules + 1]["text"].startswith("写真1"))
+
+    def test_rules_without_examples_come_first(self):
+        content = self._judge(rules=["規則A"]).build_messages(self._item_to_judge())[0]["content"]
+        self.assertIn("有資格者の規則", content[0]["text"])
+
+    def test_latest_20_only(self):
+        j = self._judge(rules=[f"r{i}" for i in range(25)])
+        self.assertEqual(j.rules, [f"r{i}" for i in range(5, 25)])
+        j.set_rules([])
+        self.assertEqual(j.rules, [])
+
+    def test_estimate_counts_rules(self):
+        it = self._item_to_judge()
+        base = self._judge(examples=2).estimate(it)["text_tokens"]
+        self.assertGreater(self._judge(examples=2, rules=["あ" * 100]).estimate(it)["text_tokens"], base + 100)
