@@ -24,7 +24,8 @@ REPO_ROOT = dataset.REPO_ROOT
 EVAL_MD = REPO_ROOT / "docs" / "EVAL.md"
 LOG_HEADING = "## 日ごとの測定記録"
 SOURCE_LABEL = {"paper_scan": "紙のスキャン束", "xlsx_center": "客先A センター単位の安全点検報告書(18項目)",
-                "xlsx_karte": "客先B 看板カルテ様式(5項目×4段階)"}
+                "xlsx_karte": "客先B 看板カルテ様式(5項目×4段階)",
+                "line_paper": "客先の 2026年 1店舗(LINE 写真+手書き点検票)"}
 
 
 def select(pool: list, limit: int | None, seed: int, source: str) -> list:
@@ -101,7 +102,7 @@ def _override(items: list, override: str | None) -> list:
 
 def dry_run(judge, source: str, limit: int | None, split: str, seed: int,
             config_path: str | None, override: str | None = None) -> dict:
-    sources = dataset.RANKED_SOURCES if source == "all" else (source,)
+    sources = dataset.AGGREGATE_SOURCES if source == "all" else (source,)
     items = dataset.load_all(config_path, sources)
     if hasattr(judge, "set_example_pool"):
         judge.set_example_pool(items)
@@ -167,7 +168,7 @@ def verify_summary(pairs, verifier) -> dict:
 def run(judge, judge_name: str, source: str, limit: int | None, split: str, seed: int,
         config_path: str | None, spread: bool = False, exclude_shown: bool = False, verifier=None,
         override: str | None = None) -> dict:
-    sources = dataset.RANKED_SOURCES if source == "all" else (source,)
+    sources = dataset.AGGREGATE_SOURCES if source == "all" else (source,)
     items = dataset.load_all(config_path, sources)
     counts = dataset.summarize(items)
     if hasattr(judge, "set_example_pool"):
