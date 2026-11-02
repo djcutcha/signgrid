@@ -103,6 +103,9 @@ def classify_pages(ledger: Ledger, bundle_id: int, classifier: PageClassifier, s
 class SignGrouper(ABC):
     """完成報告書ページの写真セルを、看板(1基)に束ねる口。"""
 
+    def prepare(self, images: dict[int, Image.Image]) -> None:
+        """束ねる前に、ページ画像({page_no: 向きを起こした画像})を渡す。画像を見ない束ね方は何もしない。"""
+
     @abstractmethod
     def group(self, pages: list[tuple[int, str, list[crop.Cell]]]) -> list[list[tuple[int, crop.Cell]]]:
         """pages: [(page_no, half, cells)] → 看板ごとの [(page_no, cell)] のリスト。"""
@@ -133,6 +136,7 @@ def draft_signs(ledger: Ledger, bundle_id: int, cells_dir: Path, grouper: SignGr
         cells = crop.cut_cells(img, dpi)
         for half in sorted({c.half for c in cells}):
             faces.append((r["page_no"], half, [c for c in cells if c.half == half]))
+    grouper.prepare(imgs)
     ids = []
     for k, group in enumerate(grouper.group(faces), 1):
         sid = f"b{bundle_id}-s{k:03d}"
