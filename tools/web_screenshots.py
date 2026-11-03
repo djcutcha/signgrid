@@ -67,8 +67,8 @@ class SampleJudge(Judge):
                           usage={"cost_usd": 0.0})
 
 
-def shoot(page, base: str, out: Path, tag: str, hash_: str, name: str, full=True, wait: str | None = None):
-    page.goto(f"{base}/#{hash_}")
+def shoot(page, base: str, out: Path, tag: str, hash_: str, name: str, full=True, wait: str | None = None, entry: str = ""):
+    page.goto(f"{base}{entry}/#{hash_}")
     page.wait_for_selector(wait or "main h1, main .karte, main table", timeout=8000)
     page.wait_for_timeout(300)
     path = out / f"{name}-{tag}.png"
@@ -112,14 +112,14 @@ def run(page, base, out, tag, only, db=None):
     if want("intake"):
         shoot(page, base, out, tag, "/intake", "intake", wait="main .intake tbody tr")
     if want("gov"):
-        shoot(page, base, out, tag, "/gov?today=2026-11-02", "gov", wait="main .gov-table tbody tr")
+        shoot(page, base, out, tag, "/gov?today=2026-11-02", "gov", wait="main .gov-table tbody tr", entry="/gov")
         page.wait_for_timeout(2500)  # 地図(Leaflet・地理院タイル)の読み込み待ち
         page.evaluate("window.scrollTo(0, 0)")
         page.screenshot(path=str(out / f"gov-{tag}.png"), full_page=True)
         # スマホからの投入: 見本の写真(GPS 入り9枚 + GPS なし1枚)を選んで送った直後の画面。GPS なしの1枚は端末の位置(許可つきの偽の測位)で送る
         page.context.grant_permissions(["geolocation"])
         page.context.set_geolocation({"latitude": 35.8910, "longitude": 139.7908})
-        page.goto(f"{base}/#/gov?today=2026-11-02")
+        page.goto(f"{base}/gov/#/gov?today=2026-11-02")
         page.wait_for_selector("#gov-photo", state="attached")
         photos = sorted(str(p) for p in (Path(db).parent / "gov" / "photos").glob("*.jpg"))
         page.set_input_files("#gov-photo", photos)
@@ -139,7 +139,7 @@ def run(page, base, out, tag, only, db=None):
         page.screenshot(path=str(out / f"gov-capture-{tag}.png"))
         print(out / f"gov-capture-{tag}.png")
     if want("owner"):
-        page.goto(f"{base}/#/owner")
+        page.goto(f"{base}/owner/#/owner")
         page.wait_for_selector("main .owner")
         page.set_input_files("#owner-photo", str(SAMPLE_JSON.parent / "photos" / "plain_a.png"))
         page.fill("#owner-address", "東京都豊島区見本町1-2-3")
@@ -152,7 +152,7 @@ def run(page, base, out, tag, only, db=None):
         page.screenshot(path=str(out / f"owner-{tag}.png"), full_page=True)
         print(out / f"owner-{tag}.png")
     if want("owner-saitama"):  # 許可不要の自家用でも点検の義務がある条例(埼玉県)。全高 5m で有資格者は努力義務
-        page.goto(f"{base}/#/owner")
+        page.goto(f"{base}/owner/#/owner")
         page.wait_for_selector("main .owner")
         page.fill("#owner-address", "埼玉県さいたま市大宮区桜木町1-1-1")
         page.fill("#owner-w", "1.95")
@@ -165,7 +165,7 @@ def run(page, base, out, tag, only, db=None):
         page.screenshot(path=str(out / f"owner-saitama-{tag}.png"), full_page=True)
         print(out / f"owner-saitama-{tag}.png")
     if want("owner-estimate"):
-        page.goto(f"{base}/#/owner")
+        page.goto(f"{base}/owner/#/owner")
         page.wait_for_selector("main .owner")
         page.set_input_files("#owner-photo", str(SAMPLE_JSON.parent / "photos" / "plain_a.png"))
         page.fill("#owner-address", "東京都豊島区見本町1-2-3")
