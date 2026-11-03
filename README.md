@@ -117,7 +117,7 @@ Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期�
 ## 6. ハッカソンの後、誰がどう使い続けるか
 
 - **看板製作会社の有資格者と事務**: 客先の点検(紙の点検票とスマホ写真)を、看板1基=1行の台帳とカルテに載せる。有資格者は AI の下書きを確認して確定・署名し、事務は台帳と様式出力(東京都 第2号様式・客先A型)を使う。
-- **次回の点検**: 前回測った寸法と、確定した判定を引き継ぐ。職人は LINE で写真を送るか、ガイドに沿って撮る。
+- **次回の点検**: 前回測った寸法と、確定した判定が台帳に残り、次回のカルテから参照できる。職人は LINE で写真を送るか、ガイドに沿って撮る。
 - **行政向け**: まず巡回の「撮る→送る」から。職員が撮った写真が位置で看板ごとに束ねられ、台帳との突き合わせと地図に出る。
 - **看板の持ち主**: QR で開き、許可の要否と義務を条文つきで調べ、点検を依頼する。
 - **未実装・将来**: 行政側の本物の許可台帳(許可番号・期限・申請者)との連携は未実装。今は自社の施工台帳で代用している(`docs/GOV.md` の限界)。他の自治体の条例は未対応。
@@ -200,7 +200,7 @@ python3 -m unittest                                   # テスト(693 件)
 
 ## 10. 持ち込みデータ
 
-**再利用の条件**(運営回答 2026-11-02 Q11 に沿って明確にする): コードはオープンソースとして公開する。自社の点検記録(829 基の正解)・客先の写真・点検票・ロゴはリポジトリに含めず、再利用できない。見本データ(`data/sample/`)は動作確認用。条例原文と国土交通省の GIS は、下の表の出典と取得時期のとおり。ライセンスの行は「提出前に記載」(11 節)。
+**再利用の条件**: コードは公開リポジトリとして公開する(ライセンスは提出前に記載)。自社の点検記録(829 基の正解)・客先の写真・点検票・ロゴはリポジトリに含めず、再利用できない。見本データ(`data/sample/`)は動作確認用。条例原文と国土交通省の GIS は、下の表の出典と取得時期のとおり。ライセンスの行は「提出前に記載」(11 節)。
 
 | データ | 取得 | 扱い |
 |---|---|---|
@@ -227,5 +227,5 @@ SignGrid ("karte" = a per-sign record) puts the inspection and legal checks that
 - **Inspection**: 18 items x 3 grades drafted by Opus 5.5. On our own 829 inspected signs (private, ground truth only), exact match 66.5%, misses 76.7% of signs needing action, 4.9% false alarms. On a real 2026 store (47 signs): 70.2% exact, 5/9 misses, 1/38 false alarms; a full lap took about 9 minutes.
 - **Law**: rules extracted by AI from the original text of 4 ordinances (Tokyo, Saitama, Koshigaya, Saitama City), joined with zoning GIS and height, and four separate duties (maintain, inspect, qualified person, report). Measuring a sign on site cuts "needs measuring" results. Reference values only; check against current law.
 - **After the hackathon**: qualified inspectors and office staff at signboard makers load customer inspections into the ledger and karte, and carry sizes and judgments to the next visit; government starts from shoot-and-send. Integration with a real permit ledger is not implemented (future).
-- **Data**: our own inspection records (ground truth), customer photos, forms and logos are not in this repository and may not be reused; `data/sample/` is fictional, for demos. Code is open source. **How built**: Claude Code as the main line, headless `claude -p` sub-agents in parallel git worktrees; commit history is public from the start.
+- **Data**: our own inspection records (ground truth), customer photos, forms and logos are not in this repository and may not be reused; `data/sample/` is fictional, for demos. Code is public (license to be stated before submission). **How built**: Claude Code as the main line, headless `claude -p` sub-agents in parallel git worktrees; commit history is public from the start.
 - Quick start: section 8. License: to be stated before submission.
