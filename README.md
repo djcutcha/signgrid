@@ -2,6 +2,8 @@
 
 **看板製作会社の有資格者が、紙とスマホ写真で回している点検と法規の確認を、看板1基=1行の台帳と「カルテ」に載せる道具。AI は下書きまで、確定は有資格者。**
 
+**人が確定する**: AI が出すのは下書きだけ。判定の確定と署名は有資格者(屋外広告士)が行う。画面には事実確認の根拠(写真番号・条文)が残る。
+
 Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期間中にゼロから作った。
 
 ## 1. 何の不便か
@@ -15,33 +17,44 @@ Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期�
 
 入口は「誰の仕事か」で3つに分かれる(それぞれ別のページ、別のタイトル)。見本データ(架空の店)で動く。スクリーンショットは `docs/img/`(`python3 tools/web_screenshots.py` で撮り直せる)。
 
-| 入口 | 誰 | 画面 |
+| 入口 | 使う人 | 画面 |
 |---|---|---|
-| **点検会社**(`/`、SignGrid。屋外広告士がいて点検を仕事にしている会社) | 職人 | **LINE**(写真を送るだけ。または「ガイド付き点検」で案内どおりに部位ごとに撮り a/b/c を押す。`docs/LINE.md`) |
-| | 有資格者 | **カルテ**(スマホ / PC)。AI の下書きを18項目で確認し、黄色(判断できず)を直して「確定して署名」 |
+| **① 点検会社**(`/`、SignGrid。屋外広告士がいて点検を仕事にしている会社) | 職人 | **LINE**。写真を送るだけ。または「ガイド付き点検」で案内どおりに部位ごとに撮り a/b/c を押す。初回は台帳に寸法が無ければ「寸法の実測」も聞く(`docs/LINE.md`) |
+| | 有資格者(屋外広告士) | **カルテ**(スマホ / PC)。AI の下書きを18項目で確認し、黄色(判断できず)を直して「確定して署名」 |
 | | 事務・営業 | **受付・台帳・規則と出力**(PC)。受け付けた束、台帳、規則の承認、東京都 第2号様式・客先A型の xlsx 出力 |
-| **看板の持ち主**(`/owner/`、商店や企業。QR で開く) | 店舗オーナー | **スマホ**。写真と住所から、許可の要否と点検まわりの4義務を条文つきで調べる。「看板屋に点検を頼む」へ |
-| **行政**(`/gov/`、SignGrid 行政) | 巡回の職員 | **スマホ**。撮る→送る。写真の EXIF GPS(無ければ端末の現在地)で看板ごとに束ね、台帳との一致候補と地図に出す(`docs/GOV.md`「スマホからの投入」) |
-| | 窓口 | **PC**。職員が撮った写真を位置で束ね、台帳と突き合わせて地図に赤・橙・緑・灰で出す(`docs/GOV.md`) |
+| **② 看板の持ち主**(`/owner/`、商店や企業。QR で開く) | 店舗オーナー | **許可の要否と義務の画面**(スマホ)。写真と住所から、許可の要否と点検まわりの4義務を条文つきで調べる。「看板屋に点検を頼む」へ |
+| **③ 行政**(`/gov/`、SignGrid 行政) | 巡回の職員 | **「撮る→送る」**(スマホ)。写真の EXIF GPS(無ければ端末の現在地)で看板ごとに束ね、台帳との一致候補と地図に出す(`docs/GOV.md`「スマホからの投入」) |
+| | 窓口 | **一括登録と地図**(PC)。職員が撮った写真を位置で束ね、台帳と突き合わせて地図に赤・橙・緑・灰で出す(`docs/GOV.md`) |
 
 台帳と API は3入口で共通。行政の画面から点検会社のカルテへは入れない(別の組織)。
 
-**点検会社: 職人(LINE のガイド付き点検の結果を、カルテのバッジ「現場の回答」で確認)**
+### ① 点検会社(`/`)
+
+**職人: LINE のガイド付き点検の結果を、カルテのバッジ「現場の回答」で確認**
 ![guide-karte-sp](docs/img/guide-karte-sp.png)
 
-**点検会社: 有資格者(カルテ。黄色は判断できず)**
+**職人: 寸法の実測(初回だけ。飛ばせる。LINE の会話を模擬した画面)**
+![guide-measure-pc](docs/img/guide-measure-pc.png)
+
+**有資格者: カルテ(黄色は判断できず)**
 ![karte-sp](docs/img/karte-sp.png)
 
-**点検会社: 事務・営業(台帳)**
+**事務・営業: 台帳**
 ![ledger-pc](docs/img/ledger-pc.png)
 
-**看板の持ち主(さいたま市の条文つき)**
+**LINE のガイド付き点検に「寸法の実測」の工程がある**: 台帳にその看板の寸法が無い初回だけ、幅・高さ・GL(地面から看板の下端まで)・取付方法・支柱・巻尺を当てた写真(0〜2枚)を聞く。最初の問いで「飛ばす」で通せる。2回目以降は前回の実測を引き継ぎ、聞かない。
+
+### ② 看板の持ち主(`/owner/`)
+
+**さいたま市の条文つき**
 ![owner-saitama-sp](docs/img/owner-saitama-sp.png)
 
-**行政: 巡回(スマホ。撮る→送る、送った直後)**
+### ③ 行政(`/gov/`)
+
+**巡回(スマホ。撮る→送る、送った直後)**
 ![gov-capture-sp](docs/img/gov-capture-sp.png)
 
-**行政: 窓口(PC)**
+**窓口(PC。一括登録と地図)**
 ![gov-capture-pc](docs/img/gov-capture-pc.png)
 
 ## 3. 知識が育つ工程
@@ -96,12 +109,21 @@ Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期�
 点検とは別の判断(`docs/LEGAL.md`、`docs/GIS.md`)。
 
 - **4自治体の条例原文から規則を AI が抽出**: 東京都・埼玉県・越谷市・さいたま市(条例と施行規則の8本)。答えには根拠条文(条・項・号と原文の抜粋)が付く。
-- **許可の要否**: 要 / 不要 / 要実測の3段階。寸法が分からなければ「要実測」に倒す(保守側)。
+- **許可の要否**: 要 / 不要 / 要実測の3段階。寸法が分からなければ「要実測」に倒す(保守側)。LINE のガイド付き点検の初回に寸法を実測して台帳に入れると、カルテを開くたびに面積と全高で再判定され、この「要実測」が減る。寸法の出どころはカルテのバッジ(実測 / 推定(AI) / 図面 / 未入力)で分かる。客先 1店舗の 74 基(図面のスケッチから W・H を読んだ場合)では、許可の要実測が 6 基から 3 基に減った(不要 / 要 / 要実測 = 67 / 4 / 3、`docs/FIELD.md`)。
 - **用途地域と全高を接続**: 住所 → 国土地理院で座標化 → 国土交通省の用途地域 GIS(埼玉県 58 + 東京都 52 = 110 本、15,783 ポリゴン)で区分を引き、判定に渡す。禁止地域は用途地域だけの暫定(風致・景観・文教などは未判定)。GIS は参考値。
 - **4つの義務**: 管理 / 点検 / 有資格者 / 行政への報告を別々に判定する。東京都の有資格者は「有資格の屋外広告物管理者を置く」義務(点検をさせる義務ではない)。24 ケースの表は `python3 tools/duties_matrix.py`(API なし)。
 - **限界**: 条例の写しは 2026-10-20 時点。使う前に最新の例規集と突き合わせる。埼玉県の他の市町村は県条例で引き、市独自条例は未確認。
 
-## 6. Claude の使い方
+## 6. ハッカソンの後、誰がどう使い続けるか
+
+- **看板製作会社の有資格者と事務**: 客先の点検(紙の点検票とスマホ写真)を、看板1基=1行の台帳とカルテに載せる。有資格者は AI の下書きを確認して確定・署名し、事務は台帳と様式出力(東京都 第2号様式・客先A型)を使う。
+- **次回の点検**: 前回測った寸法と、確定した判定を引き継ぐ。職人は LINE で写真を送るか、ガイドに沿って撮る。
+- **行政向け**: まず巡回の「撮る→送る」から。職員が撮った写真が位置で看板ごとに束ねられ、台帳との突き合わせと地図に出る。
+- **看板の持ち主**: QR で開き、許可の要否と義務を条文つきで調べ、点検を依頼する。
+- **未実装・将来**: 行政側の本物の許可台帳(許可番号・期限・申請者)との連携は未実装。今は自社の施工台帳で代用している(`docs/GOV.md` の限界)。他の自治体の条例は未対応。
+- 見本データで動き、鍵が無くても画面は開く(AI の下書きと寸法の推定だけ鍵が要る)。使い方は Quick start。
+
+## 7. Claude の使い方
 
 | 工程 | モデル |
 |---|---|
@@ -115,7 +137,7 @@ Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期�
 - 評価は定数・正解を渡す判定役と並べ、毎回記録表に1行足す(`docs/EVAL.md`。Fable 5.1 の 102 基の測定も記録)。
 - 作業文(企画・絵コンテ・作業表)は期間前に作り、リポジトリの外に置く(運営 FAQ Q4)。コミット履歴は 2026-11-02 12:30 から公開のまま。
 
-## 7. Quick start
+## 8. Quick start
 
 Python 3.12 以上。
 
@@ -131,14 +153,14 @@ python3 -m kanban_karte.legal.cli judge --address "東京都豊島区見本町1-
 python3 -m kanban_karte.output.cli tokyo --from-json data/sample/ledger.json --site demo-site-1 --out out.xlsx
 python3 -m kanban_karte.gov.make_sample --db /tmp/gov.sqlite   # 行政の見本(写真10枚・台帳5基)。続きは docs/GOV.md
 python3 -m kanban_karte.eval.run_eval --help          # 評価(正解データは非公開。設定は data/private/sources.example.toml、docs/EVAL.md)
-python3 -m unittest                                   # テスト(647 件)
+python3 -m unittest                                   # テスト(693 件)
 ```
 
 - 下書き(AI)と寸法の推定は `ANTHROPIC_API_KEY`(環境変数か `.env`)があるときだけ動く。無いときは該当のボタンが無効になる。見本の画面は鍵なしで動く。
 - 台帳は SQLite(既定 `data/private/ledger.sqlite`、`--db` で変更)。
 - LINE 本番: `docs/LINE.md`(`LINE_CHANNEL_SECRET` と `LINE_CHANNEL_ACCESS_TOKEN`)。
 
-## 8. リポジトリ構成
+## 9. リポジトリ構成
 
 `kanban_karte/`
 
@@ -176,7 +198,9 @@ python3 -m unittest                                   # テスト(647 件)
 | `WEB.md` | 画面と API |
 | `WORKFLOW.md` | 知識が育つ工程の一周 |
 
-## 9. 持ち込みデータ
+## 10. 持ち込みデータ
+
+**再利用の条件**(運営回答 2026-11-02 Q11 に沿って明確にする): コードはオープンソースとして公開する。自社の点検記録(829 基の正解)・客先の写真・点検票・ロゴはリポジトリに含めず、再利用できない。見本データ(`data/sample/`)は動作確認用。条例原文と国土交通省の GIS は、下の表の出典と取得時期のとおり。ライセンスの行は「提出前に記載」(11 節)。
 
 | データ | 取得 | 扱い |
 |---|---|---|
@@ -184,11 +208,11 @@ python3 -m unittest                                   # テスト(647 件)
 | 国土交通省 都市計画決定GISデータ(用途地域。埼玉県・東京都) | 2026-11-02 | 再配布しない(`data/private/`) |
 | 国土交通省 屋外広告物条例ガイドライン(国の技術的助言) | 法規の読みの根拠として参照 | — |
 | 国土地理院 住所検索・逆ジオコーダ・市区町村コード表・地理院タイル | 2026-11-02(コード表) | コード表は `data/gsi/`、出典を表示 |
-| 自社の点検記録 829 基 | 非公開 | 評価の正解としてのみ参照。リポジトリに入れない |
-| 客先の 2026年 1店舗(LINE 写真 + 点検票スキャン) | 2026-08-31 点検 | 非公開。参照のみ、リポジトリに入れない |
-| 見本データ(`data/sample/`) | — | すべて架空(店名・住所・日付・判定。写真は無地) |
+| 自社の点検記録 829 基(正解) | 非公開 | 評価の正解としてのみ参照。リポジトリに入れない。再利用不可 |
+| 客先の 2026年 1店舗(LINE 写真 + 点検票スキャン) | 2026-08-31 点検 | 非公開。参照のみ、リポジトリに入れない。再利用不可 |
+| 見本データ(`data/sample/`) | — | 動作確認用。すべて架空(店名・住所・日付・判定。写真は無地) |
 
-## 10. 期間中に作った物 / 非公開データ / ライセンス
+## 11. 期間中に作った物 / 非公開データ / ライセンス
 
 - 期間前のコードは持ち込んでいない。コードと文書はすべて 2026-11-02 12:30 JST 以降に作った。
 - 顧客名・社員名・単価・検算済みの規則・写真・点検票・台帳は入れない。置き場は `data/private/`(未追跡)で、評価データへの参照は `data/private/sources.toml`(未追跡)だけ。
@@ -196,11 +220,12 @@ python3 -m unittest                                   # テスト(647 件)
 
 ## English summary
 
-SignGrid ("karte" = a per-sign record) puts the inspection and legal checks that signboard makers' qualified inspectors run on paper and phone photos into a one-sign-per-row ledger. Built from scratch during Built with Claude: Japan 2026 (started 2026-11-02 12:30 JST).
+SignGrid ("karte" = a per-sign record) puts the inspection and legal checks that signboard makers' qualified inspectors run on paper and phone photos into a one-sign-per-row ledger. Built from scratch during Built with Claude: Japan 2026 (started 2026-11-02 12:30 JST). **A person confirms**: AI only drafts; a qualified person (outdoor-advertising specialist) confirms and signs, and the photo numbers and ordinance articles behind each fact stay on screen.
 
-- **Six screens**: LINE (photos, guided inspection), Web karte (qualified inspector confirms and signs), Web PC (intake, ledger, rules, xlsx output), owner on phone (permit and duties by ordinance), government patrol on phone (shoot and send; photos bundled by GPS). Three separate entry pages: inspection company `/`, sign owner `/owner/`, government `/gov/`, government desk on PC (batch photos on a map).
+- **Three entrances, six screens**: (1) inspection company `/`: LINE (photos, or guided inspection incl. an optional, skippable sign-measuring step on the first visit; later visits reuse it), web karte (qualified inspector confirms and signs), PC (intake, ledger, rules, xlsx output); (2) sign owner `/owner/` on a phone (permit and duties by ordinance, via QR); (3) government `/gov/`: patrol on a phone (shoot and send; photos bundled by GPS) and the desk on PC (batch photos on a map).
 - **Knowledge grows by a process**: AI draft, inspector correction, one follow-up question, rule candidate, approval (only approved rules affect later drafts), conflict detection. A measured effect of 6 approved rules on the draft was none (`docs/PIPELINE.md`).
 - **Inspection**: 18 items x 3 grades drafted by Opus 5.5. On our own 829 inspected signs (private, ground truth only), exact match 66.5%, misses 76.7% of signs needing action, 4.9% false alarms. On a real 2026 store (47 signs): 70.2% exact, 5/9 misses, 1/38 false alarms; a full lap took about 9 minutes.
-- **Law**: rules extracted by AI from the original text of 4 ordinances (Tokyo, Saitama, Koshigaya, Saitama City), joined with zoning GIS and height, and four separate duties (maintain, inspect, qualified person, report). Reference values only; check against current law.
-- **How built**: Claude Code as the main line, headless `claude -p` sub-agents in parallel git worktrees. Commit history is public from the start.
-- Quick start: section 7. Customer data and ground truth are not in this repository. License: to be stated before submission.
+- **Law**: rules extracted by AI from the original text of 4 ordinances (Tokyo, Saitama, Koshigaya, Saitama City), joined with zoning GIS and height, and four separate duties (maintain, inspect, qualified person, report). Measuring a sign on site cuts "needs measuring" results. Reference values only; check against current law.
+- **After the hackathon**: qualified inspectors and office staff at signboard makers load customer inspections into the ledger and karte, and carry sizes and judgments to the next visit; government starts from shoot-and-send. Integration with a real permit ledger is not implemented (future).
+- **Data**: our own inspection records (ground truth), customer photos, forms and logos are not in this repository and may not be reused; `data/sample/` is fictional, for demos. Code is open source. **How built**: Claude Code as the main line, headless `claude -p` sub-agents in parallel git worktrees; commit history is public from the start.
+- Quick start: section 8. License: to be stated before submission.
