@@ -5,7 +5,9 @@
   python3 tools/field_run.py --max-signs 3        # 試し
 
 工程: (a) 点検票 PDF 3 本を intake で束として登録(pages・種別)→ (b) 索引から看板と写真を台帳に登録
-      → (c) pipeline/draft.py で全基の下書き(Opus、写真は 1 基 6 枚まで、承認済み規則なし)→ (d) 様式 2 種を書き出す。
+      → (b2) スケッチ頁(図面)を看板に付け、寸法・全高を台帳に入れる(items.tsv の sketch_* 列。pages.tag="図面")
+      → (c) pipeline/draft.py で全基の下書き(Opus、写真は 1 基 6 枚まで、承認済み規則なし。図面は入力に入れない)→ (d) 様式 2 種を書き出す。
+  python3 tools/field_run.py --no-draft --draft-keys 他2,他12   # 下書きは指定の看板だけ(画面写真用の少数)
 台帳は data/private/field_site.sqlite(未追跡)、記録は runs/field_site_run.json(未追跡)。
 店名・客先名は台帳にも記録にも入れない(看板名は「看板 ①」「その他 N」)。
 """
@@ -26,12 +28,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import field_legal as fl  # noqa: E402
 import field_transcribe as ft  # noqa: E402
 
 from kanban_karte.eval import dataset, metrics  # noqa: E402
 from kanban_karte.eval.judge import Prediction  # noqa: E402
 from kanban_karte.intake.pdf_bundle import intake_pdf  # noqa: E402
-from kanban_karte.ledger.db import Ledger, Sign, Site  # noqa: E402
+from kanban_karte.ledger.db import FIGURE_TAG, Ledger, Sign, Site  # noqa: E402
 from kanban_karte.output.client_a_form import write_client_a  # noqa: E402
 from kanban_karte.output.tokyo_form import write_tokyo_form  # noqa: E402
 from kanban_karte.pipeline import draft as pdraft  # noqa: E402
@@ -90,7 +93,7 @@ def register_signs(ledger: Ledger, base: Path, address: str | None, max_signs: i
     info = []
     for r in rows:
         files = json.loads(r["photo_files"])
-        size = json.loads(r["size"]) if r["size"] else {}
+        dm = fl.dims(r)  # 表の W×H(無ければスケッチ)と、スケッチの GL から出した全高
         sid = f"fs-{r['key']}"
         photos = []
         for j, f in enumerate(files[:MAX_PHOTOS], 1):  # 画面が /media で配れるよう、台帳の画像置き場(data_dir)にコピーする
@@ -99,12 +102,60 @@ def register_signs(ledger: Ledger, base: Path, address: str | None, max_signs: i
             shutil.copyfile(base / f, dst)
             photos.append(ledger.rel_path(dst))
         ledger.upsert_sign(Sign(
-            id=sid, site_id=SITE_ID, name=r["sign_name"], size_w=size.get("w_mm"), size_h=size.get("h_mm"),
+            id=sid, site_id=SITE_ID, name=r["sign_name"], size_w=dm["size_w"], size_h=dm["size_h"], height_m=dm["height_m"],
             address=address or None, photos=photos, source_bundle=bid,
             last_inspected=iso_date(r["inspection_date"]),
             remark=None if files else "写真なし(1フォルダに2基が混ざる、またはフォルダが無い)"))
         info.append({"sign_id": sid, "key": r["key"], "photos_total": len(files), "photos_used": min(len(files), MAX_PHOTOS)})
     return bid, info
+
+
+def register_figures(ledger: Ledger, base: Path) -> dict:
+    """items.tsv の sketch_pages(「PDF名:頁」の;区切り)の頁画像を、その看板の図面として付ける。
+    頁は PDF の束にすでに画像で入っている(pages.image_path)ので、pages.tag を「図面」にして、看板の画像の並びの末尾に足す。"""
+    bundles = {Path(b["file"]).name: b["id"] for b in ledger.list_bundles()}
+    n_pages = n_signs = 0
+    for r in csv.DictReader(open(base / "items.tsv", encoding="utf-8"), delimiter="\t"):
+        if not r.get("sketch_pages"):
+            continue
+        s = ledger.get_sign(f"fs-{r['key']}")
+        if s is None:
+            continue
+        added = 0
+        for ref in r["sketch_pages"].split(";"):
+            pdf, page = ref.rsplit(":", 1)
+            bid = bundles.get(ft.PDFS[pdf])
+            row = next((p for p in ledger.list_pages(bid) if p["page_no"] == int(page)), None) if bid else None
+            if row is None or not row["image_path"]:
+                continue
+            ledger.set_page_tag(bid, int(page), FIGURE_TAG)
+            rel = ledger.rel_path(ledger.resolve_path(row["image_path"]))
+            if rel not in s.photos:
+                s.photos.append(rel)
+            added += 1
+        if added:
+            ledger.upsert_sign(s)
+            n_pages += added
+            n_signs += 1
+    return {"figure_pages": n_pages, "signs_with_figures": n_signs}
+
+
+def draft_keys(ledger: Ledger, keys: list[str], model: str) -> list[dict]:
+    """指定の看板だけ下書きを書く(bundle 全体ではなく。画面写真用の少数)。図面は判定役に渡らない(draft.eval_item_for)。"""
+    judge = pdraft.default_judge(model=model, max_photos=MAX_PHOTOS)
+    out = []
+    for k in keys:
+        s = ledger.get_sign(f"fs-{k}")
+        if s is None:
+            continue
+        pred = judge.judge(pdraft.eval_item_for(ledger, s))
+        if pred.rank_pred is None:
+            out.append({"key": k, "status": "error"})
+            continue
+        pdraft.apply_prediction(s, pred)
+        ledger.upsert_sign(s)
+        out.append({"key": k, "status": "draft", "rank": s.rank, "cost_usd": (pred.usage or {}).get("cost_usd")})
+    return out
 
 
 def truth_compare(ledger: Ledger, base: Path, per: list[dict], model: str) -> dict:
@@ -130,6 +181,7 @@ def main() -> None:
     ap.add_argument("--outputs-dir", default=str(REPO / "runs/field_site_out"))
     ap.add_argument("--no-draft", action="store_true")
     ap.add_argument("--max-signs", type=int)
+    ap.add_argument("--draft-keys", help="--no-draft のとき、この看板(例 他2,他12)だけ下書きを書く")
     ap.add_argument("--model", default=MODEL)
     ap.add_argument("--sources-config")
     a = ap.parse_args()
@@ -137,7 +189,8 @@ def main() -> None:
     cfg = dataset.load_config(a.sources_config)
     raw, tdir = ft.paths(a.sources_config)
     base = raw.parent
-    address = (cfg.get("line_paper") or {}).get("address")
+    addr_file = REPO / "data/private/field_site_address.txt"  # 住所は未追跡のファイルにだけ(区まで)
+    address = addr_file.read_text(encoding="utf-8").strip() if addr_file.exists() else (cfg.get("line_paper") or {}).get("address")
     db = Path(a.db)
     if db.exists():
         db.unlink()  # 毎回作り直す(所要時間を同じ条件で測る)
@@ -154,6 +207,9 @@ def main() -> None:
     bid, info = register_signs(ledger, base, address, a.max_signs)
     res["steps"]["register_signs_s"] = round(time.time() - t0, 1)
     res["signs_registered"] = len(info)
+    res["figures"] = register_figures(ledger, base)
+    if a.no_draft and a.draft_keys:
+        res["draft_keys"] = draft_keys(ledger, [k.strip() for k in a.draft_keys.split(",") if k.strip()], a.model)
 
     per = []
     if not a.no_draft:

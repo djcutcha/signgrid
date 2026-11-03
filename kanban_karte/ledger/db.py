@@ -16,6 +16,7 @@ SCHEMA_VERSION = 2
 SCHEMA_SQL = Path(__file__).with_name("schema.sql")
 SIGN_STATUSES = ("new", "needs_photos", "draft", "confirmed")
 RULE_STATUSES = ("candidate", "approved", "rejected")
+FIGURE_TAG = "図面"  # pages.tag: 職人の手描きスケッチ・印刷案の頁。看板の写真ではないので、下書き・様式の写真には入れない
 PAGE_KINDS = ("指示書", "完成報告書", "点検表", "写真", "地図", "危険予知", "その他", "不明")
 
 
@@ -262,6 +263,16 @@ class Ledger:
         """ガイド付き点検で、そのページがどの部位の写真か(overview / 部位名)を残す。"""
         self.conn.execute("UPDATE pages SET tag=? WHERE bundle_id=? AND page_no=?", (tag, bundle_id, page_no))
         self.conn.commit()
+
+    def figure_paths(self) -> set[str]:
+        """タグ「図面」の頁の画像(台帳の相対パス)。"""
+        return {r["image_path"] for r in self.conn.execute(
+            "SELECT image_path FROM pages WHERE tag=? AND image_path IS NOT NULL", (FIGURE_TAG,))}
+
+    def split_photos(self, sign: Sign) -> tuple[list[str], list[str]]:
+        """看板の画像を (写真, 図面) に分ける(順序は保つ)。下書き・様式の写真は前者だけ。"""
+        fig = self.figure_paths()
+        return [p for p in sign.photos if p not in fig], [p for p in sign.photos if p in fig]
 
     def list_pages(self, bundle_id: int) -> list[sqlite3.Row]:
         return list(self.conn.execute("SELECT * FROM pages WHERE bundle_id=? ORDER BY page_no", (bundle_id,)))

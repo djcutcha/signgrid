@@ -311,7 +311,9 @@ def field(page, base: str, out: Path, tag: str, db: Path) -> None:
     from kanban_karte.output.common import unjudged_item_keys
     with Ledger(db) as lg:
         signs = [x for x in lg.list_signs() if x.status == "draft"]
-    pick = max(signs, key=lambda x: (0 < len(unjudged_item_keys(x)) < 18, len(x.photos), x.id))
+        fig = lg.figure_paths()
+    # 図面(スケッチ)のある看板を優先(カルテの「図面」の枠を撮る)
+    pick = max(signs, key=lambda x: (any(p in fig for p in x.photos), 0 < len(unjudged_item_keys(x)) < 18, len(x.photos), x.id))
     shoot(page, base, out, tag, "/", "field-ledger", wait="main .ledger tbody tr")
     shoot(page, base, out, tag, f"/sign/{pick.id}", "field-karte", wait="main .karte")
     shoot(page, base, out, tag, "/rules", "field-output", wait="main .rules .out-site")

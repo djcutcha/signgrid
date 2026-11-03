@@ -84,7 +84,7 @@ def missing_keys(sign: Sign) -> list[str]:
 def eval_item_for(ledger: Ledger, sign: Sign, only: list[str] | None = None) -> EvalItem:
     names = list(FORM_ITEMS) if only is None else [n for n, k in FORM_ITEMS.items() if k in only]
     return EvalItem(source=FORM_SOURCE, sign_id=sign.id,
-                    photo_paths=[str(ledger.resolve_path(p)) for p in sign.photos],
+                    photo_paths=[str(ledger.resolve_path(p)) for p in ledger.split_photos(sign)[0]],  # 図面(スケッチ)は渡さない
                     rank_true=None, item_judgments_true=None, split="eval",
                     meta={"form_items": names, "sign_name": sign.name})
 
@@ -139,9 +139,9 @@ def draft_bundle(ledger: Ledger, bundle_id: int, judge, only_missing: bool = Fal
             results.append(DraftResult(sid, "confirmed", s.rank))
         elif only_missing and not (keys := missing_keys(s)):
             results.append(DraftResult(sid, "draft", s.rank, 0))  # 全項目に答えがある。判定役を呼ばない
-        elif only_missing and not any(ledger.resolve_path(p).exists() for p in s.photos):
+        elif only_missing and not any(ledger.resolve_path(p).exists() for p in ledger.split_photos(s)[0]):
             results.append(DraftResult(sid, "draft", s.rank, len(missing_keys(s))))  # 写真が無い。答えは消さない
-        elif not only_missing and not any(ledger.resolve_path(p).exists() for p in s.photos):
+        elif not only_missing and not any(ledger.resolve_path(p).exists() for p in ledger.split_photos(s)[0]):
             s.status, s.rank, s.draft_rank, s.items, s.evidence, s.confidence = "needs_photos", None, None, {}, {}, None
             ledger.upsert_sign(s)
             results.append(DraftResult(sid, "needs_photos"))

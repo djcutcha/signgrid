@@ -89,6 +89,8 @@ details.card summary{cursor:pointer;font-weight:600}
 .photo .no{position:absolute;left:4px;top:4px;background:rgba(0,0,0,.65);color:#fff;border-radius:999px;min-width:22px;height:22px;
   display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;padding:0 6px}
 .photo.hit{outline:3px solid var(--watch)}
+.photo.figure{background:#fff;aspect-ratio:3/2}
+.photo.figure img{object-fit:contain}
 .ph{background:var(--ph);color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:12px;height:100%;min-height:80px}
 dialog#lightbox{border:0;border-radius:12px;padding:0;max-width:min(96vw,980px);width:96vw;background:var(--surface);color:var(--fg)}
 dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
@@ -327,3 +329,4 @@ dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
 
 /* 入口の副題(行政・オーナー入口のブランドの横) */
 .entry-sub{font-size:13px}
+.figures .photos{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
