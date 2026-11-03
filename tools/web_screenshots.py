@@ -227,20 +227,25 @@ def guide_karte(page, base, out, tag, db):
             assert code == 200 and not res.errors, res.errors if res else code
         with Ledger(db) as lg:
             sg = next(s for s in lg.list_signs() if (s.draft_by or "").startswith("line_guide"))
-            sg.photos = [f"photos/{Path(p).name}" for p in plan_photo_names(plan_file)]  # 受信箱は一時なので、見本の画像に差し替えて表示
+            # 受信箱は一時なので、見本の画像に差し替えて表示(pages も同じ画像に付け替え、タグ「実測」を保つ)
+            for old, name in zip(list(sg.photos), plan_photo_names(plan_file)):
+                new = f"photos/{Path(name).name}"
+                lg.conn.execute("UPDATE pages SET image_path=? WHERE image_path=?", (new, lg.rel_path(old)))
+                sg.photos[sg.photos.index(old)] = new
+            lg.conn.commit()
             lg.upsert_sign(sg)
     shoot(page, base, out, tag, f"/sign/{sg.id}", "guide-karte", wait="main .karte")
+    shoot(page, base, out, tag, f"/sign/{sg.id}", "guide-measure", wait="main .size-card")  # 寸法の枠(実測のバッジ)
 
 
 def plan_photo_names(plan_file):
     import json
     doc = json.loads(Path(plan_file).read_text(encoding="utf-8"))
-    names = []
-    for sg in doc["signs"]:
-        names.append(sg["overview"])
-        for p in sg["parts"]:
-            names += p.get("photos", [])
-    return names
+    sg = doc["signs"][0]  # 写真の並び(台帳の看板の写真と同じ): 全景、部位の写真、巻尺の写真(末尾)
+    names = [sg["overview"]]
+    for p in sg["parts"]:
+        names += p.get("photos", [])
+    return names + (sg.get("measure") or {}).get("photos", [])
 
 
 def workflow(page, base, out, tag, db):

@@ -1,17 +1,127 @@
 {
-  "_note": "ガイド付き点検の試走の台本(simulate --guide)。写真は見本(無地の画像)。答えは架空",
+  "_note": "ガイド付き点検の試走の台本(simulate --guide)。写真は見本(無地の画像)。答えは架空。①は寸法を測る、②は飛ばす、3枚目は①と同じ名前で台帳の寸法を引き継ぐ(実測の問いが出ない)",
   "job": "J-001",
   "signs": [
     {
       "name": "① 正面の袖看板",
       "overview": "photos/plain_a.png",
       "parts": [
-        {"photos": ["photos/plain_b.png", "photos/plain_c.png"], "answers": ["a", "b", "unknown"]},
-        {"photos": ["photos/plain_d.png"], "answers": ["a", "a"]},
-        {"photos": ["photos/plain_e.png"], "answers": ["c", "unknown", "a"]},
-        {"photos": ["photos/plain_f.png", "photos/plain_b.png", "photos/plain_c.png"], "answers": ["a", "a", "b", "na"]},
-        {"photos": []},
-        {"photos": ["photos/plain_d.png"], "answers": ["a", "unknown", "na"]}
+        {
+          "photos": [
+            "photos/plain_b.png",
+            "photos/plain_c.png"
+          ],
+          "answers": [
+            "a",
+            "b",
+            "unknown"
+          ]
+        },
+        {
+          "photos": [
+            "photos/plain_d.png"
+          ],
+          "answers": [
+            "a",
+            "a"
+          ]
+        },
+        {
+          "photos": [
+            "photos/plain_e.png"
+          ],
+          "answers": [
+            "c",
+            "unknown",
+            "a"
+          ]
+        },
+        {
+          "photos": [
+            "photos/plain_f.png",
+            "photos/plain_b.png",
+            "photos/plain_c.png"
+          ],
+          "answers": [
+            "a",
+            "a",
+            "b",
+            "na"
+          ]
+        },
+        {
+          "photos": []
+        },
+        {
+          "photos": [
+            "photos/plain_d.png"
+          ],
+          "answers": [
+            "a",
+            "unknown",
+            "na"
+          ]
+        }
+      ],
+      "measure": {
+        "w": "3.6m",
+        "h": "900",
+        "gl": "2500mm",
+        "mount": "ビス",
+        "post": "□50",
+        "photos": [
+          "photos/plain_tape.png"
+        ]
+      }
+    },
+    {
+      "name": "② 側面の看板",
+      "overview": "photos/plain_d.png",
+      "measure": "skip",
+      "parts": [
+        {
+          "photos": []
+        },
+        {
+          "photos": []
+        },
+        {
+          "photos": []
+        },
+        {
+          "photos": []
+        },
+        {
+          "photos": []
+        },
+        {
+          "photos": []
+        }
+      ]
+    },
+    {
+      "name": "① 正面の袖看板",
+      "overview": "photos/plain_e.png",
+      "measure": "inherit",
+      "parts": [
+        {
+          "photos": []
+        },
+        {
+          "photos": []
+        },
+        {
+          "photos": []
+        },
+        {
+          "photos": []
+        },
+        {
+          "photos": []
+        },
+        {
+          "photos": []
+        }
       ]
     }
   ]
