@@ -29,7 +29,7 @@
         c.place ? el("div", { class: "sub", text: c.place }) : null),
       cell("写真", "c-photos", `${c.photo_count} 枚`),
       cell("台帳", "c-sign", c.sign
-        ? el("span", {}, el("a", { href: `#/sign/${encodeURIComponent(c.sign.id)}`, text: c.sign.name || c.sign.id }),
+        ? el("span", {}, el("span", { text: c.sign.name || c.sign.id }),  // 行政入口から点検会社のカルテへは飛ばない(別組織)
           el("div", { class: "sub", text: `${c.distance_m} m` }))
         : el("span", { class: "muted", text: c.distance_m === null ? "近くに無し" : `近くに無し(最寄り ${c.distance_m} m)` })),
       cell("期限", "c-exp", expiry(c))));

@@ -149,8 +149,8 @@ class EntryTest(WebTest):
         self.assertIn('data-entry="owner"', html)
         self.assertEqual(self.tabs(html), [])
         self.assertNotIn("<nav", html)
-        self.assertIn("看板オーナー向け", html)
-        self.assertIn("<title>SignGrid 看板オーナー向け</title>", html)
+        self.assertIn("看板の持ち主(店舗・企業)向け", html)
+        self.assertIn("<title>SignGrid 看板の持ち主向け</title>", html)
         self.assertIn('id="sample-badge"', html)
 
     def test_redirect_without_trailing_slash(self):
