@@ -1,0 +1,29 @@
+SignGrid 看板カルテ  閲覧専用ライセンス / View-Only License
+Copyright (c) 2026 株式会社エフ広芸 (FKOGEI INC.)  All rights reserved.
+
+本リポジトリは「Built with Claude: Japan 2026」ハッカソンの提出物として、審査と評価のために公開しています。
+
+許可すること
+- 本リポジトリの閲覧。
+- 審査・評価を目的とした、クローンと手元の環境での実行。
+
+許可しないこと(株式会社エフ広芸の事前の書面による許諾がある場合を除く)
+- 複製物の再配布、改変版の配布。
+- 他のソフトウェア・サービスへの組み込み、サービスとしての提供。
+- 商用・非商用を問わない業務での利用。
+- AI モデルの学習・評価データとしての利用。
+
+対象外(リポジトリに含めず、いずれも再利用できません)
+- 自社の点検記録・台帳データ・客先の写真と点検票・条例から抽出した規則・ロゴ・社名・動画の素材。
+- 同梱の見本データ(data/sample/)は架空で、動作確認のためだけに使えます。
+
+保証
+- 現状のまま提供し、いかなる保証もしません。
+
+---
+
+This repository is published for judging and evaluation as a submission to the "Built with Claude: Japan 2026" hackathon.
+Permitted: viewing; cloning and running locally for evaluation only.
+Not permitted without prior written permission from FKOGEI INC.: redistribution, distribution of modified versions, integration into other software or services, offering as a service, any business use (commercial or not), and use for training or evaluating AI models.
+Excluded and not reusable: our inspection records, ledger data, customer photos and forms, rules extracted from ordinances, logos, company names and video materials. The bundled sample data (data/sample/) is fictional and for demonstration only.
+Provided as is, without warranty of any kind.
