@@ -1,4 +1,5 @@
 import json
+import re
 import tempfile
 import threading
 import unittest
@@ -112,6 +113,64 @@ class SampleStartTest(WebTest):
             self.assertIn("attachment", h["Content-Disposition"])
         self.assertEqual(self.req("/api/sites/nope/output/tokyo.xlsx")[0], 404)
         self.assertEqual(self.req("/api/sites/demo-site-1/output/other.xlsx")[0], 404)
+
+
+class EntryTest(WebTest):
+    """使う人ごとの3入口: 社内(/)・行政(/gov/)・オーナー(/owner/)。ナビのタブとタイトルが入口ごとに違う。"""
+
+    def page(self, path):
+        st, body, h = self.req(path, raw=True)
+        self.assertEqual(st, 200)
+        self.assertIn("text/html", h["Content-Type"])
+        return body.decode("utf-8")
+
+    @staticmethod
+    def tabs(html):
+        return re.findall(r'<a href="[^"]*" data-nav="[^"]*">([^<]*)</a>', html)
+
+    def test_internal_tabs(self):
+        html = self.page("/")
+        self.assertIn('data-entry="internal"', html)
+        self.assertEqual(self.tabs(html), ["受付", "台帳", "規則と出力"])
+        self.assertIn("<title>SignGrid</title>", html)
+        self.assertIn('id="sample-badge"', html)
+
+    def test_gov_entry(self):
+        html = self.page("/gov/")
+        self.assertIn('data-entry="gov"', html)
+        self.assertEqual(self.tabs(html), [])
+        self.assertNotIn("<nav", html)
+        self.assertIn('class="brand" href="#/gov">SignGrid 行政<', html)
+        self.assertIn("<title>SignGrid 行政</title>", html)
+        self.assertIn('id="sample-badge"', html)
+
+    def test_owner_entry(self):
+        html = self.page("/owner/")
+        self.assertIn('data-entry="owner"', html)
+        self.assertEqual(self.tabs(html), [])
+        self.assertNotIn("<nav", html)
+        self.assertIn("看板オーナー向け", html)
+        self.assertIn("<title>SignGrid 看板オーナー向け</title>", html)
+        self.assertIn('id="sample-badge"', html)
+
+    def test_redirect_without_trailing_slash(self):
+        import http.client
+        for path in ("/gov", "/owner"):
+            c = http.client.HTTPConnection("127.0.0.1", self.srv.server_address[1])
+            c.request("GET", path + "?today=2026-11-02")
+            r = c.getresponse()
+            r.read()
+            self.assertEqual(r.status, 308)
+            self.assertEqual(r.getheader("Location"), path + "/?today=2026-11-02")
+            c.close()
+
+    def test_api_and_static_unchanged(self):
+        st, meta, _ = self.req("/api/meta")
+        self.assertEqual(st, 200)
+        self.assertTrue(meta["sample"])
+        for f in ("app.js", "gov.js", "owner.js"):
+            st, _, h = self.req("/static/" + f, raw=True)
+            self.assertEqual(st, 200)
 
 
 class RoundTripTest(unittest.TestCase):
