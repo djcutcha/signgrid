@@ -21,7 +21,7 @@ export const Shell: React.FC<{t: TItem; children: React.ReactNode; bg?: string; 
       <Fill style={{opacity: o, background: bg}}>{children}</Fill>
       {t.narr && (
         <Sequence from={Math.round(NARR_OFFSET * FPS)} layout="none">
-          <Audio src={staticFile(`assets/narration/${t.narr.file}`)} />
+          <Audio src={staticFile(`assets/${(t.narr as any).dir ?? 'narration'}/${t.narr.file}`)} />
         </Sequence>
       )}
     </Fill>
