@@ -53,10 +53,16 @@ class GuideBase(Base):
     def last_quick(self):
         return self.client.extras[-1]["quick_replies"]
 
+    skip_measure = True  # 既存の流れの試験は、実測の最初の問いが出たら「飛ばす」で通す(実測は MeasureTest が試す)
+
     def photo(self):
         self.n += 1
         self.client.contents[f"p{self.n}"] = jpeg()
-        return self.send(img_event(f"p{self.n}", token=f"tok-p{self.n}"))
+        res = self.send(img_event(f"p{self.n}", token=f"tok-p{self.n}"))
+        st = self.app_.guide.load(USER)
+        if self.skip_measure and st is not None and st.step == "measure" and st.m_sub == "ask":
+            res = self.tap(m="skip")
+        return res
 
     def tap(self, **q):
         from urllib.parse import urlencode
@@ -85,7 +91,7 @@ class StateMachineTest(GuideBase):
         self.say("① 正面の袖看板")
         self.assertEqual(self.last(), "全景を1枚撮ってください")
         self.photo()
-        self.assertEqual(self.last(), "全景を受け取りました\n基礎部・上部構造を撮ってください(近くで1〜3枚)")
+        self.assertEqual(self.last(), "寸法の実測は飛ばしました\n基礎部・上部構造を撮ってください(近くで1〜3枚)")
         self.assertEqual([i["action"]["label"] for i in self.last_quick()], ["この部位は無い"])
         self.photo()
         self.assertEqual([i["action"]["label"] for i in self.last_quick()], ["次へ"])

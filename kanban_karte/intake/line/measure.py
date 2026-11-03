@@ -1,0 +1,73 @@
+"""ガイドの「寸法の実測」工程: 数字の受け方と選択肢。進行(guide.py)と台帳(guide_ledger.py)が使う。
+
+数字はテキスト 1通(全角・単位付きも受ける)。mm と m の取り違えを防ぐため、単位が無い数字は次のとおり扱う:
+  1000 以上               mm としてそのまま受ける(確認なし)
+  0.1〜50(小数か 1〜2桁)  m とみなし、「X m(Y mm)として受け取ります」と確認を返す
+  100〜999                m だと 50 m を超えるので mm とみなし、確認を返す
+  単位あり(mm / cm / m)   確認なしで受ける
+"""
+from __future__ import annotations
+
+import re
+import unicodedata
+from dataclasses import dataclass
+
+MOUNTS = ("ビス", "バンセン", "吊り", "接着", "その他", "分からない")
+UNKNOWN = "分からない"
+NONE_POST = "無し"
+GL_EDGE = "bottom"          # GL からの高さは「看板の下端まで」で固定して聞く
+LEN_MIN_MM, LEN_MAX_MM = 100, 50_000   # 幅・高さの範囲(mm)
+GL_MAX_MM = 50_000
+POST_MAX = 30
+
+_NUM = re.compile(r"^(\d+(?:\.\d+)?)\s*(mm|ミリメートル|ミリ|cm|センチメートル|センチ|m|メートル)?$", re.I)
+_UNIT_MM = {"mm": 1, "ミリ": 1, "ミリメートル": 1, "cm": 10, "センチ": 10, "センチメートル": 10, "m": 1000, "メートル": 1000}
+_NOISE = re.compile(r"(約|ぐらい|くらい|程度|です|だと思います|[。、,\s])")
+
+
+@dataclass
+class Length:
+    mm: int | None = None
+    confirm: str | None = None   # 確認の文(あれば、はいで確定)
+    error: str | None = None
+
+
+def _fmt_m(mm: int) -> str:
+    return f"{mm / 1000:g}"
+
+
+def parse_length(text: str, *, lo: int = LEN_MIN_MM, hi: int = LEN_MAX_MM, allow_zero: bool = False) -> Length:
+    t = unicodedata.normalize("NFKC", text).strip()
+    t = _NOISE.sub("", t)
+    m = _NUM.match(t)
+    if not m:
+        return Length(error="数字が読み取れませんでした。例: 3600 / 3.6m")
+    num, unit = float(m.group(1)), (m.group(2) or "").lower()
+    if unit:
+        mm = round(num * _UNIT_MM[unit])
+        confirm = None
+    elif num == 0 and allow_zero:
+        return Length(mm=0)
+    elif num >= 1000:
+        mm, confirm = round(num), None
+    elif 0.1 <= num <= 50:
+        mm = round(num * 1000)
+        confirm = f"「{m.group(1)}」を {m.group(1)} m({mm} mm)として受け取ります。合っていますか"
+    elif 100 <= num <= 999 and num == int(num):
+        mm = int(num)
+        confirm = f"「{m.group(1)}」を {mm} mm({_fmt_m(mm)} m)として受け取ります。合っていますか"
+    else:
+        return Length(error="単位が分かりませんでした。mm か m を付けてください(例: 3600mm / 3.6m)")
+    if mm == 0 and allow_zero:
+        return Length(mm=0)
+    if not lo <= mm <= hi:
+        return Length(error=f"{lo}〜{hi} mm({_fmt_m(lo)}〜{_fmt_m(hi)} m)の範囲で送ってください")
+    return Length(mm=mm, confirm=confirm)
+
+
+def parse_post(text: str) -> str | None:
+    """支柱の文(例 □50)。「無し」「なし」は '無し'。長すぎる文は None(受けない)。"""
+    t = unicodedata.normalize("NFKC", text).strip()
+    if t in ("無し", "なし", "無", "ない"):
+        return NONE_POST
+    return t if t and len(t) <= POST_MAX else None

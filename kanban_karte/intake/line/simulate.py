@@ -138,6 +138,7 @@ def build_guide_deliveries(plan_file: str | Path, content_dir: str | Path, *,
     for si, sg in enumerate(doc["signs"]):
         text(sg["name"])
         image(sg["overview"])
+        tap(m="skip")  # 寸法の実測の最初の問い(台帳に寸法が無い看板)。測る台本は次のコミットで足す
         for pi, (part, items) in enumerate(PARTS):
             spec = sg["parts"][pi]
             photos = spec.get("photos", [])

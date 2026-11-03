@@ -88,3 +88,10 @@ class LedgerSink:
         if new is not None and new != old:
             self.ledger.add_correction(s.id, key, old, new, BY)
 
+
+    # 寸法の実測(次のコミットで台帳に書く)
+    def known_size(self, user_id: str, st: GuideState) -> dict | None:
+        return None
+
+    def measure(self, user_id: str, st: GuideState) -> None:
+        pass
