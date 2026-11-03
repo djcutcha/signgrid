@@ -214,9 +214,11 @@ def latest_sketches(rows: list[dict]) -> dict[tuple[str, int], dict]:
 
 def merge_sign(pages: list[dict]) -> dict:
     """同じ看板のスケッチ頁(複数あり得る)を 1 つにする。寸法・取付方法は、自信の高い頁の読めた値を優先(頁ごとに null でない最初の値)。
-    スケッチでない頁(is_sketch が偽)は寸法に使わない。"""
+    スケッチでない頁(is_sketch が偽)は寸法に使わない。pages は図面として見せる頁(スケッチ、または印刷案を貼った頁)で、
+    表の頁・白紙は入れない。"""
     use = sorted((p for p in pages if p.get("is_sketch", True)), key=lambda p: -(p.get("confidence") or 0))
-    out: dict = {"pages": [p["page"] for p in sorted(pages, key=lambda p: p["page"])]}
+    out: dict = {"pages": [{"pdf": p["pdf"], "page": p["page"]} for p in sorted(pages, key=lambda p: p["page"])
+                           if p.get("is_sketch", True) or p.get("printed")]}
     for k in ("w_mm", "h_mm", "d_mm", "post", "display_text"):
         out[k] = next((p[k] for p in use if p.get(k)), None)
     gl = next((p for p in use if p.get("gl_mm")), None)
