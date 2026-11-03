@@ -65,7 +65,10 @@ class Rec:
         step = 30 if px > 0 else -30
         t = time.time()
         for _ in range(abs(px) // 30):
-            p.mouse.wheel(0, step)
+            if self.shots:  # 連写(SP)では wheel の滑らか移動が固定ヘッダを1フレーム遅らせるので、即時に動かす
+                p.evaluate("s => window.scrollBy({top: s, behavior: 'instant'})", step)
+            else:
+                p.mouse.wheel(0, step)
             t += 0.1
             self.hold_until(t)
 
@@ -100,6 +103,7 @@ VIDEO_NOTE_JS = """
     + 'color:#666;background:rgba(255,255,255,.75);padding:1px 4px;border-radius:3px;z-index:9999;pointer-events:none}';
   const add = () => {
     document.head.appendChild(css);
+    if (window.top !== window) return;  // 注記は親の画面だけ(地図の iframe にも付くと右下で2重になる)
     const d = document.createElement('div'); d.id = 'kk-video-note';
     d.textContent = 'データは生成したサンプルデータです。'; document.body.appendChild(d);
   };
@@ -120,6 +124,8 @@ class Shots:
 
     def snap(self):
         f = self.dir / f"f{len(self.frames):05d}.jpg"
+        # 描画を2フレーム待ってから撮る(固定ヘッダ(position:sticky)が1フレーム遅れて上に灰色の帯が写るのを防ぐ)
+        self.page.evaluate("() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")
         self.page.screenshot(path=str(f), type="jpeg", quality=92)
         self.frames.append((time.time(), f))
 
@@ -270,8 +276,9 @@ def s04(r: Rec, db, st):
     p.click(".gov-capture button:has-text('送る')")
     p.wait_for_selector(".gov-done", timeout=20000)
     p.locator(".gov-done").scroll_into_view_if_needed(); r.hold(2)
-    r.scroll(300); r.hold(1)
-    p.locator(".gov-map iframe").scroll_into_view_if_needed()
+    # 件数タイル(#gov-results)の上端を固定ヘッダの直下に揃える位置までゆっくり下へ(「登録 N / 時刻」の行がヘッダに半分隠れないように)
+    delta = p.evaluate("Math.round(document.getElementById('gov-results').getBoundingClientRect().top - document.querySelector('.topbar').offsetHeight - 8)")
+    r.scroll(delta // 30 * 30)
     p.frame_locator(".gov-map iframe").locator(".leaflet-tile-loaded").first.wait_for(timeout=15000)
     r.hold(5)
     r.hold(1)
