@@ -226,7 +226,7 @@ CREATE TABLE IF NOT EXISTS gov_batches (
     n_nogps     INTEGER NOT NULL DEFAULT 0,
     n_skipped   INTEGER NOT NULL DEFAULT 0,   -- 取り込み済み(同じ内容)で飛ばした枚数
     n_unreadable INTEGER NOT NULL DEFAULT 0,
-    created     TEXT NOT NULL DEFAULT (datetime('now'))
+    created     TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE TABLE IF NOT EXISTS gov_candidates (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,

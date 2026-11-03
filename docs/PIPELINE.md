@@ -84,7 +84,7 @@ python3 -m kanban_karte.pipeline.cli review   --sign <看板ID> --item <項目�
 python3 -m kanban_karte.pipeline.cli finalize --sign <看板ID> --by <有資格者>
 python3 -m kanban_karte.pipeline.cli changed  [--bundle <束ID>]
 ```
-台帳は `--db`(既定 data/private/ledger.sqlite、環境変数 KANBAN_KARTE_DB)。台帳の版は 2(signs に status / draft_rank / confidence / evidence / confirmed_at / confirmed_by、corrections 表を追加。古い台帳は開くと自動で上がる)。
+台帳は `--db`(既定 data/private/ledger.sqlite、環境変数 KANBAN_KARTE_DB)。台帳の版は 3(signs に status / draft_rank / confidence / evidence / confirmed_at / confirmed_by、corrections 表を追加。版3で時刻列(created / updated / approved_at)を UTC から現地の壁時計(タイムゾーン無し)に統一し、古い台帳は開く時に1回だけ UTC オフセット分ずらす。古い台帳は開くと自動で上がる)。
 
 ## 5. 試走(実 API、例示側の実写真 3基)
 

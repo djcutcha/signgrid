@@ -8,11 +8,16 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import dataclass, field, fields
+from datetime import datetime
 from pathlib import Path
 
 from .items import validate_items
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
+# v3: 時刻列を現地の壁時計に統一。版2以前は SQLite の既定(UTC)で入っていた列。Python 側で書く列(confirmed_at / size_at)は元から現地時刻なので含めない
+_UTC_TIME_COLS = (("sites", "created"), ("bundles", "created"), ("signs", "created"), ("signs", "updated"),
+                  ("rules", "created"), ("rules", "approved_at"), ("corrections", "created"),
+                  ("gov_batches", "created"))  # gov_batches は gov/batch_intake.py が同じ SQLite に足す表(あれば)
 SCHEMA_SQL = Path(__file__).with_name("schema.sql")
 SIGN_STATUSES = ("new", "needs_photos", "draft", "confirmed")
 RULE_STATUSES = ("candidate", "approved", "rejected")
@@ -159,8 +164,23 @@ class Ledger:
                          ("approved_by", "TEXT"), ("approved_at", "TEXT"), ("resolution", "TEXT"), ("structured", "TEXT")):
             if col not in rule_cols:
                 self.conn.execute(f"ALTER TABLE rules ADD COLUMN {col} {ddl}")
+        if ver < 3:
+            self._shift_utc_to_local()
         self.conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         self.conn.commit()
+
+    def _shift_utc_to_local(self) -> None:
+        """UTC で入っていた時刻列を、ホストの現在の UTC オフセット分ずらす(版3への移行で1回だけ)。
+        新規の台帳(版0)は空なので、ずらしても何も動かない。"""
+        off = datetime.now().astimezone().utcoffset()
+        secs = int(off.total_seconds()) if off else 0
+        if secs == 0:
+            return
+        tables = {r[0] for r in self.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        for table, col in _UTC_TIME_COLS:
+            if table in tables:
+                self.conn.execute(f"UPDATE {table} SET {col} = datetime({col}, ?) WHERE {col} IS NOT NULL",
+                                  (f"{secs:+d} seconds",))
 
     # ---- 現場 ----
     def upsert_site(self, s: Site) -> None:
@@ -189,7 +209,7 @@ class Ledger:
         sets = ", ".join(f"{c}=excluded.{c}" for c in _SIGN_COLS if c != "id")
         self.conn.execute(
             f"INSERT INTO signs({cols}) VALUES ({marks}) ON CONFLICT(id) DO UPDATE SET {sets}, "
-            f"updated=datetime('now')", [vals[c] for c in _SIGN_COLS])
+            f"updated=datetime('now','localtime')", [vals[c] for c in _SIGN_COLS])
         self.conn.commit()
 
     @staticmethod
@@ -331,7 +351,7 @@ class Ledger:
         if status not in RULE_STATUSES:
             raise ValueError(f"規則の status は {RULE_STATUSES} のどれか: {status!r}")
         self.conn.execute(
-            "UPDATE rules SET status=?, approved_by=?, approved_at=datetime('now'), resolution=COALESCE(?, resolution) "
+            "UPDATE rules SET status=?, approved_by=?, approved_at=datetime('now','localtime'), resolution=COALESCE(?, resolution) "
             "WHERE id=?", (status, by, resolution, rule_id))
         if commit:
             self.conn.commit()
