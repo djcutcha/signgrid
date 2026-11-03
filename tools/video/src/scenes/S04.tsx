@@ -1,28 +1,27 @@
 import React from 'react';
-import {useCurrentFrame} from 'remotion';
-import {TimelineItem} from '../data/scenes';
-import {CalloutColumn, Frame, Pic, SceneShell, fadeIn} from '../ui';
+import {TItem, cue} from '../data/timeline';
+import {C} from '../theme';
+import {Fill, Shell, Word, clamp01, eo, useSec} from '../lib';
 
-const L = [
-  {src: 'img/karte-pc.png', label: '現場の記録'},
-  {src: 'img/guide-measure-pc.png', label: '看板の寸法'},
-  {src: 'img/rules-pc.png', label: '場所の規制'},
-];
-export const S04: React.FC<{t: TimelineItem}> = ({t}) => {
-  const f = useCurrentFrame();
+export const hitSec = (t: TItem) => cue(t, 'SignGrid', 0.3, 0.05);
+
+export const S04: React.FC<{t: TItem}> = ({t}) => {
+  const s = useSec();
+  const h = hitSec(t);
+  const p = clamp01((s - h) / 0.35);
+  const pop = 1.1 - 0.1 * eo(p);
+  const ring = clamp01((s - h) / 0.8);
+  const line = eo(clamp01((s - (h - 0.5)) / 0.45)) * (1 - p);
+  const drift = 1 + 0.04 * clamp01((s - h) / 3);
   return (
-    <SceneShell t={t}>
-      {L.map((l, i) => {
-        const o = fadeIn(f, 8 + i * Math.round(t.frames * 0.22));
-        return (
-          <div key={i} style={{transform: `translateY(${(1 - o) * 30}px)`}}>
-            <Frame x={80 + i * 230} y={110 + i * 120} w={800} h={450} o={o} label={l.label}>
-              <Pic src={l.src} style={{width: '100%'}} />
-            </Frame>
-          </div>
-        );
-      })}
-      <CalloutColumn items={t.def.callouts} />
-    </SceneShell>
+    <Shell t={t} bg="#000" fadeIn={false}>
+      <Fill style={{background: `radial-gradient(900px 500px at 50% 50%, rgba(59,130,246,${0.28 * eo(p)}), rgba(0,0,0,0) 70%)`}} />
+      <div style={{position: 'absolute', left: 960 - 400 * line, width: 800 * line, top: 538, height: 4, background: C.accent, opacity: 1 - p}} />
+      {s >= h && <div style={{position: 'absolute', left: 960 - 80 - 700 * ring, top: 540 - 80 - 700 * ring, width: 160 + 1400 * ring, height: 160 + 1400 * ring, borderRadius: '50%', border: `4px solid rgba(59,130,246,${0.7 * (1 - ring)})`}} />}
+      <Fill style={{opacity: p, transform: `scale(${pop * drift})`}}>
+        <div style={{position: 'absolute', left: 0, width: 1920, top: 400, textAlign: 'center', fontSize: 160, fontWeight: 800, color: '#fff', letterSpacing: 2}}>SignGrid 看板カルテ</div>
+      </Fill>
+      <Word at={h + 0.5} style={{left: 0, width: 1920, top: 640, textAlign: 'center', fontSize: 44, fontWeight: 700, color: C.sub}}>写真と点検票から、看板ごとのカルテ</Word>
+    </Shell>
   );
 };
