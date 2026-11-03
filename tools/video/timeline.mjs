@@ -14,8 +14,8 @@ for (const id of ids) {
 for (const o of out) console.log(`${o.id}\t開始${o.start.toFixed(2)}s\t${o.sec.toFixed(2)}s\t(声${o.narr})`);
 console.log(`合計 ${(t0 / 30).toFixed(2)}s`);
 if (process.argv[2] === 'cut') {
-  fs.mkdirSync('../../runs/video_v2/frames', {recursive: true});
+  fs.mkdirSync(`../../runs/video_v2/frames${process.env.OUT_NAME ? '_' + process.env.OUT_NAME : ''}`, {recursive: true});
   for (const o of out) for (const p of [25, 50, 75]) {
-    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-ss', String(o.start + (o.sec * p) / 100), '-i', '../../runs/video_v2/signgrid_v2.mp4', '-frames:v', '1', `../../runs/video_v2/frames/${o.id}_${p}.png`]);
+    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-ss', String(o.start + (o.sec * p) / 100), '-i', `../../runs/video_v2/${process.env.OUT_NAME || 'signgrid_v2'}.mp4`, '-frames:v', '1', `../../runs/video_v2/frames${process.env.OUT_NAME ? '_' + process.env.OUT_NAME : ''}/${o.id}_${p}.png`]);
   }
 }
