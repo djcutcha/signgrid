@@ -117,6 +117,10 @@ def make_handler(app: App):
             try:
                 if path == "/" or path == "/index.html":
                     return self._file(STATIC / "index.html", "text/html; charset=utf-8")
+                if path in ("/gov", "/owner"):  # 末尾スラッシュ無しは入口へ転送(クエリは引き継ぐ)
+                    return self._send(308, b"", "text/plain", {"Location": path + "/" + (f"?{url.query}" if url.query else "")})
+                if path in ("/gov/", "/owner/"):
+                    return self._file(STATIC / (path.strip("/") + ".html"), "text/html; charset=utf-8")
                 if path.startswith("/static/"):
                     p = (STATIC / path[len("/static/"):]).resolve()
                     if not p.is_relative_to(STATIC.resolve()) or not p.is_file():
