@@ -92,6 +92,24 @@ def to_mp4(webm: Path, mp4: Path, ss: float) -> float:
     return probe_duration(mp4)
 
 
+VIDEO_NOTE_JS = """
+(() => {
+  const css = document.createElement('style');
+  css.textContent = '#sample-badge{display:none !important}'
+    + ' #kk-video-note{position:fixed;right:6px;bottom:4px;font:10px/1.2 "Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif;'
+    + 'color:#666;background:rgba(255,255,255,.75);padding:1px 4px;border-radius:3px;z-index:9999;pointer-events:none}';
+  const add = () => {
+    document.head.appendChild(css);
+    const d = document.createElement('div'); d.id = 'kk-video-note';
+    d.textContent = 'データは生成したサンプルデータです。'; document.body.appendChild(d);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', add); else add();
+})();
+"""
+# 動画の画面では「見本データ」の帯を出さず、右下に極小の注記だけ出す(Cutcha 2026-11-03 16:10「見本データ ではなくて、
+# データは生成したサンプルデータです。のように極小で出す」)。帯は見本の台帳で出る正しい表示なので、隠すのはこの録画だけ。
+
+
 class Shots:
     """device_scale_factor=2 の実画素(780×1688)を page.screenshot の連続撮りで取る。
     Playwright の録画は 2倍にしても CSS サイズのまま左上に描くだけ、CDP の screencast も CSS サイズのフレームしか出さないため。
@@ -146,6 +164,7 @@ def clip(browser, name: str, vp: dict, body, out: Path, port: int, pre=None) -> 
             else:
                 ctx = browser.new_context(**ctx_args, record_video_dir=str(td / "v"), record_video_size=vp)
             page = ctx.new_page()
+            page.add_init_script(VIDEO_NOTE_JS)  # 動画用: 「見本データ」帯を隠し、極小の注記を右下に(Cutcha 2026-11-03 16:10)
             rec = Rec(page, base, vp)
             if hi:
                 (td / "f").mkdir()
