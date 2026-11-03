@@ -5,9 +5,16 @@ import {CalloutDef, TimelineItem, NARR_OFFSET, splitCaptions} from './data/scene
 
 // 日本語を語のまとまりで折り返す(語の途中で改行しない)
 const seg = new Intl.Segmenter('ja', {granularity: 'word'});
-export const J: React.FC<{children: string}> = ({children}) => (
-  <>{Array.from(seg.segment(children)).map((x, i) => <span key={i} style={{display: 'inline-block', whiteSpace: 'pre'}}>{x.segment}</span>)}</>
-);
+export const J: React.FC<{children: string}> = ({children}) => {
+  const parts: string[] = [];
+  for (const x of seg.segment(children)) {
+    const prev = parts[parts.length - 1];
+    // 数字・英字の直後の語(2021|年, 80|時間)や英字どうし(D/C/B/A)は切らない
+    if (prev !== undefined && (/[0-9A-Za-z%.,/+$]$/.test(prev) && /^[^\s、。()]/.test(x.segment) && !/^[ ]/.test(x.segment))) parts[parts.length - 1] = prev + x.segment;
+    else parts.push(x.segment);
+  }
+  return <>{parts.map((t, i) => <span key={i} style={{display: 'inline-block', whiteSpace: 'pre'}}>{t}</span>)}</>;
+};
 
 export const useSec = () => useCurrentFrame() / FPS;
 

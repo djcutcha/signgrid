@@ -6,7 +6,7 @@ import {Card, Clip, Frame, SceneShell} from '../ui';
 
 export const S06b: React.FC<{t: TimelineItem}> = ({t}) => {
   const f = useCurrentFrame();
-  const span = t.frames - 40;
+  const span = Math.round(((t.narr?.duration ?? 10) + 0.3) * 30) - 20;
   const idx = Math.min(5, Math.max(0, Math.floor(((f - 20) / span) * 6)));
   return (
     <SceneShell t={t}>

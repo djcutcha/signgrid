@@ -12,7 +12,7 @@ const Big: React.FC<{x: number; at: number; k: string; n1: string; l1: string; n
       <div style={{fontSize: 30, color: C.sub, marginBottom: 40}}>{k}</div>
       <div style={{fontSize: n1.length > 4 ? 100 : 130, fontWeight: 800, lineHeight: 1}}>{n1}</div>
       <div style={{fontSize: 36, marginBottom: 50, marginTop: 8}}>{l1}</div>
-      <div style={{fontSize: n2.length > 5 ? 84 : 130, fontWeight: 800, lineHeight: 1, color: '#f87171'}}>{n2}</div>
+      <div style={{fontSize: n2.length > 4 ? 84 : 130, fontWeight: 800, lineHeight: 1, color: '#f87171'}}>{n2}</div>
       <div style={{fontSize: 36, marginTop: 8}}>{l2}</div>
     </div>
   );
