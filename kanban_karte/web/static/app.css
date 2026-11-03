@@ -324,3 +324,6 @@ dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
 .clarify-q{font-size:15px;font-weight:600;margin:4px 0 8px}
 .clarify input{width:100%;box-sizing:border-box}
 @media (max-width:760px){ .clarify input{font-size:16px} }
+
+/* 入口の副題(行政・オーナー入口のブランドの横) */
+.entry-sub{font-size:13px}

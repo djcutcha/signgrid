@@ -127,11 +127,22 @@ KK.lightbox = (function () {
 KK.ROUTES = {
   intake: ["intake", "intake"], sign: ["karte", "ledger"], gov: ["gov", "gov"], owner: ["owner", "owner"], rules: ["rules", "rules"],
 };
+// 入口(<body data-entry>)ごとに描けるルート。許可外のハッシュは入口の画面に戻す。社内で #/gov #/owner が来たら各入口へ転送
+KK.ENTRY = document.body.dataset.entry || "internal";
+KK.ENTRIES = { internal: ["ledger", "intake", "sign", "rules"], gov: ["gov"], owner: ["owner"] };
 KK.route = async function () {
   const [path, query] = location.hash.slice(1).split("?");
   const params = new URLSearchParams(query || "");
   const seg = (path || "/").split("/").filter(Boolean).map(decodeURIComponent);
+  if (KK.ENTRY === "internal" && (seg[0] === "gov" || seg[0] === "owner")) {
+    location.replace(`/${seg[0]}/${location.hash}`);
+    return;
+  }
   const [name, nav] = KK.ROUTES[seg[0]] || ["ledger", "ledger"];
+  if (!KK.ENTRIES[KK.ENTRY].includes(name === "karte" ? "sign" : name)) {
+    history.replaceState(null, "", `#/${KK.ENTRY}`);
+    return KK.route();
+  }
   document.querySelectorAll("[data-nav]").forEach((a) => {
     if (a.dataset.nav === nav) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
