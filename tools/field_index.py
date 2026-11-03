@@ -31,6 +31,7 @@ from PIL import Image  # noqa: E402
 from kanban_karte.eval import dataset  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import field_sketch as fsk  # noqa: E402
 import field_transcribe as ft  # noqa: E402
 
 SITE = "site1"
@@ -38,7 +39,9 @@ LETTER_RANK = {"D": 1, "C": 2, "B": 3, "A": 4}
 CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚"
 ITEM_COLS = ["site", "sign_name", "photo_files", "item_judgments", "overall_rank_normalized", "sign_rank_raw",
              "sign_rank_normalized", "inspection_date", "photo_items_confidence", "overall_rank_raw",
-             "key", "folder", "pages", "sheet_sign_name", "size", "paper_files", "note"]
+             "key", "folder", "pages", "sheet_sign_name", "size", "paper_files", "note",
+             "sketch_pages", "sketch_w_mm", "sketch_h_mm", "sketch_gl_mm", "sketch_gl_edge", "post", "mount",
+             "sketch_confidence"]
 INDEX_COLS = ["key", "status", "folder", "n_photos", "n_paper", "pages", "note"]
 
 # 紙の写真の画素規則(縮小 320px): 地が白く(min チャンネル > 200 の割合が高い)、色味がほぼ無く、文字・罫線の暗い画素がある
@@ -145,10 +148,23 @@ def size_of(pages: list[dict]) -> dict:
     return {}
 
 
+def sketch_cols(sk: dict | None) -> dict:
+    """items.tsv のスケッチの列。スケッチの無い看板は全部空。寸法の無い値も空(0 と区別する)。"""
+    if not sk or not sk["pages"]:
+        return {}
+    def v(x):
+        return "" if x is None else x
+    return {"sketch_pages": ";".join(f"{p['pdf']}:{p['page']}" for p in sk["pages"]),
+            "sketch_w_mm": v(sk["w_mm"]), "sketch_h_mm": v(sk["h_mm"]), "sketch_gl_mm": v(sk["gl_mm"]),
+            "sketch_gl_edge": sk["gl_edge"] if sk["gl_mm"] else "", "post": v(sk["post"]), "mount": sk["mount"],
+            "sketch_confidence": "" if sk["confidence"] is None else round(sk["confidence"], 2)}
+
+
 def build(base: Path) -> dict:
     raw, tdir = base / "raw", base / "transcribed"
     recs = ft.latest(ft.read_jsonl(tdir / "pages.jsonl"))
     by_key, unnumbered = group_pages(recs)
+    sketches = fsk.by_sign(ft.read_jsonl(tdir / "sketches.jsonl"))  # 看板キー -> スケッチの合成(tools/field_sketch.py)
     folders: dict[tuple[str, int], list[tuple[str, str]]] = {}  # key -> [(フォルダ名, 種別)]
     merged: list[tuple[str, tuple[str, int], tuple[str, int]]] = []
     odd: list[str] = []
@@ -223,12 +239,13 @@ def build(base: Path) -> dict:
             "photo_items_confidence": "", "overall_rank_raw": "", "key": k_s, "folder": folder, "pages": pg_s,
             "sheet_sign_name": next((p["rec"].get("sign_name") for p in pages if p["rec"].get("sign_name")), ""),
             "size": json.dumps(size_of(pages)), "paper_files": json.dumps([str(p.relative_to(base)) for p in paper], ensure_ascii=False),
-            "note": note,
+            "note": note, **sketch_cols(sketches.get(k_s)),
         })
     _write(base / "index.tsv", INDEX_COLS, index)
     _write(base / "items.tsv", ITEM_COLS, items)
     summary = {**stats, "signs_in_index": len(index), "items": len(items),
                "items_with_photos": sum(1 for i in items if json.loads(i["photo_files"])),
+               "items_with_sketch": sum(1 for i in items if i.get("sketch_pages")),
                "items_with_rank": sum(1 for i in items if i["overall_rank_normalized"] != ""),
                "rank_dist": {str(r): sum(1 for i in items if i["overall_rank_normalized"] == r) for r in (1, 2, 3, 4)},
                "unnumbered_pages": unnumbered, "odd_folders": odd,

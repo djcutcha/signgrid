@@ -200,7 +200,7 @@ def photo_grid(ws, data: SiteData, sign: Sign, *, first_row: int, ncols: int = 6
     """first_row から、2 列×3 段(最大 MAX_PHOTOS 枚)の写真枠を作って写真を埋め込む。
     返り値は注意文(省略した枚数、開けなかったファイル)。ncols 列が col_width の等幅であること。"""
     notes: list[str] = []
-    paths = list(sign.photos)
+    paths = data.ledger.split_photos(sign)[0]  # 図面(スケッチ)は載せない
     if len(paths) > MAX_PHOTOS:
         notes.append(f"写真は {len(paths)} 枚あり、先頭の {MAX_PHOTOS} 枚だけ載せています")
     paths = paths[:MAX_PHOTOS]
@@ -231,7 +231,7 @@ def photo_grid(ws, data: SiteData, sign: Sign, *, first_row: int, ncols: int = 6
             dw, dh = max(1, int(w * k)), max(1, int(h * k))
             _place(ws, XLImage(buf), c0 - 1, pic_r - 1, (box_w + 12 - dw) // 2, (box_h_px - dh) // 2, dw, dh)
         r += 2
-    if not sign.photos:
+    if not paths:
         notes.append("写真が未登録です")
     return notes
 

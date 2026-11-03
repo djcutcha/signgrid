@@ -96,10 +96,11 @@ KK.lightbox = (function () {
   const dlg = () => document.getElementById("lightbox");
   function show() {
     const p = list[i];
-    document.getElementById("lb-title").textContent = `写真 ${p.n} / ${list.length}`;
+    const what = p.figure ? "図面" : "写真", no = p.no ?? p.n;
+    document.getElementById("lb-title").textContent = `${what} ${no} / ${list.length}`;
     document.getElementById("lb-img").replaceChildren(p.url
-      ? KK.el("img", { src: p.url, alt: `写真 ${p.n}` })
-      : KK.el("div", { class: "ph", text: `写真 ${p.n}(画像なし)` }));
+      ? KK.el("img", { src: p.url, alt: `${what} ${no}` })
+      : KK.el("div", { class: "ph", text: `${what} ${no}(画像なし)` }));
   }
   function step(d) { i = (i + d + list.length) % list.length; show(); }
   return {

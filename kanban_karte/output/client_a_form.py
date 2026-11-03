@@ -190,7 +190,7 @@ def _list(ws, data: c.SiteData, sheet_names: list[str]):
         _grade_cell(ws, f"I{r}", sign_grade(s))
         c.put(ws, f"J{r}", _diff(s), align=c.CENTER)
         c.put(ws, f"K{r}", s.remark or None)
-        c.put(ws, f"L{r}", min(len(s.photos), c.MAX_PHOTOS), align=c.CENTER)
+        c.put(ws, f"L{r}", min(len(data.ledger.split_photos(s)[0]), c.MAX_PHOTOS), align=c.CENTER)
         n_un = len(c.unjudged_item_keys(s))
         if n_un:
             c.put(ws, f"M{r}", f"{n_un} / 18", font=c.F_UNJUDGED, align=c.CENTER)

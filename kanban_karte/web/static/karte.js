@@ -5,14 +5,29 @@
   const { el } = KK;
   const BY_KEY = "kk_by";
 
+  // 写真(看板を撮った物)と図面(職人の手描きスケッチ・印刷案の頁)は別の枠。番号 n は看板の画像の並びの位置で、図面は写真の後ろに付く
   function photosCard(d, hit) {
-    const tiles = d.photos.map((p) => el("button", {
+    const photos = d.photos.filter((p) => !p.figure);
+    const tiles = photos.map((p) => el("button", {
       type: "button", class: "photo" + (hit.has(p.n) ? " hit" : ""), "aria-label": `写真 ${p.n} を拡大`,
-      onclick: () => KK.lightbox.open(d.photos, p.n),
+      onclick: () => KK.lightbox.open(photos, p.n),
     }, p.url ? el("img", { src: p.url, alt: `写真 ${p.n}`, loading: "lazy" }) : el("div", { class: "ph", text: "画像なし" }),
       el("span", { class: "no", text: String(p.n) })));
-    return el("section", { class: "card" }, el("h2", { text: `写真 ${d.photos.length} 枚` }),
+    return el("section", { class: "card" }, el("h2", { text: `写真 ${photos.length} 枚` }),
       tiles.length ? el("div", { class: "photos" }, tiles) : el("p", { class: "notice warn", text: "写真がありません。下書きは作れません。" }));
+  }
+
+  // 図面: 点検票の次頁にある手描きスケッチ(寸法・取付方法)。下書きの入力には使わない
+  function figuresCard(d) {
+    const figs = d.photos.filter((p) => p.figure).map((p, i) => ({ ...p, no: i + 1 }));
+    if (!figs.length) return null;
+    const tiles = figs.map((p) => el("button", {
+      type: "button", class: "photo figure", "aria-label": `図面 ${p.no} を拡大`, onclick: () => KK.lightbox.open(figs, p.n),
+    }, p.url ? el("img", { src: p.url, alt: `図面 ${p.no}`, loading: "lazy" }) : el("div", { class: "ph", text: "画像なし" }),
+      el("span", { class: "no", text: String(p.no) })));
+    return el("section", { class: "card figures" }, el("h2", { text: `図面 ${figs.length} 枚` }),
+      el("p", { class: "sub", text: "職人の手描きスケッチ(寸法・取付方法)。AI の下書きには使っていません。" }),
+      el("div", { class: "photos" }, tiles));
   }
 
   // 根拠の文。「写真3」の語は押せる(その写真を拡大)
@@ -20,7 +35,7 @@
     if (!ev || !ev.text) return null;
     const parts = ev.text.split(/(写真\s*\d+)/).map((t) => {
       const m = /^写真\s*(\d+)$/.exec(t);
-      return m ? el("button", { type: "button", class: "link", onclick: (e) => { e.stopPropagation(); KK.lightbox.open(d.photos, +m[1]); } }, t) : t;
+      return m ? el("button", { type: "button", class: "link", onclick: (e) => { e.stopPropagation(); KK.lightbox.open(d.photos.filter((q) => !q.figure), +m[1]); } }, t) : t;
     });
     return el("div", { class: "evidence" }, el("span", { class: "k", text: "根拠 " }), parts,
       ev.photos.length ? el("span", { class: "sub", text: ` (写真 ${ev.photos.join("・")})` }) : null);
@@ -244,7 +259,7 @@
         el("p", { class: "crumb" }, el("a", { href: back, text: "← 台帳に戻る" })),
         state.flash ? el("p", { class: "notice", role: "status", text: state.flash }) : null,
         el("div", { class: "karte" },
-          el("div", { class: "main-col" }, summaryCard(d), clarifyCard(d, state, render), photosCard(d, hit), itemsCard(d, state, render)),
+          el("div", { class: "main-col" }, summaryCard(d), clarifyCard(d, state, render), photosCard(d, hit), figuresCard(d), itemsCard(d, state, render)),
           el("div", { class: "side-col" }, signCard(d, state, render), historyCard(d), legalCard(d, state, render))));
       window.scrollTo(0, y);
     };
