@@ -2,6 +2,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from kanban_karte.ledger import Ledger, Sign, Site
@@ -17,7 +18,7 @@ class SchemaTest(unittest.TestCase):
             with Ledger(p) as lg:
                 names = {r[0] for r in lg.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
                 self.assertTrue({"sites", "signs", "bundles", "pages", "rules"} <= names)
-                self.assertEqual(lg.conn.execute("PRAGMA user_version").fetchone()[0], 2)
+                self.assertEqual(lg.conn.execute("PRAGMA user_version").fetchone()[0], 3)
                 lg.upsert_site(Site("s1", "テスト店"))
             with Ledger(p) as lg:  # 開き直しても壊れない・データが残る
                 self.assertEqual(lg.get_site("s1").name, "テスト店")
@@ -178,3 +179,76 @@ class RecentRulesTest(unittest.TestCase):
             self.assertEqual(lg.recent_rules(3), ["r22", "r23", "r24"])
             self.assertEqual(len(lg.recent_rules()), 20)
             self.assertEqual(lg.recent_rules()[0], "r5")
+
+
+def _parse(t):
+    return datetime.strptime(t, "%Y-%m-%d %H:%M:%S")
+
+
+class LocalTimeTest(unittest.TestCase):
+    """台帳の時刻は現地の壁時計(タイムゾーン無し)。版2以前の UTC の台帳は、開く時に1回だけずらす。"""
+
+    def _old_ledger(self, d):
+        p = Path(d) / "l.sqlite"
+        Ledger(p).close()
+        c = sqlite3.connect(p)  # 版2の台帳を再現: UTC の時刻を入れ、版を2に戻す
+        c.execute("INSERT INTO sites(id, name, created) VALUES ('s', 'x', '2026-11-02 17:38:52')")
+        c.execute("INSERT INTO signs(id, site_id, created, updated, confirmed_at, size_at) "
+                  "VALUES ('g', 's', '2026-11-02 17:38:52', '2026-11-02 18:00:00', '2026-11-03T02:40:00', '2026-11-03')")
+        c.execute("INSERT INTO rules(text, created, approved_at) VALUES ('r', '2026-11-02 17:38:52', '2026-11-02 18:00:00')")
+        c.execute("INSERT INTO rules(text, created) VALUES ('r2', '2026-11-02 17:38:52')")  # approved_at は NULL のまま
+        c.execute("INSERT INTO corrections(sign_id, item, new_value, corrected_by, created) "
+                  "VALUES ('g', 'i', 'v', 'u', '2026-11-02 17:38:52')")
+        c.execute("PRAGMA user_version = 2")
+        c.commit()
+        c.close()
+        return p
+
+    def test_new_rows_are_local(self):
+        with Ledger() as lg:
+            lg.upsert_site(Site("s1", "x"))
+            lg.add_rule("r")
+            t = _parse(lg.conn.execute("SELECT created FROM sites").fetchone()[0])
+            self.assertLess(abs(datetime.now() - t), timedelta(minutes=2))
+            t = _parse(lg.conn.execute("SELECT created FROM rules").fetchone()[0])
+            self.assertLess(abs(datetime.now() - t), timedelta(minutes=2))
+
+    def test_v2_ledger_is_shifted_once(self):
+        off = datetime.now().astimezone().utcoffset()
+        with tempfile.TemporaryDirectory() as d:
+            p = self._old_ledger(d)
+            for _ in range(2):  # 2回開いても、ずれるのは1回だけ
+                with Ledger(p) as lg:
+                    q = lambda sql: lg.conn.execute(sql).fetchone()[0]
+                    want = _parse("2026-11-02 17:38:52") + off
+                    self.assertEqual(_parse(q("SELECT created FROM sites")), want)
+                    self.assertEqual(_parse(q("SELECT created FROM signs")), want)
+                    self.assertEqual(_parse(q("SELECT updated FROM signs")), _parse("2026-11-02 18:00:00") + off)
+                    self.assertEqual(_parse(q("SELECT created FROM corrections")), want)
+                    self.assertEqual(_parse(q("SELECT created FROM rules WHERE text='r'")), want)
+                    self.assertEqual(_parse(q("SELECT approved_at FROM rules WHERE text='r'")), _parse("2026-11-02 18:00:00") + off)
+                    self.assertIsNone(q("SELECT approved_at FROM rules WHERE text='r2'"))
+                    # Python 側が現地時刻で書いていた列はずらさない
+                    self.assertEqual(q("SELECT confirmed_at FROM signs"), "2026-11-03T02:40:00")
+                    self.assertEqual(q("SELECT size_at FROM signs"), "2026-11-03")
+                    self.assertEqual(q("PRAGMA user_version"), 3)
+
+    def test_gov_batches_shifted_too(self):
+        from kanban_karte.gov.batch_intake import ensure_gov_schema
+        off = datetime.now().astimezone().utcoffset()
+        with tempfile.TemporaryDirectory() as d:
+            p = self._old_ledger(d)
+            c = sqlite3.connect(p)
+            ensure_gov_schema(c)
+            c.execute("INSERT INTO gov_batches(dir, created) VALUES ('/x', '2026-11-02 17:38:52')")
+            c.commit()
+            c.close()
+            for _ in range(2):
+                with Ledger(p) as lg:
+                    got = lg.conn.execute("SELECT created FROM gov_batches").fetchone()[0]
+                    self.assertEqual(_parse(got), _parse("2026-11-02 17:38:52") + off)
+            with Ledger(p) as lg:
+                ensure_gov_schema(lg.conn)
+                lg.conn.execute("INSERT INTO gov_batches(dir) VALUES ('/y')")
+                t = _parse(lg.conn.execute("SELECT created FROM gov_batches WHERE dir='/y'").fetchone()[0])
+                self.assertLess(abs(datetime.now() - t), timedelta(minutes=2))

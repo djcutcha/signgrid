@@ -1,4 +1,5 @@
 -- 看板カルテの台帳(SQLite)。看板1基=1行(signs)が製品の芯。
+-- 時刻列(created / updated / approved_at)は現地の壁時計・タイムゾーン無し。版3より前の台帳(UTC)は db.py がずらす。
 -- マイグレーションはこの1本。全て IF NOT EXISTS で、何度流しても同じ。版は PRAGMA user_version(db.py が管理)。
 
 -- 現場(店・施設)。看板の置き場所
@@ -9,7 +10,7 @@ CREATE TABLE IF NOT EXISTS sites (
     lat           REAL,
     lng           REAL,
     municipality  TEXT,                 -- 住所から引いた自治体名(legal/ の Municipality 判定)
-    created       TEXT NOT NULL DEFAULT (datetime('now'))
+    created       TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
 -- 入口2の束(紙のスキャン PDF 1本)
@@ -23,7 +24,7 @@ CREATE TABLE IF NOT EXISTS bundles (
                   CHECK (status IN ('new', 'pages_registered', 'classified', 'signs_drafted', 'error')),
     error         TEXT,
     site_id       TEXT REFERENCES sites(id),  -- 束の現場(LINE 入口: 位置・案件の選択で決まる。ALTER 済みの古い台帳は db.py が足す)
-    created       TEXT NOT NULL DEFAULT (datetime('now'))
+    created       TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
 -- 束のページ
@@ -88,8 +89,8 @@ CREATE TABLE IF NOT EXISTS signs (
     gl_edge       TEXT CHECK (gl_edge IN ('bottom', 'top')),  -- bottom=看板の下端まで(ガイドは bottom で固定)/ top=上端まで
     mount         TEXT,                 -- 取付方法(ビス / バンセン / 吊り / 接着 / その他)。分からないは NULL
     post          TEXT,                 -- 支柱(例 □50)。無しは '無し'
-    created       TEXT NOT NULL DEFAULT (datetime('now')),
-    updated       TEXT NOT NULL DEFAULT (datetime('now'))
+    created       TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    updated       TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_signs_site ON signs(site_id);
 CREATE INDEX IF NOT EXISTS idx_signs_bundle ON signs(source_bundle);
@@ -100,7 +101,7 @@ CREATE TABLE IF NOT EXISTS rules (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     text          TEXT NOT NULL,
     source        TEXT,                 -- 由来(どの看板・どの訂正か)
-    created       TEXT NOT NULL DEFAULT (datetime('now')),
+    created       TEXT NOT NULL DEFAULT (datetime('now','localtime')),
     conflicts_with TEXT NOT NULL DEFAULT '[]',  -- JSON [矛盾する規則の id, ...]
     -- 承認の工程: 下書きに効くのは approved だけ(candidate は積まれただけ、rejected は却下)。古い台帳には db.py が足す
     status        TEXT NOT NULL DEFAULT 'candidate' CHECK (status IN ('candidate', 'approved', 'rejected')),
@@ -123,6 +124,6 @@ CREATE TABLE IF NOT EXISTS corrections (
     corrected_by  TEXT NOT NULL,        -- 有資格者の呼び名(個人名は台帳の外の運用で決める)
     note          TEXT,                 -- 訂正の理由・所見(自由記述)
     rule_id       INTEGER REFERENCES rules(id),  -- この訂正から積んだ規則(積まなかった訂正は NULL)
-    created       TEXT NOT NULL DEFAULT (datetime('now'))
+    created       TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_corrections_sign ON corrections(sign_id);
