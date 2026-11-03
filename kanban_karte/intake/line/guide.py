@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Callable, Protocol
 from urllib.parse import urlencode
 
+from ...ledger.db import MEASURE_TAG
 from ...ledger.items import _ITEMS
 from . import measure as M
 from .session import safe_name
@@ -35,7 +36,6 @@ COMMANDS = (CMD_BACK, CMD_SKIP, CMD_QUIT)
 MAX_PART_PHOTOS = 3
 MAX_MEASURE_PHOTOS = 2
 MEASURE_SUBS = ("ask", "w", "h", "gl", "mount", "post", "photo")  # 実測工程の中の順
-MEASURE_TAG = "実測"
 CONFIRM_WORDS = ("はい", "ok", "OK", "合ってます", "合っています")
 SEEN_MAX = 20
 
