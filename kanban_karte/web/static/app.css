@@ -330,3 +330,8 @@ dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
 /* 入口の副題(行政・オーナー入口のブランドの横) */
 .entry-sub{font-size:13px}
 .figures .photos{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+
+/* 寸法の枠: 出どころのバッジと巻尺の写真 */
+.size-card h2 .size-src{margin-left:6px;font-size:11.5px}
+.size-card .photos{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));margin-top:8px}
+.sum-top .size-src{margin-left:2px}

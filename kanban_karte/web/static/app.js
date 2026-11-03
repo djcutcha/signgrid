@@ -96,7 +96,7 @@ KK.lightbox = (function () {
   const dlg = () => document.getElementById("lightbox");
   function show() {
     const p = list[i];
-    const what = p.figure ? "図面" : "写真", no = p.no ?? p.n;
+    const what = p.figure ? "図面" : p.measure ? "実測写真" : "写真", no = p.no ?? p.n;
     document.getElementById("lb-title").textContent = `${what} ${no} / ${list.length}`;
     document.getElementById("lb-img").replaceChildren(p.url
       ? KK.el("img", { src: p.url, alt: `${what} ${no}` })

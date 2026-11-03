@@ -7,7 +7,7 @@
 
   // 写真(看板を撮った物)と図面(職人の手描きスケッチ・印刷案の頁)は別の枠。番号 n は看板の画像の並びの位置で、図面は写真の後ろに付く
   function photosCard(d, hit) {
-    const photos = d.photos.filter((p) => !p.figure);
+    const photos = d.photos.filter((p) => !p.figure && !p.measure);
     const tiles = photos.map((p) => el("button", {
       type: "button", class: "photo" + (hit.has(p.n) ? " hit" : ""), "aria-label": `写真 ${p.n} を拡大`,
       onclick: () => KK.lightbox.open(photos, p.n),
@@ -30,12 +30,38 @@
       el("div", { class: "photos" }, tiles));
   }
 
+  // 寸法の出どころのバッジ。実測(日付・by)/ 推定(AI)/ 図面(スケッチ)/ 未入力
+  const SIZE_SOURCE = { measured: ["実測", "good"], estimated: ["推定(AI)", "watch"], drawing: ["図面(スケッチ)", "status"], legacy: ["登録値(出どころ未記録)", "na"], none: ["未入力", "q"] };
+  const byName = (by) => (by || "").replace(/^line_guide:/, "LINE ガイド ");
+  function sizeBadge(info) {
+    const [label, cls] = SIZE_SOURCE[info.source] || SIZE_SOURCE.none;
+    const when = info.source === "measured" ? [info.at, byName(info.by)].filter(Boolean).join(" ") : "";
+    return el("span", { class: `chip ${cls} size-src`, text: when ? `${label} ${when}` : label });
+  }
+
+  // 寸法: 幅×高さ+出どころのバッジ、全高、GL・取付方法・支柱(実測した時)、巻尺の写真
+  function sizeCard(d) {
+    const info = d.size_info, shots = d.photos.filter((p) => p.measure).map((p, i) => ({ ...p, no: i + 1 }));
+    const kv = [["寸法", d.size || "—"]];
+    if (d.height_m) kv.push(["全高", `${d.height_m} m`]);
+    if (info.gl_mm != null) kv.push(["GL から", `${info.gl_mm} mm(${info.gl_edge === "top" ? "上端" : "看板の下端"}まで)`]);
+    if (info.mount) kv.push(["取付方法", info.mount]);
+    if (info.post) kv.push(["支柱", info.post]);
+    const tiles = shots.map((p) => el("button", {
+      type: "button", class: "photo figure", "aria-label": `実測写真 ${p.no} を拡大`, onclick: () => KK.lightbox.open(shots, p.n),
+    }, p.url ? el("img", { src: p.url, alt: `実測写真 ${p.no}`, loading: "lazy" }) : el("div", { class: "ph", text: "画像なし" })));
+    return el("section", { class: "card size-card" }, el("h2", {}, "寸法 ", sizeBadge(info)),
+      el("div", { class: "kv" }, kv.flatMap(([k, v]) => [el("span", { class: "k", text: k }), el("span", { text: v })])),
+      info.source === "estimated" ? el("p", { class: "sub", text: "写真からの推定です。実測が入ると実測を使います。" }) : null,
+      tiles.length ? el("div", { class: "photos" }, tiles) : null);
+  }
+
   // 根拠の文。「写真3」の語は押せる(その写真を拡大)
   function evidenceLine(d, ev) {
     if (!ev || !ev.text) return null;
     const parts = ev.text.split(/(写真\s*\d+)/).map((t) => {
       const m = /^写真\s*(\d+)$/.exec(t);
-      return m ? el("button", { type: "button", class: "link", onclick: (e) => { e.stopPropagation(); KK.lightbox.open(d.photos.filter((q) => !q.figure), +m[1]); } }, t) : t;
+      return m ? el("button", { type: "button", class: "link", onclick: (e) => { e.stopPropagation(); KK.lightbox.open(d.photos.filter((q) => !q.figure && !q.measure), +m[1]); } }, t) : t;
     });
     return el("div", { class: "evidence" }, el("span", { class: "k", text: "根拠 " }), parts,
       ev.photos.length ? el("span", { class: "sub", text: ` (写真 ${ev.photos.join("・")})` }) : null);
@@ -240,7 +266,7 @@
     const draftNote = d.draft_rank && d.draft_rank !== d.rank ? ` (下書きは ${KK.RANK[d.draft_rank]})` : "";
     return el("section", { class: "card summary" },
       el("div", { class: "sum-top" }, el("div", {}, el("div", { class: "eyebrow", text: [d.site_name, d.id].filter(Boolean).join(" / ") }),
-        el("h1", { text: "カルテ" }), el("div", { class: "sign-name", text: d.name || d.id }), el("div", { class: "sub", text: [d.type, d.size].filter(Boolean).join(" / ") })),
+        el("h1", { text: "カルテ" }), el("div", { class: "sign-name", text: d.name || d.id }), el("div", { class: "sub" }, [d.type, d.size].filter(Boolean).join(" / "), " ", sizeBadge(d.size_info))),
         el("div", { class: "rank-box" }, KK.rankChip(d.rank, d.status),
           el("div", { class: "sub", text: `${KK.STATUS[d.status] || d.status}${draftNote}` }))),
       d.remark ? el("div", { class: "kv" }, el("span", { class: "k", text: "所見" }), el("span", { text: d.remark })) : null,
@@ -260,7 +286,7 @@
         state.flash ? el("p", { class: "notice", role: "status", text: state.flash }) : null,
         el("div", { class: "karte" },
           el("div", { class: "main-col" }, summaryCard(d), clarifyCard(d, state, render), photosCard(d, hit), figuresCard(d), itemsCard(d, state, render)),
-          el("div", { class: "side-col" }, signCard(d, state, render), historyCard(d), legalCard(d, state, render))));
+          el("div", { class: "side-col" }, signCard(d, state, render), sizeCard(d), historyCard(d), legalCard(d, state, render))));
       window.scrollTo(0, y);
     };
     render();

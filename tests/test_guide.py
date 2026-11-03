@@ -53,10 +53,16 @@ class GuideBase(Base):
     def last_quick(self):
         return self.client.extras[-1]["quick_replies"]
 
+    skip_measure = True  # 既存の流れの試験は、実測の最初の問いが出たら「飛ばす」で通す(実測は MeasureTest が試す)
+
     def photo(self):
         self.n += 1
         self.client.contents[f"p{self.n}"] = jpeg()
-        return self.send(img_event(f"p{self.n}", token=f"tok-p{self.n}"))
+        res = self.send(img_event(f"p{self.n}", token=f"tok-p{self.n}"))
+        st = self.app_.guide.load(USER)
+        if self.skip_measure and st is not None and st.step == "measure" and st.m_sub == "ask":
+            res = self.tap(m="skip")
+        return res
 
     def tap(self, **q):
         from urllib.parse import urlencode
@@ -85,7 +91,7 @@ class StateMachineTest(GuideBase):
         self.say("① 正面の袖看板")
         self.assertEqual(self.last(), "全景を1枚撮ってください")
         self.photo()
-        self.assertEqual(self.last(), "全景を受け取りました\n基礎部・上部構造を撮ってください(近くで1〜3枚)")
+        self.assertEqual(self.last(), "寸法の実測は飛ばしました\n基礎部・上部構造を撮ってください(近くで1〜3枚)")
         self.assertEqual([i["action"]["label"] for i in self.last_quick()], ["この部位は無い"])
         self.photo()
         self.assertEqual([i["action"]["label"] for i in self.last_quick()], ["次へ"])
@@ -437,9 +443,14 @@ class SimulateTest(unittest.TestCase):
                 code, res = app.handle(body, sign(SECRET, body))
                 self.assertEqual((code, res.errors), (200, []))
             with Ledger(td / "l.sqlite") as lg:
-                s = lg.list_signs()[0]
+                signs = lg.list_signs()
+                s = signs[0]
                 self.assertEqual(s.name, "① 正面の袖看板")
-                self.assertEqual(len(s.photos), plan.stats["photos"])
+                self.assertEqual(len(s.photos), 10)  # 全景1+部位9+巻尺の写真1(末尾)
+                self.assertEqual((s.size_w, s.size_h, s.gl_mm, s.height_m, s.size_source), (3600, 900, 2500, 3.4, "measured"))
+                self.assertEqual([x.name for x in signs], ["① 正面の袖看板", "② 側面の看板", "① 正面の袖看板"])
+                self.assertIsNone(signs[1].size_w)  # ② は飛ばした
+                self.assertEqual((signs[2].size_w, signs[2].size_source), (3600, "measured"))  # ③ は①の実測を引き継いだ
                 self.assertEqual(len(s.items), 10)
                 self.assertEqual(sum(1 for v in s.evidence.values() if v["guide"] == "unknown"), 3)
                 self.assertEqual(sum(1 for v in s.evidence.values() if v["guide"] == "na"), 5)  # 表示部-4、照明装置3(この部位は無い)、その他-3
@@ -449,8 +460,8 @@ class SimulateTest(unittest.TestCase):
     def test_operation_counts(self):
         with tempfile.TemporaryDirectory() as td:
             plan = build_guide_deliveries(PLAN, Path(td) / "c", run_id="t2")
-            self.assertEqual(plan.stats["photos"], 9)
-            self.assertEqual(plan.stats["texts"], 1)
+            self.assertEqual(plan.stats["photos"], 12)  # ①全景+部位9+巻尺1、②全景、③全景
+            self.assertEqual(plan.stats["texts"], 7)    # 看板の名前3+①の幅・高さ・GL・支柱
 
 
 class KarteBadgeTest(GuideBase):

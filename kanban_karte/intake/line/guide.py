@@ -7,6 +7,8 @@
   site      今日の現場(位置か現場が分かっていれば飛ばす)
   sign      看板の名前か番号(テキスト1通)
   overview  全景を1枚(必須)
+  measure   寸法の実測(台帳にその看板の寸法が無い時だけ。初回。最初の問いで「飛ばす」で通せる)
+            幅 → 高さ → GL(看板の下端まで)→ 取付方法 → 支柱 → 巻尺の写真(0〜2枚)
   photo     部位の写真 1〜3枚(0枚なら「この部位は無い」)。3枚で自動的に次へ
   ask       その部位の項目を1項目ずつ a 良好 / b 経過観察 / c 要改善 / 分からない / 対象外
   done      この看板は終わり → 次の看板 / 終了
@@ -23,13 +25,18 @@ from pathlib import Path
 from typing import Callable, Protocol
 from urllib.parse import urlencode
 
+from ...ledger.db import MEASURE_TAG
 from ...ledger.items import _ITEMS
+from . import measure as M
 from .session import safe_name
 
 START_TEXT = "点検開始"
 CMD_BACK, CMD_SKIP, CMD_QUIT = "戻る", "飛ばす", "やめる"
 COMMANDS = (CMD_BACK, CMD_SKIP, CMD_QUIT)
 MAX_PART_PHOTOS = 3
+MAX_MEASURE_PHOTOS = 2
+MEASURE_SUBS = ("ask", "w", "h", "gl", "mount", "post", "photo")  # 実測工程の中の順
+CONFIRM_WORDS = ("はい", "ok", "OK", "合ってます", "合っています")
 SEEN_MAX = 20
 
 # 回答の記号 → 台帳の区分。unknown / na は items に入れない(出どころは evidence に残る)
@@ -70,6 +77,13 @@ class GuideState:
     signs_done: int = 0
     started: str = ""
     seen: list[str] = field(default_factory=list)          # 処理済みのテキストID(再送で名前を二重に受けない)
+    # 寸法の実測(step=measure)。m の値は mm(w / h / gl)、mount、post。gl が無い=分からない
+    m_sub: str = "ask"
+    m: dict = field(default_factory=dict)
+    m_photos: int = 0
+    m_pending: dict | None = None      # 単位が曖昧な数字の確認待ち {"f": "w", "mm": 3600}
+    measure_shown: bool = False        # この看板で実測工程を出したか(戻るの行き先)
+    size_known: dict | None = None     # 台帳に寸法がある看板: {"source", "at", "by"}。実測工程は出さず、最後に1行知らせる
 
 
 class Sink(Protocol):
@@ -77,12 +91,16 @@ class Sink(Protocol):
     def sign_named(self, user_id: str, st: GuideState) -> None: ...
     def photo(self, user_id: str, st: GuideState, tag: str, path, bundle_id: int, page_no: int) -> None: ...
     def answer(self, user_id: str, st: GuideState, key: str, ans: str) -> None: ...
+    def known_size(self, user_id: str, st: GuideState) -> dict | None: ...
+    def measure(self, user_id: str, st: GuideState) -> None: ...
 
 
 class NullSink:
     def sign_named(self, user_id, st): pass
     def photo(self, user_id, st, tag, path, bundle_id, page_no): pass
     def answer(self, user_id, st, key, ans): pass
+    def known_size(self, user_id, st): return None
+    def measure(self, user_id, st): pass
 
 
 def qr(label: str, **data) -> dict:
@@ -136,6 +154,8 @@ class Guide:
             return Say("看板の名前か番号を送ってください(例: ① 正面の袖看板)")
         if st.step == "overview":
             return Say("全景を1枚撮ってください")
+        if st.step == "measure":
+            return self._measure_prompt(st)
         if st.step == "photo":
             part = PARTS[st.part][0]
             if st.photos == 0:
@@ -146,7 +166,42 @@ class Guide:
             key, text = items[st.item]
             quick = [qr(label, ans=a, item=key) for a, label in ANSWER_LABEL.items()]
             return Say(f"{part} {st.item + 1}/{len(items)}\n{text}", quick)
-        return Say("この看板は終わりです。次の看板を始めますか", [qr("次の看板", more=1), qr("終了", end=1)])
+        return Say(self._done_text(st), [qr("次の看板", more=1), qr("終了", end=1)])
+
+    @staticmethod
+    def _done_text(st: GuideState) -> str:
+        text = "この看板は終わりです。次の看板を始めますか"
+        k = st.size_known
+        if not k:
+            return text
+        label = {"measured": "実測", "drawing": "図面", "estimated": "推定"}.get(k.get("source"))
+        at = f"({k['at']})" if k.get("at") else ""
+        line = (f"寸法は前回{at}の実測を引き継ぎました" if label == "実測"
+                else f"寸法は台帳の{label or ''}の値を使いました{at}。実測が要る時はカルテから入れてください")
+        return f"{line}\n{text}"
+
+    def _measure_prompt(self, st: GuideState) -> Say:
+        sub = st.m_sub
+        if st.m_pending:
+            return Say(st.m_pending["text"], [qr("はい", m="conf"), qr("入れ直す", m="redo")])
+        if sub == "ask":
+            return Say("この看板の寸法を測りますか(初回の点検では、測って台帳に残します)",
+                       [qr("測る", m="go"), qr("飛ばす", m="skip")])
+        if sub == "w":
+            return Say("幅(mm)を送ってください(例: 3600。3.6m のように単位を付けても受けます)")
+        if sub == "h":
+            return Say("高さ(mm)を送ってください(例: 900)")
+        if sub == "gl":
+            return Say("GL(地面)から看板の下端までの高さ(mm)を送ってください(例: 2500)。分からなければ「分からない」",
+                       [qr("分からない", m="glx")])
+        if sub == "mount":
+            return Say("取付方法を選んでください", [qr(label, mount=i) for i, label in enumerate(M.MOUNTS)])
+        if sub == "post":
+            return Say("支柱があれば送ってください(例: □50)。無ければ「無し」",
+                       [qr("無し", m="nopost")])
+        if st.m_photos == 0:
+            return Say("巻尺を当てた写真を撮ってください(1〜2枚)", [qr("写真は無い", m="nopic")])
+        return Say(f"巻尺の写真 {st.m_photos}枚\n続けて撮るか、「次へ」を押してください", [qr("次へ", m="nopic")])
 
     @staticmethod
     def _with(prefix: str, say: Say) -> Say:
@@ -193,8 +248,13 @@ class Guide:
             st.name = t
             st.step = "overview"
             self.sink.sign_named(user_id, st)
+            st.size_known = self.sink.known_size(user_id, st)
             self.save(user_id, st)
             return "name", self.prompt(st)
+        if st.step == "measure":
+            kind, say = self._measure_text(user_id, st, t)
+            self.save(user_id, st)
+            return kind, say
         self.save(user_id, st)
         return "memo", self._with("メモを受け取りました", self.prompt(st))
 
@@ -210,6 +270,10 @@ class Guide:
                 return self._with("ここは飛ばせません", self.prompt(st))
             if st.step == "done":
                 return self.prompt(st)
+            if st.step == "measure":
+                prefix = self._measure_skip(user_id, st)
+                self.save(user_id, st)
+                return self._with(prefix, self.prompt(st)) if prefix else self.prompt(st)
             self._skip(user_id, st)
         self.save(user_id, st)
         return self.prompt(st)
@@ -223,8 +287,17 @@ class Guide:
                 st.item -= 1
             else:
                 st.step = "photo"
+        elif st.step == "measure":
+            st.m_pending = None
+            i = MEASURE_SUBS.index(st.m_sub)
+            if i == 0:
+                st.step = "overview"
+            else:
+                st.m_sub = MEASURE_SUBS[i - 1]
         elif st.step == "photo":
-            if st.part == 0:
+            if st.part == 0 and st.measure_shown:
+                st.step, st.m_sub, st.m_pending = "measure", ("photo" if st.m.get("w") else "ask"), None
+            elif st.part == 0:
                 st.step = "overview"
             else:
                 st.step, st.part = "ask", st.part - 1
@@ -261,6 +334,96 @@ class Guide:
         if st.step == "done":
             st.part = len(PARTS) - 1
 
+    # ---- 寸法の実測 ----
+    def _measure_advance(self, user_id: str, st: GuideState) -> None:
+        """実測工程の次の問いへ。最後(写真)の次は部位へ。台帳には今ある分を書く。"""
+        st.m_pending = None
+        self.sink.measure(user_id, st)
+        i = MEASURE_SUBS.index(st.m_sub) + 1
+        if i < len(MEASURE_SUBS):
+            st.m_sub = MEASURE_SUBS[i]
+        else:
+            st.step, st.part, st.photos = "photo", 0, 0
+
+    def _measure_abandon(self, st: GuideState) -> None:
+        st.step, st.part, st.photos, st.m_pending = "photo", 0, 0, None
+
+    def _measure_skip(self, user_id: str, st: GuideState) -> str:
+        """「飛ばす」。最初の問いと幅・高さ(まだ揃っていない時)は実測そのものを飛ばす。それ以外はその1問だけ。"""
+        if st.m_sub == "ask" or (st.m_sub in ("w", "h") and not (st.m.get("w") and st.m.get("h"))):
+            self._measure_abandon(st)
+            return "寸法の実測は飛ばしました"
+        self._measure_advance(user_id, st)
+        return ""
+
+    def _measure_set(self, user_id: str, st: GuideState, mm: int) -> None:
+        st.m[st.m_sub] = mm
+        self._measure_advance(user_id, st)
+
+    def _measure_text(self, user_id: str, st: GuideState, t: str) -> tuple[str, Say]:
+        sub = st.m_sub
+        if st.m_pending and t in CONFIRM_WORDS:
+            self._measure_set(user_id, st, st.m_pending["mm"])
+            return "measure", self.prompt(st)
+        if sub in ("w", "h", "gl"):
+            if sub == "gl" and t == M.UNKNOWN:
+                st.m.pop("gl", None)
+                self._measure_advance(user_id, st)
+                return "measure", self.prompt(st)
+            r = M.parse_length(t, lo=0, hi=M.GL_MAX_MM, allow_zero=True) if sub == "gl" else M.parse_length(t)
+            if r.error:
+                return "measure", self._with(r.error, self.prompt(st))
+            if r.confirm:
+                st.m_pending = {"f": sub, "mm": r.mm, "text": r.confirm}
+                return "measure", self.prompt(st)
+            self._measure_set(user_id, st, r.mm)
+            return "measure", self.prompt(st)
+        if sub == "mount" and t in M.MOUNTS:
+            st.m["mount"] = None if t == M.UNKNOWN else t
+            self._measure_advance(user_id, st)
+            return "measure", self.prompt(st)
+        if sub == "post":
+            post = M.parse_post(t)
+            if post is None:
+                return "measure", self._with(f"{M.POST_MAX}字以内で送ってください(例: □50)", self.prompt(st))
+            st.m["post"] = post
+            self._measure_advance(user_id, st)
+            return "measure", self.prompt(st)
+        return "memo", self._with("メモを受け取りました", self.prompt(st))
+
+    def _measure_postback(self, user_id: str, st: GuideState, q: dict[str, str]) -> Say:
+        """act=guide の m= / mount=。今の問いと合わない古いボタンは進めず、今の問いを出し直す。"""
+        sub, act = st.m_sub, q.get("m")
+        if st.step != "measure":
+            return self.prompt(st)
+        if st.m_pending:
+            if act == "conf":
+                self._measure_set(user_id, st, st.m_pending["mm"])
+            elif act == "redo":
+                st.m_pending = None
+            self.save(user_id, st)
+            return self.prompt(st)
+        if "mount" in q and sub == "mount" and q["mount"].isdigit() and int(q["mount"]) < len(M.MOUNTS):
+            label = M.MOUNTS[int(q["mount"])]
+            st.m["mount"] = None if label == M.UNKNOWN else label
+            self._measure_advance(user_id, st)
+        elif sub == "ask" and act == "go":
+            st.m_sub = "w"
+        elif sub == "ask" and act == "skip":
+            self._measure_abandon(st)
+            self.save(user_id, st)
+            return self._with("寸法の実測は飛ばしました", self.prompt(st))
+        elif sub == "gl" and act == "glx":
+            st.m.pop("gl", None)
+            self._measure_advance(user_id, st)
+        elif sub == "post" and act == "nopost":
+            st.m["post"] = M.NONE_POST
+            self._measure_advance(user_id, st)
+        elif sub == "photo" and act == "nopic":
+            self._measure_advance(user_id, st)
+        self.save(user_id, st)
+        return self.prompt(st)
+
     def photo(self, user_id: str, bundle_id: int, page_no: int, path, now) -> Say:
         """写真が束に入った後に呼ぶ。進行に応じた部位の印(tag)を台帳に付け、次の問いを返す。"""
         st = self.load(user_id)
@@ -268,9 +431,22 @@ class Guide:
             raise LookupError("ガイドが進行していない")
         if st.step == "overview":
             self.sink.photo(user_id, st, "overview", path, bundle_id, page_no)
-            st.step, st.part, st.photos = "photo", 0, 0
+            st.part, st.photos = 0, 0
+            if st.size_known:
+                st.step = "photo"
+            else:
+                st.step, st.m_sub, st.m_pending, st.measure_shown = "measure", "ask", None, True
             self.save(user_id, st)
             return self._with("全景を受け取りました", self.prompt(st))
+        if st.step == "measure" and st.m_sub == "photo" and not st.m_pending:
+            self.sink.photo(user_id, st, MEASURE_TAG, path, bundle_id, page_no)
+            st.m_photos += 1
+            if st.m_photos >= MAX_MEASURE_PHOTOS:
+                self._measure_advance(user_id, st)
+                self.save(user_id, st)
+                return self._with(f"巻尺の写真 {MAX_MEASURE_PHOTOS}枚", self.prompt(st))
+            self.save(user_id, st)
+            return self.prompt(st)
         if st.step in ("photo", "ask"):
             self.sink.photo(user_id, st, PARTS[st.part][0], path, bundle_id, page_no)
             st.photos += 1
@@ -297,6 +473,8 @@ class Guide:
             st = GuideState(step="sign", site_id=site, signs_done=st.signs_done + 1, started=st.started)
             self.save(user_id, st)
             return self.prompt(st)
+        if "m" in q or "mount" in q:
+            return self._measure_postback(user_id, st, q)
         if "ans" in q:
             part, items = PARTS[st.part]
             if st.step != "ask" or q.get("ans") not in ANSWERS or q.get("item") != items[st.item][0]:

@@ -95,10 +95,12 @@ def build_guide_deliveries(plan_file: str | Path, content_dir: str | Path, *,
     台本: {"job": "J-001", "signs": [{"name": "① 正面の袖看板", "overview": "photos/a.png",
            "parts": [{"photos": ["photos/b.png"], "answers": ["a", "b", "unknown"]}, ...6部位]}]}
     写真は台本のあるフォルダ基準。photos が空の部位は「この部位は無い」を押す(answers は書かない)。
+    看板の "measure" は寸法の実測(measure() の docstring。無ければ "skip")。
     Plan.stats に写真の枚数・押す回数・送る文の数。
     """
     from urllib.parse import urlencode
-    from .guide import MAX_PART_PHOTOS, PARTS
+    from . import measure as M
+    from .guide import MAX_MEASURE_PHOTOS, MAX_PART_PHOTOS, PARTS
 
     plan_file = Path(plan_file)
     doc = json.loads(plan_file.read_text(encoding="utf-8"))
@@ -132,12 +134,35 @@ def build_guide_deliveries(plan_file: str | Path, content_dir: str | Path, *,
         out.stats["photos"] += 1
         push(lambda tok, ts: _event(user_id, tok, {"type": "image", "id": mid, "contentProvider": {"type": "line"}}, ts))
 
+    def measure(spec):
+        """寸法の実測。"skip"=最初の問いで飛ばす / "inherit"=台帳に寸法がある看板(問いは出ない)/ dict=測る
+        {"w": "3.6m", "h": "900", "gl": "2500"(無ければ「分からない」), "mount": "ビス", "post": "□50"(無ければ「無し」), "photos": [巻尺の写真]}"""
+        if spec == "inherit":
+            return
+        if spec == "skip":
+            return tap(m="skip")
+        tap(m="go")
+        for k in ("w", "h", "gl"):
+            if spec.get(k) is None:
+                tap(m="glx")
+                continue
+            text(spec[k])
+            if M.parse_length(spec[k], lo=0, allow_zero=(k == "gl")).confirm:
+                tap(m="conf")  # 単位の無い数字は確認が返る
+        tap(mount=M.MOUNTS.index(spec.get("mount") or M.UNKNOWN))
+        text(spec["post"]) if spec.get("post") else tap(m="nopost")
+        for rel in spec.get("photos", [])[:MAX_MEASURE_PHOTOS]:
+            image(rel)
+        if len(spec.get("photos", [])) < MAX_MEASURE_PHOTOS:
+            tap(m="nopic")
+
     tap(start=1)
     if doc.get("job"):
         tap(site=doc["job"])
     for si, sg in enumerate(doc["signs"]):
         text(sg["name"])
         image(sg["overview"])
+        measure(sg.get("measure", "skip"))
         for pi, (part, items) in enumerate(PARTS):
             spec = sg["parts"][pi]
             photos = spec.get("photos", [])

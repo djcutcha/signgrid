@@ -17,6 +17,8 @@ SCHEMA_SQL = Path(__file__).with_name("schema.sql")
 SIGN_STATUSES = ("new", "needs_photos", "draft", "confirmed")
 RULE_STATUSES = ("candidate", "approved", "rejected")
 FIGURE_TAG = "図面"  # pages.tag: 職人の手描きスケッチ・印刷案の頁。看板の写真ではないので、下書き・様式の写真には入れない
+MEASURE_TAG = "実測"  # pages.tag: 巻尺を当てた写真(ガイドの寸法の実測)。寸法の証拠で、下書き・様式の写真には入れない
+SIZE_SOURCES = ("measured", "estimated", "drawing")  # signs.size_source: 実測 / 推定(AI)/ 図面(スケッチ)。None=未入力か出どころ不明
 PAGE_KINDS = ("指示書", "完成報告書", "点検表", "写真", "地図", "危険予知", "その他", "不明")
 
 
@@ -64,6 +66,14 @@ class Sign:
     confirmed_by: str | None = None
     height_m: float | None = None  # 看板の全高(m)。size は表示面の寸法で、全高は別。法規の判定に渡す
     draft_by: str | None = None    # 下書きの出どころ。ガイド付き点検は 'line_guide:<末尾4桁>'
+    # 寸法の出どころと実測の付帯(size_w / size_h の出どころ。GL は地面からの高さ mm、gl_edge='bottom' は看板の下端まで)
+    size_source: str | None = None
+    size_by: str | None = None
+    size_at: str | None = None     # YYYY-MM-DD
+    gl_mm: int | None = None
+    gl_edge: str | None = None
+    mount: str | None = None       # ビス / バンセン / 吊り / 接着 / その他
+    post: str | None = None        # 支柱(例 □50)。「無し」も値
 
     def validate(self) -> None:
         if self.status not in SIGN_STATUSES:
@@ -73,6 +83,8 @@ class Sign:
             if v is not None and (isinstance(v, bool) or v not in (1, 2, 3, 4)):
                 raise ValueError(f"{name} は 1〜4 か None: {v!r}")
         self.items = validate_items(self.items)
+        if self.size_source is not None and self.size_source not in SIZE_SOURCES:
+            raise ValueError(f"size_source は {SIZE_SOURCES} か None: {self.size_source!r}")
         if not isinstance(self.photos, list):
             raise ValueError("photos はリスト")
 
@@ -135,7 +147,8 @@ class Ledger:
         for col, ddl in (("status", "TEXT NOT NULL DEFAULT 'new'"), ("draft_rank", "INTEGER"),
                          ("confidence", "REAL"), ("evidence", "TEXT NOT NULL DEFAULT '{}'"),
                          ("confirmed_at", "TEXT"), ("confirmed_by", "TEXT"), ("height_m", "REAL"),
-                         ("draft_by", "TEXT")):
+                         ("draft_by", "TEXT"), ("size_source", "TEXT"), ("size_by", "TEXT"), ("size_at", "TEXT"),
+                         ("gl_mm", "INTEGER"), ("gl_edge", "TEXT"), ("mount", "TEXT"), ("post", "TEXT")):
             if col not in sign_cols:
                 self.conn.execute(f"ALTER TABLE signs ADD COLUMN {col} {ddl}")
         if "tag" not in {r[1] for r in self.conn.execute("PRAGMA table_info(pages)")}:
@@ -269,10 +282,15 @@ class Ledger:
         return {r["image_path"] for r in self.conn.execute(
             "SELECT image_path FROM pages WHERE tag=? AND image_path IS NOT NULL", (FIGURE_TAG,))}
 
+    def measure_paths(self) -> set[str]:
+        """タグ「実測」の頁の画像(台帳の相対パス)。"""
+        return {r["image_path"] for r in self.conn.execute(
+            "SELECT image_path FROM pages WHERE tag=? AND image_path IS NOT NULL", (MEASURE_TAG,))}
+
     def split_photos(self, sign: Sign) -> tuple[list[str], list[str]]:
-        """看板の画像を (写真, 図面) に分ける(順序は保つ)。下書き・様式の写真は前者だけ。"""
-        fig = self.figure_paths()
-        return [p for p in sign.photos if p not in fig], [p for p in sign.photos if p in fig]
+        """看板の画像を (写真, 図面) に分ける(順序は保つ)。下書き・様式の写真は前者だけ(図面も実測写真も入れない)。"""
+        fig, meas = self.figure_paths(), self.measure_paths()
+        return [p for p in sign.photos if p not in fig and p not in meas], [p for p in sign.photos if p in fig]
 
     def list_pages(self, bundle_id: int) -> list[sqlite3.Row]:
         return list(self.conn.execute("SELECT * FROM pages WHERE bundle_id=? ORDER BY page_no", (bundle_id,)))
