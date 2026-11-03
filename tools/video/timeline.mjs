@@ -2,7 +2,7 @@
 // 使い方: node timeline.mjs [cut]
 import fs from 'node:fs';
 import {execFileSync} from 'node:child_process';
-const ids = ['01', '02', '03', '04', '05', '06a', '06b', '07', '08', '09', '10'];
+const ids = ['01', '02', '03', '04', '05', '06a', '06b', '07', '07b', '08', '09', '10'];
 const narr = JSON.parse(fs.readFileSync('src/data/narration.json', 'utf8'));
 let t0 = 0; const out = [];
 for (const id of ids) {

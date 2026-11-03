@@ -4,76 +4,83 @@
   "dir": "narration",
   "file": "01_own.wav",
   "text": "看板は、落ちます。落ちた看板の8割は、行政が把握していない看板でした。",
-  "duration": 6.48
+  "duration": 6.36
  },
  {
   "scene": "02",
   "dir": "narration",
   "file": "02_own.wav",
   "text": "私は屋外広告士です。看板をつくり、点検する会社にいます。",
-  "duration": 5.68
+  "duration": 5.48
  },
  {
   "scene": "03",
   "dir": "narration",
   "file": "03_own.wav",
   "text": "ある店舗の点検は、看板66基、写真773枚。45店舗の案件では、事務作業だけで80時間。報告書は客先ごとに違い、規制は自治体ごとに違う。現場の記録と、看板の寸法と、その場所の規制。この3つを、人の頭の中だけでつないでいました。",
-  "duration": 23.56
+  "duration": 22.24
  },
  {
   "scene": "04",
   "dir": "narration",
   "file": "04_own.wav",
   "text": "だから作りました。SignGrid、看板カルテ。",
-  "duration": 4.44
+  "duration": 3.88
  },
  {
   "scene": "05",
   "dir": "narration",
   "file": "05_own.wav",
   "text": "写真と点検票を、まとめて入れる。看板ごとにカルテができ、客先の様式で報告書が埋まる。1店舗の一周は、人の確認を除いて約9分。APIの費用は、7ドル44セント。",
-  "duration": 14.64
+  "duration": 15.92
  },
  {
   "scene": "06a",
   "dir": "narration",
   "file": "06a_own.wav",
   "text": "裏で Claude がやっているのは4つ。写真と看板の対応付け。手書きの読み取り。凡例の解釈。規制との突き合わせ。",
-  "duration": 9.64
+  "duration": 10.68
  },
  {
   "scene": "06b",
   "dir": "narration",
   "file": "06b_own.wav",
   "text": "ここからが本題です。有資格者が訂正すると、Claude が聞き返し、規則の候補を出す。矛盾があれば止まる。人が承認した規則は、次の点検から効く。知識が、人の頭の外に残り始めます。",
-  "duration": 15.84
+  "duration": 16.56
  },
  {
   "scene": "07",
   "dir": "narration",
   "file": "07_own.wav",
   "text": "正直に測りました。要対応の見逃しは、9件中5件。誤警報は、38件中1件。完全一致は70.2%。まだ道半ばです。だから判定は下書き。確定するのは有資格者です。",
-  "duration": 18.64
+  "duration": 17.08
+ },
+ {
+  "scene": "07b",
+  "dir": "narration",
+  "file": "07b_own.wav",
+  "text": "写真から寸法も推定します。誤差の中央値は約17%。自信が低い看板は初回に実測して、台帳に残します。",
+  "duration": 10.52
  },
  {
   "scene": "08",
   "dir": "narration",
   "file": "08_own.wav",
   "text": "明日から、現場の職人と事務が試します。人の確認込みの時間は、その結果で埋めます。",
-  "duration": 7.08
+  "duration": 6.92
  },
  {
   "scene": "09",
   "dir": "narration",
   "file": "09_own.wav",
   "text": "同じ仕組みは、行政の巡回にも使えます。職員が撮った位置つきの写真から、台帳の下書きと一致候補を出す。見つからない看板を違法と決めつけず、確認すべき候補を絞ります。",
-  "duration": 14.24
+  "duration": 13.8
  },
  {
   "scene": "10",
   "dir": "narration",
   "file": "10_own.wav",
   "text": "現場の負担を減らし、点検をやりやすくする。行政が、確認すべき看板を見つけやすくする。その両側から、看板事故を減らす。SignGrid。看板カルテ。",
-  "duration": 12.32
+  "duration": 12.88
  }
 ]
