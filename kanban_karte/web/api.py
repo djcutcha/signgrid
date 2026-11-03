@@ -65,8 +65,16 @@ def _media_url(ledger: Ledger, p: str) -> str | None:
     return None if Path(rel).is_absolute() else "/media/" + rel.replace("\\", "/")
 
 
+def size_info(s: Sign) -> dict:
+    """寸法の出どころ(カルテのバッジ)。source: measured 実測 / estimated 推定(AI)/ drawing 図面 / legacy 幅×高さはあるが出どころ未記録 / none 未入力。"""
+    has = bool(s.size_w and s.size_h)
+    source = s.size_source if has and s.size_source else ("legacy" if has else "none")
+    return {"source": source, "at": s.size_at, "by": s.size_by, "gl_mm": s.gl_mm, "gl_edge": s.gl_edge,
+            "mount": s.mount, "post": s.post}
+
+
 def sign_summary(s: Sign, n_figures: int = 0) -> dict:
-    return {"id": s.id, "site_id": s.site_id, "name": s.name, "type": s.type, "size": size_text(s), "height_m": s.height_m,
+    return {"id": s.id, "site_id": s.site_id, "name": s.name, "type": s.type, "size": size_text(s), "size_info": size_info(s), "height_m": s.height_m,
             "is_self_use": s.is_self_use, "permit_required": s.permit_required,
             "permit_expires": s.permit_expires, "next_inspection": s.next_inspection,
             "rank": s.rank, "rank_label": RANK_LABEL.get(s.rank), "draft_rank": s.draft_rank,
@@ -137,11 +145,12 @@ def sign_detail(ledger: Ledger, sign_id: str, placer=None) -> dict:
         items.append({"key": key, "group": g, "no": n, "text": t, "value": value, "evidence": ev,
                       "yellow": yellow, "corrected": key in corrected, "guide": guide if key not in corrected else None})
     site = ledger.get_site(s.site_id) if s.site_id else None
-    fig = ledger.figure_paths()
-    d = sign_summary(s, sum(1 for p in s.photos if p in fig))
+    fig, meas = ledger.figure_paths(), ledger.measure_paths()
+    d = sign_summary(s, sum(1 for p in s.photos if p in fig or p in meas))
     d.update({"site_name": site.name if site else None, "address": s.address, "municipality": s.municipality,
               "remark": s.remark, "draft_by": s.draft_by, "items": items, "yellow_count": sum(i["yellow"] for i in items),
-              "photos": [{"n": i + 1, "url": _media_url(ledger, p), "figure": p in fig} for i, p in enumerate(s.photos)],
+              "photos": [{"n": i + 1, "url": _media_url(ledger, p), "figure": p in fig, "measure": p in meas}
+                         for i, p in enumerate(s.photos)],
               "corrections": [_correction(r, {i["key"]: f"{i['group']} {i['no']} {i['text']}" for i in items})
                               for r in rows],
               "legal": sign_legal(s, site, placer), "editable": s.status == "draft", "result_choices": list(RESULTS)})
@@ -242,8 +251,8 @@ def sites(ledger: Ledger) -> list[dict]:
 def signs(ledger: Ledger, site_id: str | None) -> list[dict]:
     if site_id is not None and ledger.get_site(site_id) is None:
         raise ApiError(404, f"現場 {site_id} が台帳にありません")
-    fig = ledger.figure_paths()
-    return [sign_summary(s, sum(1 for p in s.photos if p in fig)) for s in ledger.list_signs(site_id=site_id)]
+    hidden = ledger.figure_paths() | ledger.measure_paths()  # 図面・実測写真は「写真 n 枚」に数えない
+    return [sign_summary(s, sum(1 for p in s.photos if p in hidden)) for s in ledger.list_signs(site_id=site_id)]
 
 
 def bundles(ledger: Ledger) -> list[dict]:
