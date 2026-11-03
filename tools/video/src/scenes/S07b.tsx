@@ -7,10 +7,14 @@ import {Drift, Fill, Key, Odo, Phone, Shell, Word, ZoomVideo, clamp01, eo} from 
 // 前半: 05_owner_sp(スマホ縦)。入力欄と「寸法を推定」→ 調べた結果(許可の判定)へ寄る
 const KEYS_A: Key[] = [
   {u: 0, cx: 0.5, cy: 0.88, s: 1.25, ring: [0.5, 0.86]},
-  {u: 0.17, cx: 0.5, cy: 0.2, s: 1.3},
-  {u: 0.45, cx: 0.5, cy: 0.27, s: 1.4, ring: [0.5, 0.26]},
-  {u: 1, cx: 0.5, cy: 0.33, s: 1.35},
+  {u: 0.3, cx: 0.5, cy: 0.86, s: 1.25},
+  {u: 0.4, cx: 0.5, cy: 0.2, s: 1.3},
+  {u: 0.7, cx: 0.5, cy: 0.27, s: 1.4, ring: [0.5, 0.26]},
+  {u: 1, cx: 0.5, cy: 0.3, s: 1.35},
 ];
+// 録画は 0〜4.6 秒(入力欄→ボタン→調べた結果)だけ使い、条文一覧の区間は映さない
+const CLIP_A = 4.6;
+
 // 後半: 06_measure_pc(PC)。寸法の欄(実測バッジ)→ 判断できない行へ寄る
 const KEYS_B: Key[] = [
   {u: 0, cx: 0.72, cy: 0.32, s: 1.7, ring: [0.69, 0.27]},
@@ -26,7 +30,7 @@ export const S07b: React.FC<{t: TItem}> = ({t}) => {
   const o2 = eo(clamp01((sec - sw) / 0.3));
   const k1 = cue(t, '写真から', 0.0, 0.0), k2 = cue(t, '誤差の中央値', 0.2, 0.2);
   const k3 = sw + 0.3, k4 = cue(t, '初回に実測', 0.65, 0.2), k5 = k4 + 0.5;
-  const rateA = 9.77 / sw;
+  const rateA = CLIP_A / sw;
   const rateB = 4.87 / (t.sec - sw - 0.3 - 0.9);
   return (
     <Shell t={t}>
@@ -34,7 +38,7 @@ export const S07b: React.FC<{t: TItem}> = ({t}) => {
       <Fill style={{background: 'radial-gradient(900px 800px at 25% 50%, rgba(59,130,246,.2), rgba(11,18,32,0) 70%)'}} />
       <div style={{opacity: 1 - o2}}>
         <Phone x={150} y={104} w={380} h={822}>
-          <ZoomVideo src="assets/05_owner_sp.mp4" clipSec={9.77} rate={rateA} keys={KEYS_A} w={380} h={822} vw={380} vh={822} start={9} />
+          <ZoomVideo src="assets/05_owner_sp.mp4" clipSec={CLIP_A} rate={rateA} keys={KEYS_A} w={380} h={822} vw={380} vh={822} start={9} />
         </Phone>
         <Word at={k1} until={sw} style={{left: 700, top: 250, fontSize: 100}}>
           写真から<span style={{color: C.accent}}>寸法</span>を推定
