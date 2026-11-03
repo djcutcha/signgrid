@@ -7,13 +7,27 @@ import {CalloutDef, TimelineItem, NARR_OFFSET, splitCaptions} from './data/scene
 const seg = new Intl.Segmenter('ja', {granularity: 'word'});
 export const J: React.FC<{children: string}> = ({children}) => {
   const parts: string[] = [];
-  for (const x of seg.segment(children)) {
-    const prev = parts[parts.length - 1];
-    // 数字・英字の直後の語(2021|年, 80|時間)や英字どうし(D/C/B/A)は切らない
-    if (prev !== undefined && (/[0-9A-Za-z%.,/+$]$/.test(prev) && /^[^\s、。()]/.test(x.segment) && !/^[ ]/.test(x.segment))) parts[parts.length - 1] = prev + x.segment;
-    else parts.push(x.segment);
+  // 分割したくない語は 1 語として扱う
+  const KEEP = ['国交省', '点検票', '用途地域', '看板カルテ', '80時間超'];
+  const pieces = children.split(new RegExp(`(${KEEP.join('|')})`));
+  for (const piece of pieces) {
+    const segs = KEEP.includes(piece) ? [piece] : Array.from(seg.segment(piece), (x) => x.segment);
+    for (const sg of segs) {
+      const prev = parts[parts.length - 1];
+      // 数字・英字の直後の語(2021|年, 80|時間)や英字どうし(D/C/B/A)は切らない
+      if (prev !== undefined && !KEEP.includes(sg) && /[0-9A-Za-z%.,/+$]$/.test(prev) && /^[^\s、。()]/.test(sg)) parts[parts.length - 1] = prev + sg;
+      else parts.push(sg);
+    }
   }
-  return <>{parts.map((t, i) => <span key={i} style={{display: 'inline-block', whiteSpace: 'pre'}}>{t}</span>)}</>;
+  // 禁則: 行頭に来てはいけない文字は前の塊へ、末尾の1文字だけの塊も前へ寄せる
+  const out: string[] = [];
+  parts.forEach((t, i) => {
+    const prev = out[out.length - 1];
+    if (prev !== undefined && /[(（「『【]$/.test(prev)) out[out.length - 1] = prev + t;
+    else if (prev !== undefined && (/^[、。，．,.:：;；)）」』】!?！？・]/.test(t) || (i === parts.length - 1 && t.length === 1))) out[out.length - 1] = prev + t;
+    else out.push(t);
+  });
+  return <>{out.map((t, i) => <span key={i} style={{display: 'inline-block', whiteSpace: 'pre'}}>{t}</span>)}</>;
 };
 
 export const useSec = () => useCurrentFrame() / FPS;
