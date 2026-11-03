@@ -6,7 +6,7 @@
   "scripts": {
     "sync": "node sync_narration.mjs",
     "studio": "remotion studio src/index.ts",
-    "render": "node sync_narration.mjs && remotion render src/index.ts Submission ../../runs/video_rough/signgrid_rough_v1.mp4 --codec h264",
+    "render": "node sync_narration.mjs && remotion render src/index.ts Submission ../../runs/video_v2/signgrid_v2.mp4 --codec h264",
     "typecheck": "tsc"
   },
   "keywords": [],

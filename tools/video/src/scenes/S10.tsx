@@ -1,24 +1,21 @@
 import React from 'react';
-import {useCurrentFrame} from 'remotion';
-import {TimelineItem} from '../data/scenes';
+import {TItem, cue} from '../data/timeline';
 import {C} from '../theme';
-import {CalloutColumn, SceneShell, fadeIn} from '../ui';
+import {Fill, Photo, Shell, Word, clamp01, eo, useSec} from '../lib';
 
-export const S10: React.FC<{t: TimelineItem}> = ({t}) => {
-  const f = useCurrentFrame();
-  const sw = Math.round(t.frames * 0.55);
-  const a = fadeIn(f, 6) * (1 - fadeIn(f, sw - 12, 12));
-  const b = fadeIn(f, sw);
+export const S10: React.FC<{t: TItem}> = ({t}) => {
+  const s = useSec();
+  const sg = cue(t, 'SignGrid', 0.8, 0.05);
+  const off = clamp01((s - (sg - 0.5)) / 0.3);
+  const p = eo(clamp01((s - sg) / 0.4));
   return (
-    <SceneShell t={t}>
-      <div style={{position: 'absolute', left: 80, top: 100, width: 1260, height: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: a}}>
-        <div style={{fontSize: 76, fontWeight: 700, lineHeight: 1.5, textAlign: 'center'}}>現場と行政、その両側から<br /><span style={{color: C.accent}}>看板事故を減らしたい</span></div>
-      </div>
-      <div style={{position: 'absolute', left: 0, top: 100, width: 1340, height: 700, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: b}}>
-        <div style={{fontSize: 110, fontWeight: 800}}>SignGrid <span style={{color: C.accent}}>看板カルテ</span></div>
-        <div style={{fontSize: 40, color: C.sub, marginTop: 30}}>Built with Claude: Japan 2026</div>
-      </div>
-      <CalloutColumn items={t.def.callouts} first={30} />
-    </SceneShell>
+    <Shell t={t} bg="#000">
+      <Photo src="assets/images/10_city_aerial.png" frames={Math.round(sg * 30)} z0={1.0} z1={1.12} ox={50} oy={55} opacity={1 - off} />
+      <Word at={cue(t, 'その両側', 0.55, 0.3)} until={sg - 0.7} style={{left: 0, width: 1920, top: 700, textAlign: 'center', fontSize: 120}}>現場と行政、<span style={{color: '#7fb0ff'}}>その両側から</span></Word>
+      <Fill style={{opacity: p, transform: `scale(${1.06 - 0.06 * p})`}}>
+        <div style={{position: 'absolute', left: 0, width: 1920, top: 400, textAlign: 'center', fontSize: 160, fontWeight: 800, color: '#fff'}}>SignGrid 看板カルテ</div>
+        <div style={{position: 'absolute', left: 0, width: 1920, top: 640, textAlign: 'center', fontSize: 40, fontWeight: 700, color: C.sub, letterSpacing: 3}}>Built with Claude: Japan 2026</div>
+      </Fill>
+    </Shell>
   );
 };
