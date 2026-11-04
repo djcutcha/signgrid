@@ -82,7 +82,26 @@
               "quote_verified": true
             }
           ],
-          "confidence": 0.8
+          "confidence": 0.8,
+          "wall_ratio_max": 0.2,
+          "wall_ratio_by_zone": {
+            "近隣商業地域": 0.3,
+            "商業地域": 0.3
+          },
+          "wall_ratio_floor_m2": null,
+          "verified": "official",
+          "verified_url": "https://www.city.koshigaya.saitama.jp/kurashi_shisei/kurashi/sumai/keikan/files/okugai_kisoku.pdf",
+          "verified_at": "2026-11-04",
+          "kind_citations": [
+            {
+              "source": "施行規則",
+              "article": "規則 別表第2 一 禁止地域等以外 壁面利用広告 1",
+              "quote": "壁面面積(開口部分を含む)の5分の1以下。近隣商業地域及び商業地域は10分の3以下(要旨)",
+              "url": "https://www.city.koshigaya.saitama.jp/kurashi_shisei/kurashi/sumai/keikan/files/okugai_kisoku.pdf",
+              "verbatim": false
+            }
+          ],
+          "kind_note": "埼玉県と違い、10㎡までの下限は壁面利用広告に無い(屋上広告にだけ有る)。既存 rules には商業系を zone=other の別エントリで持つ場合があるので、match が当たらない時は zone_labels に 近隣商業地域/商業地域 を含む壁面広告エントリへも wall_ratio_max=0.3 を入れる。越谷市のPDFは文字コード欠落でひらがなが抜けて抽出される。数値・漢字・条番号は読めるため数値は official とした。引用はひらがなを補った要旨(逐語ではない)。"
         },
         {
           "kind": "壁面広告",
@@ -105,7 +124,21 @@
               "quote_verified": true
             }
           ],
-          "confidence": 0.8
+          "confidence": 0.8,
+          "wall_ratio_max": 0.3,
+          "verified": "official",
+          "verified_url": "https://www.city.koshigaya.saitama.jp/kurashi_shisei/kurashi/sumai/keikan/files/okugai_kisoku.pdf",
+          "verified_at": "2026-11-04",
+          "kind_citations": [
+            {
+              "source": "施行規則",
+              "article": "規則 別表第2 一 禁止地域等以外 壁面利用広告 1",
+              "quote": "壁面面積(開口部分を含む)の5分の1以下。近隣商業地域及び商業地域は10分の3以下(要旨)",
+              "url": "https://www.city.koshigaya.saitama.jp/kurashi_shisei/kurashi/sumai/keikan/files/okugai_kisoku.pdf",
+              "verbatim": false
+            }
+          ],
+          "kind_note": "埼玉県と違い、10㎡までの下限は壁面利用広告に無い(屋上広告にだけ有る)。既存 rules には商業系を zone=other の別エントリで持つ場合があるので、match が当たらない時は zone_labels に 近隣商業地域/商業地域 を含む壁面広告エントリへも wall_ratio_max=0.3 を入れる。越谷市のPDFは文字コード欠落でひらがなが抜けて抽出される。数値・漢字・条番号は読めるため数値は official とした。引用はひらがなを補った要旨(逐語ではない)。"
         },
         {
           "kind": "突出し広告",
@@ -125,7 +158,23 @@
               "quote_verified": true
             }
           ],
-          "confidence": 0.7
+          "confidence": 0.7,
+          "top_limit": "wall",
+          "protrusion_from_wall_max_m": 1.2,
+          "road_protrusion_allowed": false,
+          "verified": "official",
+          "verified_url": "https://www.city.koshigaya.saitama.jp/kurashi_shisei/kurashi/sumai/keikan/files/okugai_kisoku.pdf",
+          "verified_at": "2026-11-04",
+          "kind_citations": [
+            {
+              "source": "施行規則",
+              "article": "規則 別表第2 一 禁止地域等以外 突出し広告 1〜3",
+              "quote": "上端の高さは壁面の高さ以下 / 壁面からの突出し幅は1.2メートル以下 / 道路上に突き出していないこと(要旨)",
+              "url": "https://www.city.koshigaya.saitama.jp/kurashi_shisei/kurashi/sumai/keikan/files/okugai_kisoku.pdf",
+              "verbatim": false
+            }
+          ],
+          "kind_note": "越谷市のPDFは文字コード欠落でひらがなが抜けて抽出される。数値・漢字・条番号は読めるため数値は official とした。引用はひらがなを補った要旨(逐語ではない)。"
         },
         {
           "kind": "広告塔・広告板(建造物から独立した広告)",
@@ -245,7 +294,22 @@
               "quote_verified": true
             }
           ],
-          "confidence": 0.8
+          "confidence": 0.8,
+          "wall_ratio_max": null,
+          "top_limit": "eave",
+          "verified": "official",
+          "verified_url": "https://www.city.koshigaya.saitama.jp/kurashi_shisei/kurashi/sumai/keikan/files/okugai_kisoku.pdf",
+          "verified_at": "2026-11-04",
+          "kind_citations": [
+            {
+              "source": "施行規則",
+              "article": "規則 別表第2 一 禁止地域等 壁面利用広告 1,2",
+              "quote": "表示面積は10平方メートル以下 / 上端の高さは軒高以下(要旨)",
+              "url": "https://www.city.koshigaya.saitama.jp/kurashi_shisei/kurashi/sumai/keikan/files/okugai_kisoku.pdf",
+              "verbatim": false
+            }
+          ],
+          "kind_note": "越谷市のPDFは文字コード欠落でひらがなが抜けて抽出される。数値・漢字・条番号は読めるため数値は official とした。引用はひらがなを補った要旨(逐語ではない)。"
         },
         {
           "kind": "突出し広告",
@@ -265,7 +329,23 @@
               "quote_verified": true
             }
           ],
-          "confidence": 0.8
+          "confidence": 0.8,
+          "top_limit": "wall",
+          "protrusion_from_wall_max_m": 1.0,
+          "road_protrusion_allowed": false,
+          "verified": "official",
+          "verified_url": "https://www.city.koshigaya.saitama.jp/kurashi_shisei/kurashi/sumai/keikan/files/okugai_kisoku.pdf",
+          "verified_at": "2026-11-04",
+          "kind_citations": [
+            {
+              "source": "施行規則",
+              "article": "規則 別表第2 一 禁止地域等 突出し広告 1〜4",
+              "quote": "表示面積3平方メートル以下 / 上端の高さは壁面の高さ以下 / 壁面からの突出し幅は1メートル以下 / 道路上に突き出していないこと(要旨)",
+              "url": "https://www.city.koshigaya.saitama.jp/kurashi_shisei/kurashi/sumai/keikan/files/okugai_kisoku.pdf",
+              "verbatim": false
+            }
+          ],
+          "kind_note": "越谷市のPDFは文字コード欠落でひらがなが抜けて抽出される。数値・漢字・条番号は読めるため数値は official とした。引用はひらがなを補った要旨(逐語ではない)。"
         },
         {
           "kind": "広告塔・広告板(建造物から独立した広告)",
@@ -614,6 +694,174 @@
         }
       ],
       "confidence": 0.85
+    },
+    "permit_standards": [
+      {
+        "kind": "壁面広告",
+        "when": "許可基準(一般)",
+        "self_use_only": false,
+        "zone": "permit_zone",
+        "height_max_m": null,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": "越谷市のPDFは文字コード欠落でひらがなが抜けて抽出される。数値・漢字・条番号は読めるため数値は official とした。引用はひらがなを補った要旨(逐語ではない)。",
+        "citations": [],
+        "confidence": 0.9,
+        "wall_ratio_max": 0.2,
+        "wall_ratio_by_zone": {
+          "近隣商業地域": 0.3,
+          "商業地域": 0.3
+        },
+        "wall_ratio_floor_m2": null,
+        "verified": "official",
+        "verified_url": "https://www.city.koshigaya.saitama.jp/kurashi_shisei/kurashi/sumai/keikan/files/okugai_kisoku.pdf",
+        "verified_at": "2026-11-04",
+        "kind_citations": [
+          {
+            "source": "施行規則",
+            "article": "規則 別表第1 壁面利用広告 1",
+            "quote": "一面の壁面につき壁面面積(開口部分を含む)の5分の1以下。近隣商業地域及び商業地域は10分の3以下(要旨)",
+            "url": "https://www.city.koshigaya.saitama.jp/kurashi_shisei/kurashi/sumai/keikan/files/okugai_kisoku.pdf",
+            "verbatim": false
+          }
+        ],
+        "kind_note": "越谷市のPDFは文字コード欠落でひらがなが抜けて抽出される。数値・漢字・条番号は読めるため数値は official とした。引用はひらがなを補った要旨(逐語ではない)。"
+      },
+      {
+        "kind": "突出し広告",
+        "when": "許可基準(一般)",
+        "self_use_only": false,
+        "zone": "permit_zone",
+        "height_max_m": null,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": "越谷市のPDFは文字コード欠落でひらがなが抜けて抽出される。数値・漢字・条番号は読めるため数値は official とした。引用はひらがなを補った要旨(逐語ではない)。",
+        "citations": [],
+        "confidence": 0.9,
+        "top_limit": "wall",
+        "protrusion_from_wall_max_m": 1.2,
+        "ground_clearance_sidewalk_min_m": 3.0,
+        "ground_clearance_roadway_min_m": 4.5,
+        "road_protrusion_allowed": true,
+        "verified": "official",
+        "verified_url": "https://www.city.koshigaya.saitama.jp/kurashi_shisei/kurashi/sumai/keikan/files/okugai_kisoku.pdf",
+        "verified_at": "2026-11-04",
+        "kind_citations": [
+          {
+            "source": "施行規則",
+            "article": "規則 別表第1 突出し広告 1〜3",
+            "quote": "上端の高さ=壁面の高さ以下 / 壁面からの突出し幅=1.2メートル以下 / 下端の高さ=歩道上は路面から3メートル以上・車道上は路面から4.5メートル以上(要旨)",
+            "url": "https://www.city.koshigaya.saitama.jp/kurashi_shisei/kurashi/sumai/keikan/files/okugai_kisoku.pdf",
+            "verbatim": false
+          }
+        ],
+        "kind_note": "越谷市のPDFは文字コード欠落でひらがなが抜けて抽出される。数値・漢字・条番号は読めるため数値は official とした。引用はひらがなを補った要旨(逐語ではない)。"
+      },
+      {
+        "kind": "壁面広告",
+        "when": "禁止地域で許可を受ける自家広告(条例8条5項1号)",
+        "self_use_only": true,
+        "zone": "prohibited_zone",
+        "height_max_m": null,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": "『1/5以下かつ10㎡以下』の両方を満たす(埼玉県の『10㎡以下なら比率は問わない』とは逆)。上限は min(壁面×0.2, 10㎡)。越谷市のPDFは文字コード欠落でひらがなが抜けて抽出される。数値・漢字・条番号は読めるため数値は official とした。引用はひらがなを補った要旨(逐語ではない)。",
+        "citations": [],
+        "confidence": 0.9,
+        "wall_ratio_max": 0.2,
+        "wall_ratio_floor_m2": null,
+        "top_limit": "eave",
+        "wall_ratio_cap_m2": 10,
+        "verified": "official",
+        "verified_url": "https://www.city.koshigaya.saitama.jp/kurashi_shisei/kurashi/sumai/keikan/files/okugai_kisoku.pdf",
+        "verified_at": "2026-11-04",
+        "kind_citations": [
+          {
+            "source": "施行規則",
+            "article": "規則 別表第3 壁面利用広告 1,2",
+            "quote": "表示面積は一面の壁面につき壁面面積(開口部分を含む)の5分の1以下で、かつ10平方メートル以下 / 上端の高さは軒高以下(要旨)",
+            "url": "https://www.city.koshigaya.saitama.jp/kurashi_shisei/kurashi/sumai/keikan/files/okugai_kisoku.pdf",
+            "verbatim": false
+          }
+        ],
+        "kind_note": "『1/5以下かつ10㎡以下』の両方を満たす(埼玉県の『10㎡以下なら比率は問わない』とは逆)。上限は min(壁面×0.2, 10㎡)。越谷市のPDFは文字コード欠落でひらがなが抜けて抽出される。数値・漢字・条番号は読めるため数値は official とした。引用はひらがなを補った要旨(逐語ではない)。"
+      },
+      {
+        "kind": "突出し広告",
+        "when": "禁止地域で許可を受ける自家広告",
+        "self_use_only": true,
+        "zone": "prohibited_zone",
+        "height_max_m": null,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": "越谷市のPDFは文字コード欠落でひらがなが抜けて抽出される。数値・漢字・条番号は読めるため数値は official とした。引用はひらがなを補った要旨(逐語ではない)。",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "規則 別表第3 突出し広告 1〜4",
+            "quote": "上端の高さは壁面の高さ以下",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.9,
+        "top_limit": "wall",
+        "protrusion_from_wall_max_m": 1.2,
+        "ground_clearance_sidewalk_min_m": 3.0,
+        "ground_clearance_roadway_min_m": 4.5,
+        "road_protrusion_allowed": true,
+        "verified": "official",
+        "verified_url": "https://www.city.koshigaya.saitama.jp/kurashi_shisei/kurashi/sumai/keikan/files/okugai_kisoku.pdf",
+        "verified_at": "2026-11-04",
+        "kind_citations": [
+          {
+            "source": "施行規則",
+            "article": "規則 別表第3 突出し広告 1〜4",
+            "quote": "表示面積6平方メートル以下 / 上端の高さは壁面の高さ以下 / 壁面からの突出し幅1.2メートル以下 / 下端の高さは歩道上は路面から3メートル以上、車道上は4.5メートル以上(要旨)",
+            "url": "https://www.city.koshigaya.saitama.jp/kurashi_shisei/kurashi/sumai/keikan/files/okugai_kisoku.pdf",
+            "verbatim": false
+          }
+        ],
+        "kind_note": "越谷市のPDFは文字コード欠落でひらがなが抜けて抽出される。数値・漢字・条番号は読めるため数値は official とした。引用はひらがなを補った要旨(逐語ではない)。"
+      }
+    ],
+    "road_occupancy": {
+      "law_citation": {
+        "source": "法律",
+        "article": "道路法 第32条第1項",
+        "quote": "道路に次の各号のいずれかに掲げる工作物、物件又は施設を設け、継続して道路を使用しようとする場合においては、道路管理者の許可を受けなければならない。(第1号 広告塔その他これらに類する工作物)",
+        "url": "https://laws.e-gov.go.jp/api/1/lawdata/327AC1000000180"
+      },
+      "use_permit_citation": {
+        "source": "法律",
+        "article": "道路交通法 第77条第1項第2号",
+        "quote": "道路に石碑、銅像、広告板、アーチその他これらに類する工作物を設けようとする者は、所轄警察署長の許可を受けなければならない。",
+        "url": "https://laws.e-gov.go.jp/api/1/lawdata/335AC0000000105"
+      },
+      "by_manager": [
+        {
+          "manager": "市道",
+          "verified": "copy",
+          "protrusion_from_road_boundary_max_m": 1.0,
+          "ground_clearance_sidewalk_min_m": null,
+          "ground_clearance_no_sidewalk_min_m": null,
+          "self_use_only": true,
+          "general_not_allowed": true,
+          "note": "道路占用許可基準(令和8年4月改正)26(4): 突出看板は自家用看板に限る、1営業所等につき2個以内、出幅は路端(道路区域端)から1m以下、平板看板は0.3m以下。下端の高さの数値は基準に無く未確認。今回は再取得していない。",
+          "confidence": 0.6,
+          "kind_citations": [
+            {
+              "source": "道路管理者の基準",
+              "article": "越谷市 道路占用許可基準 26 看板の類による占用(4)",
+              "quote": "突出看板については、自家用看板に限るものとし、1営業所、1事業所又は1作業所につき2個以内とすること。/看板の出幅は路端(道路区域端)から1メートル以下とすること。",
+              "url": "(越谷市公式 道路占用許可基準PDF。URLは調査メモに未記録)"
+            }
+          ]
+        }
+      ]
     }
   },
   "extraction_notes": [

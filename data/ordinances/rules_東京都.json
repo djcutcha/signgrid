@@ -58,7 +58,26 @@
               "quote_verified": true
             }
           ],
-          "confidence": 0.6
+          "confidence": 0.6,
+          "wall_ratio_max": null,
+          "road_protrusion_allowed": null,
+          "verified": "copy",
+          "unverified_keys": [
+            "road_protrusion_allowed",
+            "wall_ratio_max"
+          ],
+          "verified_url": "https://www.toshiseibi.metro.tokyo.lg.jp/documents/d/toshiseibi/kou-siori2026-p61-95_booklet",
+          "verified_at": "2026-11-04",
+          "kind_citations": [
+            {
+              "source": "施行規則",
+              "article": "規則 別表第2 一の項 禁止事項二",
+              "quote": "建築物の壁面から突出させないこと。",
+              "url": "https://www.toshiseibi.metro.tokyo.lg.jp/documents/d/toshiseibi/kou-siori2026-p61-95_booklet",
+              "verbatim": true
+            }
+          ],
+          "kind_note": "別表第2(自家用・許可不要)に壁面率の数値は無い(面積は合計5㎡/10㎡のみ)。一の項は『壁面から突出させない』=袖看板は許可不要の枠から外れる。ただし13項ある地域区分ごとの禁止事項を住所の地域判定と突き合わせる作業は未了。PDFの表が崩れて抽出されたため、地域区分と禁止事項の対応は copy 扱い。"
         },
         {
           "kind": "全種類",
@@ -80,7 +99,26 @@
               "quote_verified": true
             }
           ],
-          "confidence": 0.5
+          "confidence": 0.5,
+          "wall_ratio_max": null,
+          "road_protrusion_allowed": null,
+          "verified": "copy",
+          "unverified_keys": [
+            "road_protrusion_allowed",
+            "wall_ratio_max"
+          ],
+          "verified_url": "https://www.toshiseibi.metro.tokyo.lg.jp/documents/d/toshiseibi/kou-siori2026-p61-95_booklet",
+          "verified_at": "2026-11-04",
+          "kind_citations": [
+            {
+              "source": "施行規則",
+              "article": "規則 別表第2 一の項 禁止事項二",
+              "quote": "建築物の壁面から突出させないこと。",
+              "url": "https://www.toshiseibi.metro.tokyo.lg.jp/documents/d/toshiseibi/kou-siori2026-p61-95_booklet",
+              "verbatim": true
+            }
+          ],
+          "kind_note": "別表第2(自家用・許可不要)に壁面率の数値は無い(面積は合計5㎡/10㎡のみ)。一の項は『壁面から突出させない』=袖看板は許可不要の枠から外れる。ただし13項ある地域区分ごとの禁止事項を住所の地域判定と突き合わせる作業は未了。PDFの表が崩れて抽出されたため、地域区分と禁止事項の対応は copy 扱い。"
         },
         {
           "kind": "全種類",
@@ -112,7 +150,26 @@
               "quote_verified": true
             }
           ],
-          "confidence": 0.4
+          "confidence": 0.4,
+          "wall_ratio_max": null,
+          "road_protrusion_allowed": null,
+          "verified": "copy",
+          "unverified_keys": [
+            "road_protrusion_allowed",
+            "wall_ratio_max"
+          ],
+          "verified_url": "https://www.toshiseibi.metro.tokyo.lg.jp/documents/d/toshiseibi/kou-siori2026-p61-95_booklet",
+          "verified_at": "2026-11-04",
+          "kind_citations": [
+            {
+              "source": "施行規則",
+              "article": "規則 別表第2 一の項 禁止事項二",
+              "quote": "建築物の壁面から突出させないこと。",
+              "url": "https://www.toshiseibi.metro.tokyo.lg.jp/documents/d/toshiseibi/kou-siori2026-p61-95_booklet",
+              "verbatim": true
+            }
+          ],
+          "kind_note": "別表第2(自家用・許可不要)に壁面率の数値は無い(面積は合計5㎡/10㎡のみ)。一の項は『壁面から突出させない』=袖看板は許可不要の枠から外れる。ただし13項ある地域区分ごとの禁止事項を住所の地域判定と突き合わせる作業は未了。PDFの表が崩れて抽出されたため、地域区分と禁止事項の対応は copy 扱い。"
         },
         {
           "kind": "全種類",
@@ -456,7 +513,30 @@
             "quote_verified": true
           }
         ],
-        "confidence": 0.9
+        "confidence": 0.9,
+        "wall_ratio_max": 0.3,
+        "protrusion_from_wall_max_m": 0,
+        "road_protrusion_allowed": false,
+        "verified": "official",
+        "verified_url": "https://www.toshiseibi.metro.tokyo.lg.jp/documents/d/toshiseibi/kou-siori2026-p61-95_booklet",
+        "verified_at": "2026-11-04",
+        "kind_citations": [
+          {
+            "source": "施行規則",
+            "article": "規則 別表第3 二の5",
+            "quote": "各広告物等の表示面積の合計が当該壁面面積の10分の3以下であること。",
+            "url": "https://www.toshiseibi.metro.tokyo.lg.jp/documents/d/toshiseibi/kou-siori2026-p61-95_booklet",
+            "verbatim": true
+          },
+          {
+            "source": "施行規則",
+            "article": "規則 別表第3 二の3",
+            "quote": "壁面の外郭線から突出して表示し、又は設置しないこと。",
+            "url": "https://www.toshiseibi.metro.tokyo.lg.jp/documents/d/toshiseibi/kou-siori2026-p61-95_booklet",
+            "verbatim": true
+          }
+        ],
+        "kind_note": "表示期間7日以内の広告物は合計に入れない(5の括弧書き)。壁面面積は『当該壁面』=広告を付ける壁面。"
       },
       {
         "kind": "建築物の壁面を利用する広告物等",
@@ -475,7 +555,22 @@
             "quote_verified": true
           }
         ],
-        "confidence": 0.9
+        "confidence": 0.9,
+        "wall_ratio_max": 0.3,
+        "protrusion_from_wall_max_m": 0,
+        "road_protrusion_allowed": false,
+        "verified": "official",
+        "verified_url": "https://www.toshiseibi.metro.tokyo.lg.jp/documents/d/toshiseibi/kou-siori2026-p61-95_booklet",
+        "verified_at": "2026-11-04",
+        "kind_citations": [
+          {
+            "source": "施行規則",
+            "article": "規則 別表第3 二の5",
+            "quote": "広告物等(広告幕を除く。)の表示面積が商業地域内にあつては100㎡以下、商業地域外にあつては50㎡以下であり、かつ、…各広告物等の表示面積の合計が当該壁面面積の10分の3以下であること。",
+            "url": "https://www.toshiseibi.metro.tokyo.lg.jp/documents/d/toshiseibi/kou-siori2026-p61-95_booklet",
+            "verbatim": true
+          }
+        ]
       },
       {
         "kind": "建築物から突出する形式の広告物等",
@@ -532,7 +627,31 @@
             "quote_verified": true
           }
         ],
-        "confidence": 0.9
+        "confidence": 0.9,
+        "protrusion_from_wall_max_m": 1.5,
+        "protrusion_from_road_boundary_max_m": 1.0,
+        "road_protrusion_allowed": true,
+        "top_limit": "wall",
+        "verified": "official",
+        "verified_url": "https://www.toshiseibi.metro.tokyo.lg.jp/documents/d/toshiseibi/kou-siori2026-p61-95_booklet",
+        "verified_at": "2026-11-04",
+        "kind_citations": [
+          {
+            "source": "施行規則",
+            "article": "規則 別表第3 三の2",
+            "quote": "広告物等(つり下げ式のものを含む。)の道路境界線からの出幅が1ｍ以下であり、かつ、当該建築物からの出幅が1.5ｍ以下であること。",
+            "url": "https://www.toshiseibi.metro.tokyo.lg.jp/documents/d/toshiseibi/kou-siori2026-p61-95_booklet",
+            "verbatim": true
+          },
+          {
+            "source": "施行規則",
+            "article": "規則 別表第3 三の4",
+            "quote": "広告物等の上端が当該広告物等を表示し、又は設置する壁面の上端を越えないこと。",
+            "url": "https://www.toshiseibi.metro.tokyo.lg.jp/documents/d/toshiseibi/kou-siori2026-p61-95_booklet",
+            "verbatim": true
+          }
+        ],
+        "kind_note": "既存 protrusion_max_m=1 は道路境界線からの出幅。壁面(建築物)からの出幅1.5mは別キーで持つ。"
       },
       {
         "kind": "建築物から突出する形式の広告物等",
@@ -551,7 +670,21 @@
             "quote_verified": true
           }
         ],
-        "confidence": 0.9
+        "confidence": 0.9,
+        "ground_clearance_sidewalk_min_m": 3.5,
+        "ground_clearance_sidewalk_min_m_if_road_boundary_projection_le_0_5m": 2.5,
+        "verified": "official",
+        "verified_url": "https://www.toshiseibi.metro.tokyo.lg.jp/documents/d/toshiseibi/kou-siori2026-p61-95_booklet",
+        "verified_at": "2026-11-04",
+        "kind_citations": [
+          {
+            "source": "施行規則",
+            "article": "規則 別表第3 三の3",
+            "quote": "道路面から広告物等の下端までの高さが歩車道の区別のある道路の歩道上にあつては3.5ｍ以上(道路境界線からの出幅が0.5ｍ以下のものにあつては2.5ｍ以上)",
+            "url": "https://www.toshiseibi.metro.tokyo.lg.jp/documents/d/toshiseibi/kou-siori2026-p61-95_booklet",
+            "verbatim": true
+          }
+        ]
       },
       {
         "kind": "建築物から突出する形式の広告物等",
@@ -570,7 +703,21 @@
             "quote_verified": true
           }
         ],
-        "confidence": 0.9
+        "confidence": 0.9,
+        "ground_clearance_roadway_min_m": 4.5,
+        "verified": "official",
+        "verified_url": "https://www.toshiseibi.metro.tokyo.lg.jp/documents/d/toshiseibi/kou-siori2026-p61-95_booklet",
+        "verified_at": "2026-11-04",
+        "kind_citations": [
+          {
+            "source": "施行規則",
+            "article": "規則 別表第3 三の3",
+            "quote": "歩車道の区別のない道路上にあつては4.5ｍ以上であること。",
+            "url": "https://www.toshiseibi.metro.tokyo.lg.jp/documents/d/toshiseibi/kou-siori2026-p61-95_booklet",
+            "verbatim": true
+          }
+        ],
+        "kind_note": "『歩車道の区別のない道路上』を ground_clearance_roadway_min_m(車道上・歩道なし)に対応させる。"
       },
       {
         "kind": "電柱・街路灯柱を利用する広告物等",
@@ -903,6 +1050,72 @@
         }
       ],
       "confidence": 0.9
+    },
+    "road_occupancy": {
+      "law_citation": {
+        "source": "法律",
+        "article": "道路法 第32条第1項",
+        "quote": "道路に次の各号のいずれかに掲げる工作物、物件又は施設を設け、継続して道路を使用しようとする場合においては、道路管理者の許可を受けなければならない。(第1号 広告塔その他これらに類する工作物)",
+        "url": "https://laws.e-gov.go.jp/api/1/lawdata/327AC1000000180"
+      },
+      "use_permit_citation": {
+        "source": "法律",
+        "article": "道路交通法 第77条第1項第2号",
+        "quote": "道路に石碑、銅像、広告板、アーチその他これらに類する工作物を設けようとする者は、所轄警察署長の許可を受けなければならない。",
+        "url": "https://laws.e-gov.go.jp/api/1/lawdata/335AC0000000105"
+      },
+      "by_manager": [
+        {
+          "manager": "都道",
+          "verified": "copy",
+          "protrusion_from_road_boundary_max_m": 1.0,
+          "ground_clearance_sidewalk_min_m": 2.5,
+          "ground_clearance_no_sidewalk_min_m": 4.5,
+          "self_use_only": null,
+          "general_not_allowed": null,
+          "note": "袖看板は道路境界から1m以内、歩道上2.5m以上、歩道なし4.5m以上。壁面看板(平板)は0.3m以内。条例規則 別表第3(下端3.5m)より緩い数値で、道路占用側が別に審査する。使用許可(警察)も併記の流れ。今回は再取得していない(既存の調査メモ由来)。",
+          "confidence": 0.7,
+          "kind_citations": [
+            {
+              "source": "道路管理者の基準",
+              "article": "東京都建設局 北多摩南部建設事務所 申請書作成例",
+              "quote": "袖看板 道路境界から1.0m以内、歩道上2.5m以上、歩道のない道路4.5m以上",
+              "url": "https://www.kensetsu.metro.tokyo.lg.jp/content/000061300.pdf"
+            }
+          ]
+        },
+        {
+          "manager": "区道",
+          "verified": "copy",
+          "protrusion_from_road_boundary_max_m": null,
+          "ground_clearance_sidewalk_min_m": 3.5,
+          "ground_clearance_no_sidewalk_min_m": 4.5,
+          "self_use_only": null,
+          "general_not_allowed": null,
+          "note": "板橋区の例。出幅0.5m以下は2.5m。占用許可とは別に所轄警察署の道路使用許可も必要と明記。区ごとに違う。今回は再取得していない。",
+          "confidence": 0.6,
+          "kind_citations": [
+            {
+              "source": "道路管理者の基準",
+              "article": "板橋区 突出看板",
+              "quote": "突出看板を設置する場合は道路占用許可とは別に、所轄警察署の道路使用許可も必要です。",
+              "url": "https://www.city.itabashi.tokyo.jp/bousai/douro/senyou/1006477.html"
+            }
+          ]
+        },
+        {
+          "manager": "国道",
+          "verified": "unverified",
+          "protrusion_from_road_boundary_max_m": null,
+          "ground_clearance_sidewalk_min_m": null,
+          "ground_clearance_no_sidewalk_min_m": null,
+          "self_use_only": null,
+          "general_not_allowed": null,
+          "note": "未確認。",
+          "confidence": 0.0,
+          "kind_citations": []
+        }
+      ]
     }
   },
   "extraction_notes": [

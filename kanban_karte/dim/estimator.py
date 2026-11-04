@@ -6,6 +6,8 @@
 
 送る物は 写真(長辺 1600px に縮小した JPEG)、対象の名前(どの看板の寸法か)、参照物辞書 だけ。
 鍵は環境変数 ANTHROPIC_API_KEY(.env も読む)。作法は eval/claude_judge.py と同じ(クライアント・縮小・JSON の再試行1回)。
+種類(kind)を渡すと指示を足す: wall(壁面)は取り付く壁面の枠 wall_boxes と壁面の幅・高さ(壁面率の概算用)、
+unknown(分からない)は種類の候補 kind_candidates を返させる(人が確定する)。応答の JSON は足すだけで、従来の形のままでも読める。
 judge_from_range は推定の範囲の両端で法規役を呼び、許可の要否が両端で同じならその値、違えば「要実測」。
 """
 from __future__ import annotations
@@ -26,6 +28,21 @@ LONG_EDGE = 1600
 MAX_PHOTOS = 2
 MAX_TOKENS = 6000
 CONFIDENCES = ("high", "mid", "low")
+KINDS = ("wall", "projecting", "freestanding", "rooftop")   # 壁面 / 袖(突出し)/ 自立 / 屋上
+KIND_UNKNOWN = "unknown"
+
+# 種類ごとに user の文へ足す指示(system は変えない)
+KIND_HINTS = {
+    "wall": ("この看板は壁面看板です。測る看板に加えて、看板が取り付いている壁面(建物の 1 面。地面から軒まで、窓・ドアなどの開口部を含む)も測ってください。"
+             "JSON に次を足す: \"wall_boxes\": [写真ごとの壁面の枠 [左, 上, 右, 下](0〜1)か null], "
+             "\"wall\": {\"w_mm\": 壁面の幅, \"h_mm\": 壁面の高さ(地面から軒まで), \"w_range\": [最小, 最大], \"h_range\": [最小, 最大]}。"
+             "壁面が写真に収まっていなければ wall は null。"),
+    "projecting": "この看板は袖看板(壁から直角に突き出す看板)です。板面だけを測り、壁に留める金具・腕木は含めないでください。",
+    "freestanding": "この看板は自立看板(地面に立つ広告塔・広告板)です。板面だけを測り、支柱・脚は含めないでください。",
+    "rooftop": "この看板は屋上看板(建物の屋上に載る看板)です。板面だけを測り、架台・鉄骨は含めないでください。",
+    KIND_UNKNOWN: ("看板の種類も見てください。JSON に \"kind_candidates\": [{\"kind\": \"wall\"(壁面)| \"projecting\"(袖・突出し)| "
+                   "\"freestanding\"(自立)| \"rooftop\"(屋上), \"why\": 写真のどこからそう見たかの短い説明}] を、確からしい順に 1〜3 件足してください。"),
+}
 
 SYSTEM = """あなたは屋外広告物(看板)の寸法を、写真から見積もる補助者です。巻尺で測れない代わりに、写真に写る「大きさの分かる物(参照物)」を物差しにして、指定された看板の幅 W と高さ H を mm で推定し、範囲(最小〜最大)も出します。
 
@@ -66,7 +83,10 @@ class DimEstimate:
     notes: str = ""
     model: str = ""
     usage: dict = field(default_factory=dict)
-    photos: list = field(default_factory=list)  # 写真ごとの枠 [{photo(0始まり), sign_box, references:[{name, box}]}]
+    photos: list = field(default_factory=list)  # 写真ごとの枠 [{photo(0始まり), sign_box, references:[{name, box}], wall_box(壁面のみ)}]
+    wall: dict | None = None                     # 壁面のみ: {w_mm, h_mm, w_range, h_range, area_m2, area_range}。無ければ None
+    kind_candidates: list = field(default_factory=list)  # 種類が分からない時: [{kind, why}]
+    kind: str | None = None                      # 推定に渡した種類(None= 指定なし)
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -116,12 +136,40 @@ def _nth(v, i: int):
 
 
 def photo_boxes(obj: dict, refs_raw: list, n_photos: int) -> list[dict]:
-    """応答の sign_boxes・references[].boxes を写真ごとに組み直す。枠が1つも無い写真も行は作る(画面で写真を出すため)。"""
+    """応答の sign_boxes・references[].boxes(・wall_boxes)を写真ごとに組み直す。枠が1つも無い写真も行は作る(画面で写真を出すため)。
+    wall_boxes が応答にある時だけ、各行に wall_box を足す(従来の応答では行の形は変わらない)。"""
     out = []
     for i in range(n_photos):
         refs = [{"name": str(r.get("name", "")), "box": parse_box(_nth(r.get("boxes"), i))} for r in refs_raw]
-        out.append({"photo": i, "sign_box": parse_box(_nth(obj.get("sign_boxes"), i)), "references": [r for r in refs if r["box"]]})
+        row = {"photo": i, "sign_box": parse_box(_nth(obj.get("sign_boxes"), i)), "references": [r for r in refs if r["box"]]}
+        if "wall_boxes" in obj:
+            row["wall_box"] = parse_box(_nth(obj.get("wall_boxes"), i))
+        out.append(row)
     return out
+
+
+def parse_wall(v) -> dict | None:
+    """壁面の寸法 {w_mm, h_mm, w_range, h_range}。壊れていれば None(看板の推定は捨てない)。"""
+    if not isinstance(v, dict):
+        return None
+    try:
+        w, h = _int(v.get("w_mm"), "wall.w_mm"), _int(v.get("h_mm"), "wall.h_mm")
+        wr = _range(v.get("w_range", [w, w]), "wall.w_range")
+        hr = _range(v.get("h_range", [h, h]), "wall.h_range")
+    except ValueError:
+        return None
+    wr, hr = (min(wr[0], w), max(wr[1], w)), (min(hr[0], h), max(hr[1], h))
+    return {"w_mm": w, "h_mm": h, "w_range": list(wr), "h_range": list(hr), "area_m2": round(w * h / 1e6, 2),
+            "area_range": [round(wr[0] * hr[0] / 1e6, 2), round(wr[1] * hr[1] / 1e6, 2)]}
+
+
+def parse_candidates(v) -> list[dict]:
+    """種類の候補。知らない種類・形の崩れた要素は捨てる(重複も)。"""
+    out: list[dict] = []
+    for c in v if isinstance(v, list) else []:
+        if isinstance(c, dict) and c.get("kind") in KINDS and all(o["kind"] != c["kind"] for o in out):
+            out.append({"kind": c["kind"], "why": str(c.get("why") or "")[:200]})
+    return out[:3]
 
 
 def parse_estimate(text: str, n_photos: int = 1) -> DimEstimate:
@@ -151,7 +199,8 @@ def parse_estimate(text: str, n_photos: int = 1) -> DimEstimate:
     notes = obj.get("notes") or ""
     if not isinstance(notes, str):
         raise ValueError("notes が文字列でない")
-    return DimEstimate(w, h, wr, hr, refs, rft, conf, notes, photos=photo_boxes(obj, obj.get("references") or [], n_photos))
+    return DimEstimate(w, h, wr, hr, refs, rft, conf, notes, photos=photo_boxes(obj, obj.get("references") or [], n_photos),
+                       wall=parse_wall(obj.get("wall")), kind_candidates=parse_candidates(obj.get("kind_candidates")))
 
 
 class DimEstimator:
@@ -164,7 +213,9 @@ class DimEstimator:
             self._client = make_client()
         return self._client
 
-    def build_messages(self, photos: list, target_name: str | None) -> list[dict]:
+    def build_messages(self, photos: list, target_name: str | None, kind: str | None = None) -> list[dict]:
+        if kind is not None and kind not in KINDS + (KIND_UNKNOWN,):
+            raise DimEstimateError(f"種類は {KINDS + (KIND_UNKNOWN,)} のどれか: {kind!r}")
         if not photos:
             raise DimEstimateError("写真がありません")
         content: list[dict] = []
@@ -181,12 +232,14 @@ class DimEstimator:
             lines.append(f"寸法を知りたい看板: {target_name}")
         else:
             lines.append("寸法を知りたい看板: 写真の中で一番大きく写る看板(板面)")
+        if kind:
+            lines.append(KIND_HINTS[kind])
         lines.append("JSON だけを返してください。")
         content.append({"type": "text", "text": "\n".join(lines)})
         return [{"role": "user", "content": content}]
 
-    def estimate(self, photos: list, target_name: str | None = None) -> DimEstimate:
-        messages = self.build_messages(photos, target_name)
+    def estimate(self, photos: list, target_name: str | None = None, kind: str | None = None) -> DimEstimate:
+        messages = self.build_messages(photos, target_name, kind)
         system = SYSTEM.format(dictionary=ref.prompt_text())
         plain_in = out_tok = attempts = 0
         log: list[str] = []
@@ -217,7 +270,7 @@ class DimEstimator:
                     {"role": "user", "content": f"JSON が不正でした({e})。指定の形式の JSON オブジェクトだけを返し直してください。"},
                 ]
                 continue
-            est.model, est.usage = self.model, usage()
+            est.model, est.usage, est.kind = self.model, usage(), kind
             return est
         err = DimEstimateError("応答が2回続けて不正でした: " + " / ".join(log))
         err.usage = usage()
@@ -227,21 +280,24 @@ class DimEstimator:
 # ---------- 範囲 → 法規役 ----------
 
 def judge_from_range(estimate: DimEstimate, address: str | None, judge=legal.judge,
-                     height_m: float | None = None) -> dict:
+                     height_m: float | None = None, **extra) -> dict:
     """範囲の両端(W_low×H_low と W_high×H_high)で法規役(自家用)を呼ぶ。height_m(全高、地上から上端)が分かれば両端とも同じ値を渡す
     (高さの基準がある条例= 埼玉県系の許可・有資格者 は全高が無いと要実測のまま)。許可の要否が両端で同じならその値、違えば「要実測」。"""
     area_low = round(estimate.w_range[0] * estimate.h_range[0] / 1e6, 2)
     area_high = round(estimate.w_range[1] * estimate.h_range[1] / 1e6, 2)
     area_mid = round(estimate.w_mm * estimate.h_mm / 1e6, 2)
-    return judge_from_areas(area_low, area_high, area_mid, address, judge=judge, height_m=height_m)
+    return judge_from_areas(area_low, area_high, area_mid, address, judge=judge, height_m=height_m, **extra)
 
 
 def judge_from_areas(area_low: float, area_high: float, area_mid: float, address: str | None, judge=legal.judge,
-                     height_m: float | None = None) -> dict:
+                     height_m: float | None = None, **extra) -> dict:
     """面積の範囲の両端(area_low・area_high ㎡)で法規役(自家用)を呼び、両端で結論が同じ項目はその値、違う項目は「要実測」。
-    推定カード(judge_from_range)とオーナー画面の「調べる」(推定の値のまま調べた時)が同じ原則で判定するための共通部。"""
-    lo = judge(address, use="self", area_m2=area_low, height_m=height_m)
-    hi = judge(address, use="self", area_m2=area_high, height_m=height_m)
+    推定カード(judge_from_range)とオーナー画面の「調べる」(推定の値のまま調べた時)が同じ原則で判定するための共通部。
+    extra(kind・wall_area_m2・出幅 等。None の物は渡さない)は両端とも同じ値で法規役へ渡す。種類ごとの項目(kind_checks)も
+    両端で結論が分かれた項目は要実測(壁面率は看板の面積で変わる)。"""
+    extra = {k: v for k, v in extra.items() if v is not None}
+    lo = judge(address, use="self", area_m2=area_low, height_m=height_m, **extra)
+    hi = judge(address, use="self", area_m2=area_high, height_m=height_m, **extra)
 
     def same(a: str, b: str) -> str:
         return a if a == b else legal.NEEDS_MEASURE
@@ -263,7 +319,21 @@ def judge_from_areas(area_low: float, area_high: float, area_mid: float, address
         else:  # 範囲の両端で結論が分かれる -> 要実測(根拠の条文は小さい側のものを残す)
             duties[k] = {**e, "value": legal.NEEDS_MEASURE, "reason": "推定の範囲の両端で結論が分かれる",
                          "text": "要実測(推定の範囲の両端で結論が分かれる)"}
-    return {"permit": permit, "area_low": area_low, "area_high": area_high, "area_mid": area_mid, "height_m": height_m,
+    def merge_kind(attr: str) -> list[dict]:
+        out = []
+        hi_rows = {r["item"]: r for r in getattr(hi, attr, None) or []}
+        for row in getattr(lo, attr, None) or []:
+            h = hi_rows.get(row["item"])
+            if h is None or h["verdict"] == row["verdict"]:
+                out.append({**row, "value_high": h["value"] if h else row["value"]})
+            else:
+                out.append({**row, "verdict": legal.NEEDS_MEASURE, "value_high": h["value"],
+                            "note": f"推定の範囲の両端で結論が分かれる(小さい側 {row['verdict']}・大きい側 {h['verdict']})"})
+        return out
+    return {"kind_category": getattr(lo, "kind_category", None), "kind_checks": merge_kind("kind_checks"),
+            "kind_permit_checks": merge_kind("kind_permit_checks"),
+            "road_occupancy": getattr(hi, "road_occupancy", None),
+            "permit": permit, "area_low": area_low, "area_high": area_high, "area_mid": area_mid, "height_m": height_m,
             "inspection_required": same(lo.inspection_required, hi.inspection_required),
             "maintenance_duty": same(lo.maintenance_duty, hi.maintenance_duty),
             "inspection_duty": same(lo.inspection_duty, hi.inspection_duty),

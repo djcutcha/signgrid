@@ -217,3 +217,71 @@ class ReferenceObjectsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class KindEstimateTest(unittest.TestCase):
+    """種類を渡した推定(壁面の枠・壁面の寸法・種類の候補)。応答の JSON は足すだけで、従来の形も読める。"""
+
+    def test_old_response_is_compatible(self):
+        e = parse_estimate(json.dumps({**GOOD, "sign_boxes": [[0.2, 0.3, 0.8, 0.5]]}))
+        self.assertIsNone(e.wall)
+        self.assertEqual(e.kind_candidates, [])
+        self.assertNotIn("wall_box", e.photos[0])     # 行の形は従来のまま
+        d = e.to_dict()
+        for k in ("w_mm", "h_mm", "w_range", "h_range", "area_m2", "photos", "references", "confidence"):
+            self.assertIn(k, d)
+        self.assertIsNone(d["wall"])
+
+    def test_wall_box_and_area(self):
+        body = {**GOOD, "sign_boxes": [[0.2, 0.3, 0.8, 0.5]], "wall_boxes": [[0.05, 0.1, 0.95, 0.98]],
+                "wall": {"w_mm": 8000, "h_mm": 6500, "w_range": [7000, 9000], "h_range": [6000, 7000]}}
+        with tempfile.TemporaryDirectory() as td:
+            c = FakeClient(json.dumps(body))
+            e = DimEstimator("m", c).estimate([photo(td)], None, kind="wall")
+        self.assertIn("wall_boxes", c.calls[0]["messages"][0]["content"][-1]["text"])
+        self.assertEqual(e.photos[0]["wall_box"], [0.05, 0.1, 0.95, 0.98])
+        self.assertEqual(e.wall["area_m2"], 52.0)
+        self.assertEqual(e.wall["area_range"], [42.0, 63.0])
+        self.assertEqual(e.kind, "wall")
+        self.assertEqual(e.to_dict()["wall"]["w_range"], [7000, 9000])
+
+    def test_broken_wall_does_not_break_estimate(self):
+        for bad in ({"w_mm": "x"}, "8m", {"w_mm": 8000}):
+            with self.subTest(bad=bad):
+                e = parse_estimate(json.dumps({**GOOD, "wall": bad, "wall_boxes": [[0, 0, 5, 5]]}))
+                self.assertIsNone(e.wall)
+                self.assertIsNone(e.photos[0]["wall_box"])
+                self.assertEqual(e.w_mm, 3200)
+
+    def test_kind_candidates(self):
+        body = {**GOOD, "kind_candidates": [{"kind": "projecting", "why": "壁から直角に出ている"}, {"kind": "roof"},
+                                            {"kind": "projecting", "why": "重複"}, {"kind": "wall", "why": "w"}, "x"]}
+        with tempfile.TemporaryDirectory() as td:
+            c = FakeClient(json.dumps(body))
+            e = DimEstimator("m", c).estimate([photo(td)], None, kind="unknown")
+        self.assertIn("kind_candidates", c.calls[0]["messages"][0]["content"][-1]["text"])
+        self.assertEqual([k["kind"] for k in e.kind_candidates], ["projecting", "wall"])
+
+    def test_no_kind_sends_no_hint(self):
+        with tempfile.TemporaryDirectory() as td:
+            c = FakeClient(json.dumps(GOOD))
+            DimEstimator("m", c).estimate([photo(td)], None)
+        text = c.calls[0]["messages"][0]["content"][-1]["text"]
+        self.assertNotIn("wall_boxes", text)
+        self.assertNotIn("kind_candidates", text)
+
+    def test_bad_kind(self):
+        with tempfile.TemporaryDirectory() as td:
+            with self.assertRaises(DimEstimateError):
+                DimEstimator("m", FakeClient(json.dumps(GOOD))).estimate([photo(td)], None, kind="neon")
+
+    def test_kind_is_passed_to_both_ends(self):
+        seen = []
+
+        def spy(address, *, use, area_m2, **kw):
+            seen.append(kw)
+            return fake_judge(10)(address, use=use, area_m2=area_m2)
+        e = parse_estimate(json.dumps(GOOD))
+        judge_from_range(e, "東京都", spy, kind="壁面", wall_area_m2=50, protrusion_road_m=None)
+        self.assertEqual([k.get("kind") for k in seen], ["壁面", "壁面"])
+        self.assertTrue(all("protrusion_road_m" not in k for k in seen))   # None は渡さない

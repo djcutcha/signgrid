@@ -136,6 +136,8 @@ def make_handler(app: App):
                     return self._file(p, MEDIA_TYPES[p.suffix.lower()], "max-age=300")
                 if not path.startswith("/api/"):
                     return self._error(404, "見つかりません")
+                if path == "/api/owner/kinds":  # 種類の選択肢と撮り方(台帳を開かない)
+                    return self._json(api.owner_kinds())
                 with app.ledger() as ledger:
                     if path == "/api/meta":
                         return self._json(api.meta(app.sample))

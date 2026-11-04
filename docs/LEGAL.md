@@ -53,9 +53,20 @@ Python から: `from kanban_karte.legal.judge import judge` → `judge("住所",
 - 基準は「その面積以下なら許可不要」。境界値(面積 = 閾値)は基準内。
 - 表示面積が None なら 要実測。高さ・地上高が None で、それを要する基準があれば 要実測(ただし面積が基準を超えていれば 要 が確定)。
 - 適用できる基準が複数あり(種類・区域を絞っていない)、結論が割れるときは 要実測。全部の基準に収まれば 不要、全部超えれば 要。
-- 壁面面積の何分の一 のように、数値(㎡・m)で書かれていない基準しか無い種類は 要実測。
+- 壁面面積の何分の一 のように、数値(㎡・m)で書かれていない基準しか無い種類は 要実測(オーナー画面で種類=壁面と壁面の面積を渡した時は、取り込んだ壁面率で判定する。下の「種類ごとの判定」)。
 - 一般の広告物は、許可区域では面積によらず許可が要る(4自治体とも条例の規定)ので 要。
 - 点検まわりは 1 本に畳まず、4つの義務を別々に当てはめる(下の「4つの義務」)。**許可不要の自家用でも、点検する義務と有資格者の義務は条例どおりに判定**する。許可の要否に連動するのは `permit_required_only` が true の義務(行政への報告 等)だけ。
+
+## 種類ごとの判定(壁面・袖。2026-11-04 追加、`kinds.py`)
+
+オーナー画面(`by_kind=True`)だけで使う。台帳・影響の集計など今までの呼び出しは結果が変わらない(`by_kind` の既定は False)。
+
+- 壁面: 壁面率(看板の面積 ÷ 取り付く壁面 1 面の面積。開口部を含む)を `wall_ratio_max`(用途地域で変わる時は `wall_ratio_by_zone`)で当てる。上限 = 壁面 × 比率。`wall_ratio_floor_m2` は「比率で出した面積が小さい時はこの面積まで可」(埼玉県)、`wall_ratio_cap_m2` は「比率以下かつこの面積以下」(越谷市の禁止地域で許可を受ける自家広告)。上端は `top_limit`= eave(軒高以下)/ wall(壁面の高さ以下)/ wall_with_overshoot_le_protrusion(壁面の高さを超える分は壁面からの出幅以下。さいたま市)。
+- 袖(突出し): 壁面からの出幅 `protrusion_from_wall_max_m`、道路境界からの出幅 `protrusion_from_road_boundary_max_m`、道路上に突き出してよいか `road_protrusion_allowed`(自家用・許可不要の枠は false)、下端の地上高 `ground_clearance_sidewalk_min_m` / `ground_clearance_roadway_min_m`(車道上・歩道の無い道路)。東京都は道路境界からの出幅 0.5m 以下なら歩道上 2.5m(`ground_clearance_sidewalk_min_m_if_road_boundary_projection_le_0_5m`)。歩道か車道か分からない時は、厳しい方に収まれば適合、緩い方にも足りなければ超過、間は要実測。
+- **境目は確定させない**: 基準の ±15%(基準が 0 m の時は ±0.15 m)に入る値は要実測。この幅は SignGrid の設計値で、条文の数値ではない。
+- 結果は `kind_checks`(自家用で許可が要らない枠の基準)と `kind_permit_checks`(許可を受ける場合の基準= `permit_standards`)を分けて返す。基準(区域)で結論が割れる項目は要実測にし、基準ごとの結論を `branches` に残す。各行に条文(`kind_citations`。url・逐語か要旨か)と照合の区分(`verified`)。
+- 道路占用(`road_occupancy`、条例の外): 袖が道路境界より道路側に出ていれば「要」、出ていなければ「不要の見込み」、境界の位置か出幅が無い・境目付近は「要確認」。文は「道路占用許可(道路法 第32条)が別に要る。道路使用許可(道路交通法 第77条)は警察署に確認」。道路の管理者ごとの数値(`by_manager`)は、公式で照合済み(official)の物だけ判定に使い、ほかは注意文だけ。
+- 値の出どころ: `tools/merge_kinds_addendum.py` で `法規_壁面袖_rules追記案_2026-11-04.json`(4 自治体の公式サイト掲載の規則全文で照合、vault の照合記録)を取り込んだ。**値を入れたのは official のキーだけ**(78 個。数値の基準が無いと照合済みの null が 10 個)。copy(repo の写しのみ、6 個= 東京都の別表第2 の壁面率と「壁面から突出させない」)と unverified(1 個= 埼玉県の許可基準の道路境界からの出幅)は値を入れず `unverified_keys` に並べ、判定では「未確認= 要実測」。道路占用の by_manager は copy 4・unverified 3 で、数値は判定に使っていない。越谷市の引用は PDF の文字欠けを補った要旨(`verbatim: false`)。新しく足した `permit_standards`(埼玉県・越谷市・さいたま市)の `citations` は repo の写しに逐語で在る抜粋だけ(越谷市は 3 件が空。根拠は `kind_citations`)。
 
 ## 住所 → 自治体(`municipality.py`)
 
@@ -238,6 +249,8 @@ python3 -m kanban_karte.legal.cli store-names [--db signjobz.db] [--since 2022-0
 | `kanban_karte/legal/rules_extract.py` | 原文の清掃・API 抽出・引用の機械照合・保存 |
 | `kanban_karte/legal/schema.py` | 抽出結果の形と検査、区域の語彙 |
 | `kanban_karte/legal/judge.py` | 規則 → 判定 |
+| `kanban_karte/legal/kinds.py` | 種類ごとの判定(壁面率・上端・出幅・地上高・道路占用の注意)、そのキーの検査 |
+| `tools/merge_kinds_addendum.py` | 壁面・袖の追記案(公式で照合した値)を rules_*.json に取り込む(official だけ値を入れる) |
 | `kanban_karte/legal/duties.py` | 4つの義務(管理・点検・有資格者・報告)の判定と画面用の1行 |
 | `tools/duties_matrix.py` | 4自治体 × 3区分 × 全高2通りの24ケース表(API なし) |
 | `kanban_karte/legal/verify.py` | 手元の正解との存在照合、status の第2版への更新 |

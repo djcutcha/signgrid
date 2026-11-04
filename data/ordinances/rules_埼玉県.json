@@ -62,7 +62,27 @@
               "quote_verified": true
             }
           ],
-          "confidence": 0.75
+          "confidence": 0.75,
+          "wall_ratio_max": 0.2,
+          "wall_ratio_by_zone": {
+            "近隣商業地域": 0.3,
+            "商業地域": 0.3
+          },
+          "wall_ratio_floor_m2": 10,
+          "top_limit": null,
+          "verified": "official",
+          "verified_url": "https://www.pref.saitama.lg.jp/documents/5534/240927sekoukisoku.pdf",
+          "verified_at": "2026-11-04",
+          "kind_citations": [
+            {
+              "source": "施行規則",
+              "article": "規則 別表第2 一 許可地域 壁面利用広告 一",
+              "quote": "表示面積は、一面の壁面につきその壁面面積(開口部分を含む。)の五分の一以下(壁面面積の五分の一が十平方メートルに満たないときは、十平方メートル以下)であること。ただし、…近隣商業地域及び商業地域にあつては十分の三以下(…)",
+              "url": "https://www.pref.saitama.lg.jp/documents/5534/240927sekoukisoku.pdf",
+              "verbatim": true
+            }
+          ],
+          "kind_note": "商業系でも10㎡未満なら10㎡まで可(下限)。"
         },
         {
           "kind": "突出し広告",
@@ -82,7 +102,22 @@
               "quote_verified": true
             }
           ],
-          "confidence": 0.75
+          "confidence": 0.75,
+          "top_limit": "wall",
+          "protrusion_from_wall_max_m": 1.2,
+          "road_protrusion_allowed": false,
+          "verified": "official",
+          "verified_url": "https://www.pref.saitama.lg.jp/documents/5534/240927sekoukisoku.pdf",
+          "verified_at": "2026-11-04",
+          "kind_citations": [
+            {
+              "source": "施行規則",
+              "article": "規則 別表第2 一 許可地域 突出し広告 一〜三",
+              "quote": "上端の高さは壁面の高さ以下であること。/壁面からの突出し幅は一・二メートル以下であること。/道路上に突き出していないこと。",
+              "url": "https://www.pref.saitama.lg.jp/documents/5534/240927sekoukisoku.pdf",
+              "verbatim": true
+            }
+          ]
         },
         {
           "kind": "建造物から独立した広告",
@@ -202,7 +237,22 @@
               "quote_verified": true
             }
           ],
-          "confidence": 0.7
+          "confidence": 0.7,
+          "wall_ratio_max": null,
+          "top_limit": "eave",
+          "verified": "official",
+          "verified_url": "https://www.pref.saitama.lg.jp/documents/5534/240927sekoukisoku.pdf",
+          "verified_at": "2026-11-04",
+          "kind_citations": [
+            {
+              "source": "施行規則",
+              "article": "規則 別表第2 一 禁止地域 壁面利用広告",
+              "quote": "表示面積は十平方メートル以下であること。/上端の高さは軒高以下であること。",
+              "url": "https://www.pref.saitama.lg.jp/documents/5534/240927sekoukisoku.pdf",
+              "verbatim": true
+            }
+          ],
+          "kind_note": "禁止地域の自家用許可不要は壁面率ではなく10㎡以下。"
         },
         {
           "kind": "突出し広告",
@@ -222,7 +272,22 @@
               "quote_verified": true
             }
           ],
-          "confidence": 0.7
+          "confidence": 0.7,
+          "top_limit": "wall",
+          "protrusion_from_wall_max_m": 1.0,
+          "road_protrusion_allowed": false,
+          "verified": "official",
+          "verified_url": "https://www.pref.saitama.lg.jp/documents/5534/240927sekoukisoku.pdf",
+          "verified_at": "2026-11-04",
+          "kind_citations": [
+            {
+              "source": "施行規則",
+              "article": "規則 別表第2 一 禁止地域 突出し広告 一〜四",
+              "quote": "表示面積は三平方メートル以下であること。/上端の高さは壁面の高さ以下であること。/壁面からの突出し幅は一メートル以下であること。/道路上に突き出していないこと。",
+              "url": "https://www.pref.saitama.lg.jp/documents/5534/240927sekoukisoku.pdf",
+              "verbatim": true
+            }
+          ]
         },
         {
           "kind": "建造物から独立した広告",
@@ -636,6 +701,231 @@
         }
       ],
       "confidence": 0.85
+    },
+    "permit_standards": [
+      {
+        "kind": "壁面広告",
+        "when": "許可基準(一般)",
+        "self_use_only": false,
+        "zone": "permit_zone",
+        "height_max_m": null,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": "壁面面積は開口部分を含む。",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "規則 別表第1 一 壁面利用広告 一",
+            "quote": "近隣商業地域及び商業地域にあつては十分の三以下であること",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.9,
+        "wall_ratio_max": 0.2,
+        "wall_ratio_by_zone": {
+          "近隣商業地域": 0.3,
+          "商業地域": 0.3
+        },
+        "wall_ratio_floor_m2": null,
+        "verified": "official",
+        "verified_url": "https://www.pref.saitama.lg.jp/documents/5534/240927sekoukisoku.pdf",
+        "verified_at": "2026-11-04",
+        "kind_citations": [
+          {
+            "source": "施行規則",
+            "article": "規則 別表第1 一 壁面利用広告 一",
+            "quote": "表示面積は、一面の壁面につきその壁面面積(開口部分を含む。)の五分の一以下であること。ただし、…近隣商業地域及び商業地域にあつては十分の三以下であること。",
+            "url": "https://www.pref.saitama.lg.jp/documents/5534/240927sekoukisoku.pdf",
+            "verbatim": true
+          }
+        ],
+        "kind_note": "壁面面積は開口部分を含む。"
+      },
+      {
+        "kind": "突出し広告",
+        "when": "許可基準(一般)",
+        "self_use_only": false,
+        "zone": "permit_zone",
+        "height_max_m": null,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": "道路境界からの出幅の数値基準は規則に無い(壁面からの1.2mのみ)。道路上に出る場合の道路管理者側の出幅は road_occupancy で扱う。",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "規則 別表第1 一 突出し広告 一〜三",
+            "quote": "上端の高さは壁面の高さ以下であること",
+            "quote_verified": true
+          },
+          {
+            "source": "施行規則",
+            "article": "規則 別表第1 一 突出し広告 一〜三",
+            "quote": "壁面からの突出し幅は一・二メートル以下であること",
+            "quote_verified": true
+          },
+          {
+            "source": "施行規則",
+            "article": "規則 別表第1 一 突出し広告 一〜三",
+            "quote": "下端の高さは、歩道上にあつては路面から三メートル以上、車道上にあつては路面から四・五メートル以上であること",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.9,
+        "top_limit": "wall",
+        "protrusion_from_wall_max_m": 1.2,
+        "ground_clearance_sidewalk_min_m": 3.0,
+        "ground_clearance_roadway_min_m": 4.5,
+        "road_protrusion_allowed": true,
+        "protrusion_from_road_boundary_max_m": null,
+        "verified": "official",
+        "unverified_keys": [
+          "protrusion_from_road_boundary_max_m"
+        ],
+        "verified_url": "https://www.pref.saitama.lg.jp/documents/5534/240927sekoukisoku.pdf",
+        "verified_at": "2026-11-04",
+        "kind_citations": [
+          {
+            "source": "施行規則",
+            "article": "規則 別表第1 一 突出し広告 一〜三",
+            "quote": "上端の高さは壁面の高さ以下であること。/壁面からの突出し幅は一・二メートル以下であること。/下端の高さは、歩道上にあつては路面から三メートル以上、車道上にあつては路面から四・五メートル以上であること。",
+            "url": "https://www.pref.saitama.lg.jp/documents/5534/240927sekoukisoku.pdf",
+            "verbatim": true
+          }
+        ],
+        "kind_note": "道路境界からの出幅の数値基準は規則に無い(壁面からの1.2mのみ)。道路上に出る場合の道路管理者側の出幅は road_occupancy で扱う。"
+      },
+      {
+        "kind": "壁面広告",
+        "when": "禁止地域で許可を受ける自家広告(条例7条5項1号)",
+        "self_use_only": true,
+        "zone": "prohibited_zone",
+        "height_max_m": null,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": null,
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "規則 別表第1 二 壁面利用広告",
+            "quote": "表示面積は、",
+            "quote_verified": true
+          },
+          {
+            "source": "施行規則",
+            "article": "規則 別表第1 二 壁面利用広告",
+            "quote": "上端の高さは軒高以下であること",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.9,
+        "wall_ratio_max": 0.2,
+        "wall_ratio_floor_m2": 10,
+        "top_limit": "eave",
+        "verified": "official",
+        "verified_url": "https://www.pref.saitama.lg.jp/documents/5534/240927sekoukisoku.pdf",
+        "verified_at": "2026-11-04",
+        "kind_citations": [
+          {
+            "source": "施行規則",
+            "article": "規則 別表第1 二 壁面利用広告",
+            "quote": "表示面積は、…壁面面積(開口部分を含む。)の五分の一以下であること。ただし、表示面積が十平方メートル以下であるときは、この限りでない。/上端の高さは軒高以下であること。",
+            "url": "https://www.pref.saitama.lg.jp/documents/5534/240927sekoukisoku.pdf",
+            "verbatim": true
+          }
+        ]
+      },
+      {
+        "kind": "突出し広告",
+        "when": "禁止地域で許可を受ける自家広告",
+        "self_use_only": true,
+        "zone": "prohibited_zone",
+        "height_max_m": null,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": null,
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "規則 別表第1 二 突出し広告",
+            "quote": "表示面積は六平方メートル以下であること",
+            "quote_verified": true
+          },
+          {
+            "source": "施行規則",
+            "article": "規則 別表第1 二 突出し広告",
+            "quote": "上端の高さは壁面の高さ以下であること",
+            "quote_verified": true
+          },
+          {
+            "source": "施行規則",
+            "article": "規則 別表第1 二 突出し広告",
+            "quote": "壁面からの突出し幅は一・二メートル以下であること",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.9,
+        "top_limit": "wall",
+        "protrusion_from_wall_max_m": 1.2,
+        "ground_clearance_sidewalk_min_m": 3.0,
+        "ground_clearance_roadway_min_m": 4.5,
+        "road_protrusion_allowed": true,
+        "verified": "official",
+        "verified_url": "https://www.pref.saitama.lg.jp/documents/5534/240927sekoukisoku.pdf",
+        "verified_at": "2026-11-04",
+        "kind_citations": [
+          {
+            "source": "施行規則",
+            "article": "規則 別表第1 二 突出し広告",
+            "quote": "表示面積は六平方メートル以下であること。/上端の高さは壁面の高さ以下であること。/壁面からの突出し幅は一・二メートル以下であること。/下端の高さは、歩道上にあつては路面から三メートル以上、車道上にあつては路面から四・五メートル以上であること。",
+            "url": "https://www.pref.saitama.lg.jp/documents/5534/240927sekoukisoku.pdf",
+            "verbatim": true
+          }
+        ]
+      }
+    ],
+    "road_occupancy": {
+      "law_citation": {
+        "source": "法律",
+        "article": "道路法 第32条第1項",
+        "quote": "道路に次の各号のいずれかに掲げる工作物、物件又は施設を設け、継続して道路を使用しようとする場合においては、道路管理者の許可を受けなければならない。(第1号 広告塔その他これらに類する工作物)",
+        "url": "https://laws.e-gov.go.jp/api/1/lawdata/327AC1000000180"
+      },
+      "use_permit_citation": {
+        "source": "法律",
+        "article": "道路交通法 第77条第1項第2号",
+        "quote": "道路に石碑、銅像、広告板、アーチその他これらに類する工作物を設けようとする者は、所轄警察署長の許可を受けなければならない。",
+        "url": "https://laws.e-gov.go.jp/api/1/lawdata/335AC0000000105"
+      },
+      "by_manager": [
+        {
+          "manager": "県道",
+          "verified": "unverified",
+          "protrusion_from_road_boundary_max_m": null,
+          "ground_clearance_sidewalk_min_m": null,
+          "ground_clearance_no_sidewalk_min_m": null,
+          "self_use_only": null,
+          "general_not_allowed": null,
+          "note": "各県土整備事務所が窓口。突出看板の数値基準のページは取得できず未確認。",
+          "confidence": 0.0,
+          "kind_citations": []
+        },
+        {
+          "manager": "市道",
+          "verified": "unverified",
+          "protrusion_from_road_boundary_max_m": null,
+          "ground_clearance_sidewalk_min_m": null,
+          "ground_clearance_no_sidewalk_min_m": null,
+          "self_use_only": null,
+          "general_not_allowed": null,
+          "note": "市町村ごと。県条例の数値(下端 歩道3m・車道4.5m)は屋外広告物の基準で、道路占用の基準とは別。",
+          "confidence": 0.0,
+          "kind_citations": []
+        }
+      ]
     }
   },
   "extraction_notes": [
