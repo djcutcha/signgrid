@@ -19,15 +19,7 @@
    },
    "parts": [
     {
-     "photos": [
-      "photos/plain_b.png",
-      "photos/plain_c.png"
-     ],
-     "answers": [
-      "a",
-      "b",
-      "unknown"
-     ]
+     "photos": []
     },
     {
      "photos": [
