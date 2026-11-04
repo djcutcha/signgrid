@@ -4,7 +4,8 @@
 
 撮る画面: ledger(台帳)、karte(カルテ)、karte-legal(カルテの法規カード)、karte-edit(黄色のマスを直した後)、karte-confirmed(確定後)、
 rules(規則と出力)、intake(受付)、gov(行政。gov.make_sample の見本の束を入れる。続けて見本の写真をスマホ投入の入口から送った直後 = gov-capture-pc/sp)、owner(オーナー。見本の寸法で「調べる」まで)、owner-saitama(同、埼玉県の住所・全高 5m)、
-owner-estimate(オーナーの「寸法を推定」後。推定役は固定値の見本で、API は呼ばない)。
+owner-estimate(オーナーの「寸法を推定」後。推定役は固定値の見本で、API は呼ばない)、
+owner-judge-range(推定の後に欄を直さず「調べる」= 範囲の両端での判定の結果カード)。
 karte-edit 以降は台帳を書き換えるので、一時の台帳でだけ行う(見本の JSON は変わらない)。
 guide = ガイド付き点検(docs/LINE.md)で作った看板のカルテ(guide-karte-pc/sp)。模擬 webhook で見本の台本を一周する。`--only guide` のときだけ撮る。
 workflow = 一周のデモ(docs/WORKFLOW.md): 下書き→訂正→聞き返し→規則候補→矛盾→承認→次の下書きで効く、の7枚(workflow-1-draft …)。
@@ -175,6 +176,18 @@ def run(page, base, out, tag, only, db=None):
         page.evaluate("window.scrollTo(0, 0)")
         page.screenshot(path=str(out / f"owner-estimate-{tag}.png"), full_page=True)
         print(out / f"owner-estimate-{tag}.png")
+    if want("owner-judge-range"):  # 推定の後、欄を直さずに「調べる」= 推定の範囲の両端で判定(判定の元の行が出る)
+        page.goto(f"{base}/owner/#/owner")
+        page.wait_for_selector("main .owner")
+        page.set_input_files("#owner-photo", str(SAMPLE_JSON.parent / "photos" / "plain_a.png"))
+        page.fill("#owner-address", "東京都豊島区見本町1-2-3")
+        page.click("button:has-text('寸法を推定')")
+        page.wait_for_selector(".owner-estimate .cites li")
+        page.click("button:has-text('調べる')")
+        page.wait_for_selector("#owner-out .line-basis")
+        page.wait_for_timeout(600)
+        page.locator("#owner-out").screenshot(path=str(out / f"owner-judge-range-{tag}.png"))
+        print(out / f"owner-judge-range-{tag}.png")
     if only is not None and "workflow" in only:
         workflow(page, base, out, tag, db)
     if only is not None and "guide" in only:
