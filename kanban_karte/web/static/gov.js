@@ -180,6 +180,18 @@
       el("div", { class: "btn-row" }, send, clear), msg, result);
   }
 
+  // 市民からの報告(/report/)の件数。ピンと件数だけ(写真・一言・住所は出さない)。地図の層は map.html に入る
+  async function citizenCard() {
+    let d;
+    try { d = await KK.api("/api/gov/citizen", undefined); } catch (_) { return null; }
+    const order = ["未把握", "把握済み", "点検済み", "受付"];
+    return el("section", { class: "card gov-citizen", id: "gov-citizen" }, el("h2", { text: `市民からの報告 ${d.total} 件` }),
+      d.total ? el("div", { class: "stats" }, order.map((k) => el("div", { class: "stat" }, el("b", { text: String(d.by_status[k] || 0) }), el("span", { text: k })))) : null,
+      el("p", { class: "sub", text: d.total
+        ? "位置から台帳の看板(30 m 以内)と照らし合わせた結果です。地図の紫の点線の丸が報告の位置(約 100 m に丸め)。写真・一言は地図に出しません。"
+        : "まだありません。市民は /report/ から、見かけた看板を写真と位置で送れます。" }));
+  }
+
   KK.views.gov = async function (_, params) {
     const today = params.get("today");  // 基準日(YYYY-MM-DD。見本の撮影用。既定は今日)
     const tq = today ? `&today=${encodeURIComponent(today)}` : "";
@@ -187,8 +199,9 @@
     const head = el("div", { class: "page-head" }, el("div", {}, el("div", { class: "eyebrow", text: "職員が撮った写真の一括登録" }), el("h1", { text: "行政" })),
       captureCard(tq));
     const data = await KK.api(`/api/gov/batches${today ? `?today=${encodeURIComponent(today)}` : ""}`);
+    const cz = await citizenCard();
     if (!data.available || !data.batches.length) {
-      KK.setView(head, el("p", { class: "notice", text: "一括登録はまだありません。" }),
+      KK.setView(head, cz, el("p", { class: "notice", text: "一括登録はまだありません。" }),
         el("p", { class: "sub", text: "上の「撮る → 送る」か、職員が撮った写真のフォルダを取り込む(python3 -m kanban_karte.gov.cli intake)と、ここに並びます。" }));
       return;
     }
@@ -206,6 +219,7 @@
       el("div", { class: "stats", id: "gov-results" }, stat(b.photo_count, "写真(枚)"), stat(b.gps_count, "位置ありの写真(枚)"),
         stat(b.candidate_count, "看板の候補(基。位置で束ねた数)"), stat(b.nopos_count, "位置なしの写真(枚)")),
       countChips(data, b.by_color),
+      cz,
       el("section", { class: "card gov-map" }, el("h2", { text: "地図" }),
         el("iframe", { src: `/api/gov/map.html?batch=${id}${tq}`, title: "巡回調査マップ", loading: "lazy", sandbox: "allow-scripts allow-popups allow-popups-to-escape-sandbox" }),
         el("p", { class: "sub" }, "地図: ", el("a", { href: "https://maps.gsi.go.jp/development/ichiran.html", target: "_blank", rel: "noopener", text: "国土地理院 地理院タイル(淡色地図)" }),

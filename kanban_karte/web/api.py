@@ -383,13 +383,14 @@ def gov_candidates(ledger: Ledger, batch_id: int, today_q: str | None = None) ->
     return {"batch": batch_id, "today": today.isoformat(), "colors": {c: COLOR_NAME[c] for c in COLORS}, "candidates": rows}
 
 
-def gov_map_html(ledger: Ledger, batch_id: int, today_q: str | None = None) -> bytes:
-    """write_map を一時ファイルに書いて返す(出典表示つき・地理院タイル。OSM は使わない)。"""
+def gov_map_html(ledger: Ledger, batch_id: int, today_q: str | None = None, citizen: dict | None = None) -> bytes:
+    """write_map を一時ファイルに書いて返す(出典表示つき・地理院タイル。OSM は使わない)。
+    citizen(市民からの報告の summary)があれば、ピンと件数の層を足す。"""
     today = _today(today_q)
     results = _gov_results(ledger, batch_id, today)
     with tempfile.TemporaryDirectory() as td:
         out = Path(td) / "map.html"
-        write_map(out, results, today=today, ledger_signs=ledger.list_signs(), warn_days=WARN_DAYS)
+        write_map(out, results, today=today, ledger_signs=ledger.list_signs(), warn_days=WARN_DAYS, citizen=citizen)
         return out.read_bytes()
 
 

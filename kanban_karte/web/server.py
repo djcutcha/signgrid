@@ -24,7 +24,7 @@ from urllib.parse import quote, unquote, urlsplit, parse_qs
 from ..gov.geocode import Geocoder
 from ..ledger.db import Ledger
 from ..legal.locate import SamplePlacer, make_placer
-from . import api, expert
+from . import api, citizen, expert
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STATIC = Path(__file__).with_name("static")
@@ -117,6 +117,8 @@ def make_handler(app: App):
             try:
                 if expert.wants(path):   # 有資格者の言葉づけ画面(expert.py)
                     return expert.serve(self, app, "GET", path, q, None)
+                if citizen.wants(path):  # 市民からの報告(citizen.py)。ログイン不要
+                    return citizen.serve(self, app, "GET", path, q, None)
                 if path == "/" or path == "/index.html":
                     return self._file(STATIC / "index.html", "text/html; charset=utf-8")
                 if path in ("/gov", "/owner"):  # 末尾スラッシュ無しは入口へ転送(クエリは引き継ぐ)
@@ -156,7 +158,7 @@ def make_handler(app: App):
                             return self._error(400, "batch=<一括登録の id> を付けてください")
                         today = (q.get("today") or [None])[0]
                         if path == "/api/gov/map.html":
-                            return self._send(200, api.gov_map_html(ledger, batch, today), "text/html; charset=utf-8",
+                            return self._send(200, api.gov_map_html(ledger, batch, today, citizen.summary_for_map(app)), "text/html; charset=utf-8",
                                               {"Cache-Control": "no-store"})
                         return self._json(api.gov_candidates(ledger, batch, today))
                     if path == "/api/rules":
@@ -193,6 +195,8 @@ def make_handler(app: App):
             try:
                 if expert.wants(path):
                     return expert.serve(self, app, "POST", path, {}, body)
+                if citizen.wants(path):
+                    return citizen.serve(self, app, "POST", path, {}, body)
                 if (self.command == "PUT") != bool(SIGN_HEIGHT.match(path)):    # PUT は全高だけ。全高は PUT だけ
                     return self._error(405, "この経路は " + ("PUT" if SIGN_HEIGHT.match(path) else "POST") + " で送ってください")
                 if path == "/api/owner/judge":  # 台帳を開かない・書かない

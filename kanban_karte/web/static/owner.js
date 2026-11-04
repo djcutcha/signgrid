@@ -420,6 +420,20 @@
     document.getElementById("owner-w").addEventListener("input", refreshArea);
     document.getElementById("owner-h").addEventListener("input", refreshArea);
     // 見本や撮影用に ?kind=wall などで種類を先に選んだ状態で開ける
+    // 市民の報告(/report/)から来た時: 送った写真をこの端末の sessionStorage から引き継ぐ(サーバからは取らない)
+    try {
+      const ho = new URLSearchParams(location.search).get("from") === "report" && sessionStorage.getItem("kk.report.handoff");
+      if (ho) {
+        sessionStorage.removeItem("kk.report.handoff");
+        const { photo, address } = JSON.parse(ho);
+        const bin = atob(photo), u8 = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+        const f = new File([u8], "report.jpg", { type: "image/jpeg" });
+        setFile(0, f);
+        if (address) document.getElementById("owner-address").value = address;
+        document.getElementById("owner-step2").prepend(el("p", { class: "notice", id: "owner-handoff", text: `報告で送った写真${address ? "と住所" : ""}を引き継ぎました。① で種類を選んでから「写真から推定」を押してください。${address ? "" : "住所は手で入れてください。"}` }));
+      }
+    } catch (_) { /* 引き継げなければ普通に始める */ }
     const qk = new URLSearchParams(location.search).get("kind");
     if (qk && byId[qk]) pickKind(qk);
   };
