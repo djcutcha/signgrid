@@ -7,6 +7,8 @@
 - 点の色: 赤=台帳に無い/期限切れ  橙=期限90日以内・許可情報の不備  緑=許可あり/不要  灰=位置なし。
   位置なしの写真は地図に置けないので、左の一覧に灰で出す。
 - 件数は HTML 本文に直接書く(スクリプトが動かなくても読める)。データは JSON で埋め込み、画面の組み立ては textContent で行う。
+- 市民からの報告の層(citizen= citizen.store.Store.summary()): 紫の点線の丸。ピンと件数だけ(丸めた位置・状態・日付)。
+  写真・一言・住所は地図に入れない。層は右上の切り替えで消せる。
 """
 from __future__ import annotations
 
@@ -27,6 +29,10 @@ TILE_URL = "https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png"
 
 COLORS = {"red": "#c62828", "orange": "#ef6c00", "green": "#2e7d32", "gray": "#757575"}
 COLOR_NAME = {"red": "赤", "orange": "橙", "green": "緑", "gray": "灰"}
+CITIZEN_COLORS = {"未把握": "#7b1fa2", "把握済み": "#9c7cc0", "点検済み": "#00897b", "受付": "#9e9e9e"}
+CITIZEN_MEANING = {"未把握": "台帳の看板が近く(30 m)に無い", "把握済み": "台帳の看板と一致", "点検済み": "報告の後に点検された",
+                   "受付": "位置が無い(地図に置けない)"}
+
 COLOR_MEANING = {
     "red": "台帳に無い(無許可の疑い・要確認)/ 許可期限切れ",
     "orange": "許可の期限が近い(90日以内)/ 台帳の許可情報が未記入",
@@ -66,7 +72,7 @@ def _json_for_script(obj) -> str:
 
 
 def render_map(results: list[MatchResult], *, today: date, ledger_signs: list[Sign] | None = None,
-               warn_days: int = 90, title: str = "巡回調査マップ") -> str:
+               warn_days: int = 90, title: str = "巡回調査マップ", citizen: dict | None = None) -> str:
     sm = summarize(results)
     n_pos = sum(1 for r in results if r.status != "no_position")
     n_nopos = sm["by_color"]["gray"]
@@ -89,7 +95,17 @@ def render_map(results: list[MatchResult], *, today: date, ledger_signs: list[Si
         for k in STATUS_LABEL if sm["by_status"].get(k, 0))
 
     data = {"results": [_result_json(r) for r in results], "colors": COLORS, "warn_days": warn_days,
-            "today": today.isoformat()}
+            "today": today.isoformat(),
+            "citizen": {"pins": (citizen or {}).get("pins", []), "colors": CITIZEN_COLORS} if citizen else None}
+    citizen_html = ""
+    if citizen:
+        rows = "".join(
+            f'<li><span class="dot cz" style="border-color:{CITIZEN_COLORS[k]}"></span><span class="lg-name">{esc(k)}</span>'
+            f'<span class="lg-n" data-citizen="{esc(k)}">{citizen["by_status"].get(k, 0)}</span><span class="lg-mean">{esc(CITIZEN_MEANING[k])}</span></li>'
+            for k in ("未把握", "把握済み", "点検済み", "受付"))
+        citizen_html = (f'<h2>市民からの報告 <span id="citizen-total">{citizen["total"]}</span> 件</h2><ul class="legend">{rows}</ul>'
+                        '<p class="note">ピンと件数だけを出します(写真・一言・住所は出しません)。位置は約 100 m に丸めています。'
+                        '右上の切り替えで層を消せます。</p>')
     return f"""<!doctype html>
 <html lang="ja">
 <head>
@@ -133,6 +149,7 @@ ul {{ list-style:none; margin:0; padding:0; }}
 .legend .lg-n {{ font-weight:700; font-size:18px; text-align:right; }}
 .legend .lg-mean {{ color:var(--muted); font-size:12px; }}
 .dot {{ display:inline-block; width:14px; height:14px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px #0004; }}
+.dot.cz {{ background:transparent; border:2px dashed; box-shadow:none; }}
 .dot.sm {{ width:10px; height:10px; margin-right:6px; border-width:1px; }}
 .stat li {{ font-size:12.5px; padding:2px 0; color:var(--muted); }}
 .stat li b {{ color:var(--fg); }}
@@ -156,6 +173,7 @@ ul {{ list-style:none; margin:0; padding:0; }}
   <aside>
     <h2>凡例と件数</h2>
     <ul class="legend" id="legend">{''.join(legend_rows)}</ul>
+    {citizen_html}
     <h2>内訳</h2>
     <ul class="stat">{status_rows or '<li>なし</li>'}</ul>
     <p class="note" id="ledger-note">台帳(位置つき)の看板 {len(signs_with_pos)} 基のうち、今回の巡回で写真と一致したのは {len(confirmed)} 基、
@@ -211,6 +229,17 @@ const DATA = {_json_for_script(data)};
     m.bindPopup(function () {{ return popup(r); }}); m.bindTooltip(r.sign ? (r.sign.name || r.sign.id) : "台帳に無い候補");
     pts.push([r.lat, r.lng]); layers.push([r, m]);
   }});
+  if (DATA.citizen) {{
+    const cz = L.layerGroup();
+    DATA.citizen.pins.forEach(function (c) {{
+      const col = DATA.citizen.colors[c.status] || "#7b1fa2";
+      L.circleMarker([c.lat, c.lng], {{ radius: 8, color: col, weight: 3, dashArray: "3 3", fillColor: col, fillOpacity: 0.25 }})
+        .bindTooltip("市民からの報告: " + c.status + "(" + c.date + ")").addTo(cz);
+      pts.push([c.lat, c.lng]);
+    }});
+    cz.addTo(map);
+    L.control.layers(null, {{ "市民からの報告": cz }}, {{ collapsed: false }}).addTo(map);
+  }}
   if (pts.length) map.fitBounds(pts, {{ padding: [40, 40], maxZoom: 17 }}); else map.setView([36.0, 138.0], 6);
   function focus(r) {{ const f = layers.find(function (x) {{ return x[0] === r; }}); if (f) {{ map.setView([r.lat, r.lng], Math.max(map.getZoom(), 17)); f[1].openPopup(); }} }}
   const todo = document.getElementById("todo"), nopos = document.getElementById("nopos");
