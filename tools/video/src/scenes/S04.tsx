@@ -15,19 +15,19 @@ export const S04: React.FC<{t: TItem}> = ({t}) => {
   return (
     <Shell t={t}>
       <Bg />
-      <KW s={s} at={0.4} until={cQual - 0.1} x={960} y={420} size={150}>点検は<span style={{color: COL.amber}}>大仕事</span></KW>
+      <KW s={s} at={0.4} until={cQual - 0.4} x={960} y={130} size={120}>点検は<span style={{color: COL.amber}}>大仕事</span></KW>
       <Svg>
         {/* A: 紙と写真の山 */}
         <g opacity={A}>
           {[0, 1, 2, 3, 4].map((i) => {
             const p = Math.min(1, pop(s, 1.2 + i * 0.7, 0.5));
-            return <Sheet key={i} x={560 + i * 190} y={660 - (1 - p) * 300} rot={(i - 2) * 7} label={['点検表', '報告書', '写真', '様式', '台帳'][i]} color={['#475569', COL.blue, COL.amber, '#9333ea', '#16a34a'][i]} k={0.9} />;
+            return <Sheet key={i} x={560 + i * 190} y={700 - (1 - p) * 220} rot={(i - 2) * 7} label={['点検表', '報告書', '写真', '様式', '台帳'][i]} color={['#475569', COL.blue, COL.amber, '#9333ea', '#16a34a'][i]} k={0.9} />;
           })}
         </g>
         {/* B: 有資格者の立会い */}
         <g opacity={B}>
           <LiftWorker x={640} y={900} k={1.3} raise={eo(clamp01((s - cQual) / 1.5))} s={s} />
-          <SignBoard x={1280} y={420} w={420} h={150} label="看板" fs={80} pole={260} />
+          <SignBoard x={1500} y={480} w={420} h={150} label="看板" fs={80} pole={260} />
         </g>
         {/* C: チェックリスト */}
         <g opacity={Cc}>

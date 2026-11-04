@@ -65,12 +65,29 @@ export const S05: React.FC<{t: TItem}> = ({t}) => {
             <rect x={-330} y={-300} width={660} height={600} rx={24} fill="#f8fafc" />
             <rect x={-330} y={-300} width={660} height={90} rx={24} fill={COL.blue} />
             <text x={0} y={-238} textAnchor="middle" fontSize={50} fontWeight={800} fill="#fff" fontFamily="inherit">看板カルテ</text>
-            {['種類', '寸法', '点検結果', '許可の判定', '報告書'].map((r, i) => (
-              <g key={i} opacity={Math.min(1, pop(s, cKarte + 0.3 + i * 0.25, 0.3))}>
-                <text x={-280} y={-140 + i * 84} fontSize={40} fontWeight={700} fill="#0b1220" fontFamily="inherit">{r}</text>
-                <rect x={60} y={-176 + i * 84} width={220} height={50} rx={10} fill={i === 2 ? COL.amber : '#dbeafe'} />
-              </g>
-            ))}
+            {(() => {
+              const f = (k: number) => Math.min(1, pop(s, cKarte + 0.2 + k * 0.17, 0.25));
+              const rows: [string, string, string][] = [['基礎部', '良好', COL.green], ['支柱', '経過観察', COL.yellow], ['取付部', '要改善', COL.red], ['表示面', '良好', COL.green]];
+              return (
+                <g>
+                  <g opacity={f(0)}>
+                    <text x={-290} y={-160} fontSize={44} fontWeight={800} fill="#0b1220" fontFamily="inherit">ラーメン店 袖看板</text>
+                  </g>
+                  <g opacity={f(1)}>
+                    <rect x={-290} y={-130} width={250} height={50} rx={12} fill="#dbeafe" /><text x={-165} y={-95} textAnchor="middle" fontSize={28} fontWeight={700} fill="#0b1220" fontFamily="inherit">種類 袖</text>
+                    <rect x={-20} y={-130} width={310} height={50} rx={12} fill="#dbeafe" /><text x={135} y={-95} textAnchor="middle" fontSize={28} fontWeight={700} fill="#0b1220" fontFamily="inherit">W1950×H600</text>
+                  </g>
+                  {rows.map(([lab, txt, col], k) => (
+                    <g key={k} opacity={f(k + 2)}>
+                      <text x={-290} y={-18 + k * 64} fontSize={34} fontWeight={700} fill="#0b1220" fontFamily="inherit">{lab}</text>
+                      <rect x={20} y={-52 + k * 64} width={270} height={48} rx={24} fill={col} />
+                      <text x={155} y={-18 + k * 64} textAnchor="middle" fontSize={30} fontWeight={800} fill={col === COL.yellow ? '#0b1220' : '#fff'} fontFamily="inherit">{txt}</text>
+                    </g>
+                  ))}
+                  {[0, 1, 2].map((k) => <rect key={k} x={-290 + k * 200} y={212} width={180} height={64} rx={8} fill="#cbd5e1" opacity={f(6 + k * 0.5)} />)}
+                </g>
+              );
+            })()}
           </g>
         </g>
       </Svg>
