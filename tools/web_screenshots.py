@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from kanban_karte.dim.estimator import DimEstimate  # noqa: E402
+from kanban_karte.dim.estimator import DimEstimate, _photo_entry  # noqa: E402
 from kanban_karte.eval.judge import Judge, Prediction  # noqa: E402
 from kanban_karte.pipeline.draft import FORM_ITEMS  # noqa: E402
 from kanban_karte.gov import make_sample as gov_sample  # noqa: E402
@@ -38,10 +38,12 @@ class SampleEstimator:
     """スクリーンショット用の固定値(API は呼ばない)。実際の推定結果ではない。"""
 
     def estimate(self, photos, target_name):
-        return DimEstimate(3200, 900, (2800, 3600), (800, 1000),
-                           [{"name": "ドア(出入口の扉)", "assumed_mm": 2000, "how": "入口の扉の高さを物差しにした"},
-                            {"name": "コンクリートブロック", "assumed_mm": 190, "how": "段数を数えた"}],
-                           False, "mid", "板面だけを測った(支柱・取付金具は含めない)。", "sample", {})
+        e = DimEstimate(3200, 900, (2800, 3600), (800, 1000),
+                        [{"name": "ドア(出入口の扉)", "assumed_mm": 2000, "how": "入口の扉の高さを物差しにした", "box": [0.62, 0.42, 0.8, 0.95]},
+                         {"name": "コンクリートブロック", "assumed_mm": 190, "how": "段数を数えた", "box": [0.08, 0.8, 0.5, 0.95]}],
+                        False, "mid", "板面だけを測った(支柱・取付金具は含めない)。", "sample", {}, sign_box=[0.12, 0.14, 0.88, 0.34])
+        e.photos = [_photo_entry(i, e) for i in range(min(len(photos), 1))]
+        return e
 
 
 RESULT_NUM = {"良好": 1, "経過観察": 2, "要改善": 3}

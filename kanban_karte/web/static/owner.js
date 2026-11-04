@@ -57,16 +57,42 @@
       el("a", { class: "btn block ask", href: `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, text: "看板屋に点検を頼む" }));
   }
 
-  // 寸法の推定の結果。judgement は judge_from_range の結果(許可は permit)
-  function estimateCard(res) {
+  // 写真の上に、推定で測った板面(赤の点線)と物差しにした物(青の点線)の枠を重ねる。枠は 0〜1 の [左, 上, 右, 下]。
+  // 枠が看板とずれていれば推定も外れている= 要実測、の目印(枠の正しさは保証しない)
+  function boxFigure(p, url, many) {
+    const m = (mm) => (mm / 1000).toFixed(2).replace(/\.?0+$/, "");
+    const box = (b, cls, label) => {
+      const [x0, y0, x1, y1] = b;
+      return el("div", { class: `bbox ${cls}${y0 < 0.07 ? " near-top" : ""}`, style: `left:${x0 * 100}%;top:${y0 * 100}%;width:${(x1 - x0) * 100}%;height:${(y1 - y0) * 100}%` },
+        el("span", { class: "bbox-label", text: label }));
+    };
+    const refs = (p.references || []).filter((r) => r.box);
+    return el("figure", { class: "est-fig" },
+      el("div", { class: "est-frame" },
+        el("img", { src: url, alt: `写真${p.photo + 1}(推定の枠を重ねた表示。この端末の中だけ)` }),
+        p.sign_box ? box(p.sign_box, "sign", "測った看板") : null,
+        ...refs.map((r) => box(r.box, "ref", r.name))),
+      el("figcaption", { class: "sub" },
+        (many ? `写真${p.photo + 1}だけの推定: 幅 ${m(p.w_range[0])}〜${m(p.w_range[1])} m、高さ ${m(p.h_range[0])}〜${m(p.h_range[1])} m。` : "")
+        + (p.sign_box ? "" : "この写真では看板の位置が返りませんでした。")));
+  }
+
+  // 寸法の推定の結果。judgement は judge_from_range の結果(許可は permit)。urls は送った写真の表示用 URL(送った順)
+  function estimateCard(res, urls) {
     const e = res.estimate, j = res.judgement;
     const m = (mm) => (mm / 1000).toFixed(2).replace(/\.?0+$/, "");
     const refs = (e.references || []).filter((r) => r.name);
     const legal = { permit_required: j.permit, inspection_required: j.inspection_required, is_self_use_exempt: j.is_self_use_exempt,
       permit_term_years: j.permit_term_years, duties: j.duties };
     const areaText = j.area_low === j.area_high ? `${j.area_mid.toFixed(1)} ㎡` : `${j.area_mid.toFixed(1)} ㎡(${j.area_low.toFixed(1)}〜${j.area_high.toFixed(1)} ㎡)`;
+    const shots = (e.photos || []).filter((p) => urls && urls[p.photo]);
     return el("section", { class: "card owner-result owner-estimate", "aria-live": "polite" },
       el("h2", { text: "写真から推定した大きさ" }),
+      e.combined === "union" ? el("p", { class: "est-warn", text: "2枚の写真で推定が食い違いました(範囲は両方を含む広さにしています)。要実測です。" }) : null,
+      shots.length ? el("div", { class: "est-figs" }, shots.map((p) => boxFigure(p, urls[p.photo], shots.length > 1 || (e.photos || []).length > 1))) : null,
+      shots.length ? el("p", { class: "sub est-legend" }, el("span", { class: "key sign" }), "測った看板 ", el("span", { class: "key ref" }), "物差しにした物。",
+        "点線の枠が看板とずれている時は、推定も外れています。スケールで測って幅・高さの欄に入れてください(要実測)。") : null,
+      e.combined === "intersect" ? el("p", { class: "sub", text: "2枚の写真それぞれで推定し、範囲が重なる部分に絞りました。" }) : null,
       el("p", { class: "est-size" }, `W≈${m(e.w_mm)} m × H≈${m(e.h_mm)} m(±${e.w_pct}% / ±${e.h_pct}%)、面積≈${e.area_m2.toFixed(1)} ㎡`),
       el("p", { class: "sub", text: `範囲: 幅 ${m(e.w_range[0])}〜${m(e.w_range[1])} m、高さ ${m(e.h_range[0])}〜${m(e.h_range[1])} m。信頼度: ${{ high: "高", mid: "中", low: "低" }[e.confidence]}` }),
       refs.length ? el("p", { class: "sub" }, "物差しにした物: " + refs.map((r) => r.name).join("、")) : el("p", { class: "sub", text: "物差しにできる物が見つかりませんでした。" }),
@@ -116,14 +142,15 @@
       if (!address) { estMsg.hidden = false; estMsg.textContent = "住所を入れてください(② の欄)。許可の要否を調べるのに使います。"; return; }
       estBtn.disabled = true; estBtn.textContent = "推定しています…";
       try {
-        const photos = await Promise.all(files.filter(Boolean).map((f) => shrink(f)));
+        const picked = files.filter(Boolean);
+        const photos = await Promise.all(picked.map((f) => shrink(f)));
         const height = parseFloat(val("owner-height"));  // 全高(分かれば)。高さの基準がある条例では、これが無いと要実測になる
         const res = await KK.api("/api/owner/estimate", { photos, address, target_name: target.value.trim() || null, height_m: height > 0 ? height : null });
         document.getElementById("owner-w").value = (res.estimate.w_mm / 1000).toFixed(2);
         document.getElementById("owner-h").value = (res.estimate.h_mm / 1000).toFixed(2);
         fromEst = { w: val("owner-w"), h: val("owner-h"), low: res.judgement.area_low, high: res.judgement.area_high };
         refreshArea();
-        estOut.replaceChildren(estimateCard(res));
+        estOut.replaceChildren(estimateCard(res, picked.map((f) => URL.createObjectURL(f))));
         estOut.scrollIntoView({ behavior: "smooth", block: "start" });
       } catch (e) { estMsg.hidden = false; estMsg.textContent = e.message; }
       estBtn.textContent = "寸法を推定"; estBtn.disabled = !canEstimate;
