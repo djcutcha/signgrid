@@ -49,6 +49,8 @@ Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期�
 **さいたま市の条文つき**
 ![owner-saitama-sp](docs/img/owner-saitama-sp.png)
 
+**写真から推定した寸法のまま調べると、推定の範囲の両端で判定する(両端で結論が分かれた項目は「要実測」。欄を手で直すと入力値で判定)**: [owner-judge-range-sp](docs/img/owner-judge-range-sp.png)
+
 ### ③ 行政(`/gov/`)
 
 **巡回(スマホ。撮る→送る、送った直後)**
