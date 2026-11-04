@@ -1,59 +1,56 @@
 import React from 'react';
-import {Img, staticFile} from 'remotion';
 import {TItem, cue} from '../data/timeline';
-import {C, FPS} from '../theme';
-import {Fill, Key, Odo, Phone, Shell, Word, ZoomVideo, clamp01, eo, useSec} from '../lib';
+import {Bg, Book, COL, Head, KW, Svg, Fill, pop, useS, win, clamp01, eo} from '../mg';
+import {Shell} from '../lib';
 
-// 前半: スマホ枠で LINE のトーク画面 9 コマを連番で送る。後半: 01_demo-start_pc の後半(カルテ → 客先の様式が埋まる)
-const LINE = Array.from({length: 9}, (_, i) => `assets/line_v3/line_${String(i + 1).padStart(2, '0')}.png`);
-const LINE_PX: [number, number][] = [[546, 804], [548, 568], [548, 734], [548, 904], [546, 776], [546, 686], [548, 688], [548, 1216], [548, 310]];
-const SKIP = 6, CLIP = 14.7;
-const KEYS: Key[] = [
-  {u: 0, cx: 0.45, cy: 0.5, s: 1.45},
-  {u: 0.38, cx: 0.45, cy: 0.5, s: 1.45},
-  {u: 0.5, cx: 0.67, cy: 0.25, s: 2.4},
-  {u: 1, cx: 0.67, cy: 0.25, s: 2.4},
+const NODES = [
+  {t: 'Claude の\nドラフト', c: COL.blue, a: -90},
+  {t: '有資格者の\nチェックと\nフィードバック', c: COL.amber, a: 0},
+  {t: '承認した\n規則', c: COL.green, a: 90},
+  {t: '次の点検に\n効く', c: '#a78bfa', a: 180},
 ];
+
+// ここからが本題 → ループ → 熟練の知識が頭の外へ
 export const S06: React.FC<{t: TItem}> = ({t}) => {
-  const s = useSec();
-  const sw = cue(t, '看板ごとのカルテ', 0.3, 0.2);
-  const dt = (sw - 0.5) / 9;
-  const idx = Math.min(8, Math.max(0, Math.floor((s - 0.5) / dt)));
-  const o2 = eo(clamp01((s - sw) / 0.4));
-  const k9 = cue(t, '約9分', 0.9, 0.4), kd = cue(t, '裏では', 0.5, 0.2);
-  const PH = 840, PW = 470;
-  const [iw, ih] = LINE_PX[idx];
-  const sc = Math.min(PW / iw, PH / ih);
-  const rate = CLIP / (t.sec - sw - 0.9);
+  const s = useS();
+  const cMain = cue(t, '本題', 0.05, 0.1), cD = cue(t, 'Claudeが作成', 0.12, 0), cCk = cue(t, '有資格者がチェック', 0.28, 0), cRule = cue(t, '承認した規則', 0.5, 0), cNext = cue(t, '次の点検', 0.62, 0), cHead = cue(t, '人の頭の外', 0.88, 0.2);
+  const cs = [cD, cCk, cRule, cNext];
+  const R = 290, CX = 960, CY = 480;
+  const loop = win(s, cD - 0.3, cHead - 0.4), hd = win(s, cHead - 0.5);
+  const rot = (s - cD) * 40;
   return (
     <Shell t={t}>
-      <Fill style={{background: 'radial-gradient(900px 800px at 25% 50%, rgba(59,130,246,.2), rgba(11,18,32,0) 70%)'}} />
-      <div style={{opacity: 1 - o2}}>
-        <Phone x={330} y={30} w={PW} h={PH}>
-          <div style={{width: PW, height: PH, background: '#8fa8c8'}}>
-            <Img src={staticFile(LINE[idx])} style={{width: iw * sc, height: ih * sc, display: 'block', margin: '0 auto'}} />
-          </div>
-        </Phone>
-        <Word at={0.5} style={{left: 960, top: 230, fontSize: 190, lineHeight: 1.1}}><span style={{color: '#06c755'}}>LINE</span>で</Word>
-        <Word at={0.9} style={{left: 960, top: 500, fontSize: 100, lineHeight: 1.2}}>全景・正面<br />部位・寸法</Word>
-        <Word at={dt * 5 + 0.5} style={{left: 960, top: 800, fontSize: 56, color: C.sub}}>送るだけ</Word>
-      </div>
-      <div style={{opacity: o2}}>
-        <div style={{position: 'absolute', left: 60, top: 130, width: 1120, height: 630, borderRadius: 16, overflow: 'hidden', boxShadow: '0 30px 80px rgba(0,0,0,.6)', background: '#fff'}}>
-          <ZoomVideo src="assets/01_demo-start_pc.mp4" clipSec={CLIP} rate={rate} keys={KEYS} w={1120} h={630} vw={1120} vh={630} start={Math.round(sw * FPS)} skip={SKIP} />
-        </div>
-      </div>
-      <Word at={k9} style={{right: 60, top: 70, textAlign: 'right', background: 'rgba(11,18,32,.9)', padding: '22px 42px', borderRadius: 16}}>
-        <div style={{fontSize: 34, color: C.sub, fontWeight: 700}}>1店舗の一周(人の確認を除く)</div>
-        <div style={{fontSize: 150, lineHeight: 1.1, display: 'flex', justifyContent: 'flex-end'}}><span style={{fontSize: 80, alignSelf: 'flex-end', marginBottom: 14}}>約</span><Odo value="9" at={k9} size={150} /><span style={{fontSize: 80, alignSelf: 'flex-end', marginBottom: 14}}>分</span></div>
-      </Word>
-      <Word at={k9 + 0.5} style={{right: 60, top: 340, textAlign: 'right', background: 'rgba(11,18,32,.9)', padding: '18px 42px', borderRadius: 16}}>
-        <div style={{fontSize: 34, color: C.sub, fontWeight: 700}}>API の費用</div>
-        <div style={{fontSize: 120, lineHeight: 1.1, color: C.accent, display: 'flex', justifyContent: 'flex-end'}}><span>$</span><Odo value="7.44" at={k9 + 0.5} size={120} color={C.accent} /></div>
-      </Word>
-      <Word at={kd} style={{right: 60, top: 600, textAlign: 'right', fontSize: 50, lineHeight: 1.3, background: 'rgba(11,18,32,.9)', padding: '16px 36px', borderRadius: 16}}>
-        裏では <span style={{color: C.accent}}>Claude</span> が<br />対応付け・読み取り・照合
-      </Word>
+      <Bg />
+      <KW s={s} at={0.3} until={cD - 0.1} x={960} y={420} size={190}>ここからが<span style={{color: COL.amber}}>本題</span></KW>
+      <Svg>
+        <g opacity={loop}>
+          <ellipse cx={CX} cy={CY} rx={430} ry={270} fill="none" stroke="#27344f" strokeWidth={10} />
+          <path d={`M ${CX} ${CY - 270} A 430 270 0 1 1 ${CX} ${CY + 270} A 430 270 0 1 1 ${CX} ${CY - 270}`} fill="none" stroke={COL.blue} strokeWidth={10} pathLength={1000} strokeDasharray={`${1000 * clamp01((s - cD) / (cNext - cD + 1.2))} 99999`} strokeLinecap="round" />
+          <circle cx={CX + 430 * Math.cos((rot - 90) * Math.PI / 180)} cy={CY + 270 * Math.sin((rot - 90) * Math.PI / 180)} r={16} fill="#fff" />
+          {NODES.map((n, i) => {
+            const x = CX + 430 * Math.cos(n.a * Math.PI / 180), y = CY + 270 * Math.sin(n.a * Math.PI / 180);
+            const p = pop(s, cs[i], 0.45);
+            const lines = n.t.split('\n');
+            const w = 340;
+            return (
+              <g key={i} transform={`translate(${x},${y}) scale(${0.4 + 0.6 * Math.min(1, p)})`} opacity={Math.min(1, p)}>
+                <rect x={-w / 2} y={-70} width={w} height={140} rx={26} fill="#16223d" stroke={n.c} strokeWidth={7} />
+                {lines.map((l, k) => <text key={k} x={0} y={(k - (lines.length - 1) / 2) * 40 + 12} textAnchor="middle" fontSize={lines.length > 2 ? 30 : 38} fontWeight={800} fill="#fff" fontFamily="inherit">{l}</text>)}
+              </g>
+            );
+          })}
+        </g>
+        <g opacity={hd}>
+          <Head x={480} y={560} k={2} glow={pop(s, cHead, 0.6)} />
+          <Book x={1440} y={520} k={1.8} />
+          {Array.from({length: 12}, (_, i) => {
+            const u = clamp01(((s - cHead) * 0.6 + i / 12) % 1.0);
+            const x = 480 + 960 * u, y = 480 - Math.sin(u * Math.PI) * 220 + Math.sin(i) * 40;
+            return <circle key={i} cx={x} cy={y} r={14 - 6 * u} fill={COL.yellow} opacity={Math.sin(u * Math.PI)} />;
+          })}
+        </g>
+      </Svg>
+      <KW s={s} at={cHead} x={960} y={160} size={96} color="#fff"><span style={{color: COL.yellow}}>熟練のプロの知識</span>が、人の頭の外へ</KW>
     </Shell>
   );
 };

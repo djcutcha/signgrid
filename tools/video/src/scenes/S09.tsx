@@ -1,40 +1,45 @@
 import React from 'react';
-import {useCurrentFrame} from 'remotion';
 import {TItem, cue} from '../data/timeline';
-import {C, FPS} from '../theme';
-import {Fill, Odo, Phone, Shell, Word, ZoomVideo, clamp01, eo, Key} from '../lib';
-import {Img, staticFile} from 'remotion';
+import {Arrow, Bg, COL, Gov, KW, Pill, PhoneSvg, Svg, pop, useS, win, clamp01, eo} from '../mg';
+import {Shell} from '../lib';
 
-const KEYS: Key[] = [
-  {u: 0, cx: 0.5, cy: 0.2, s: 1.0},
-  {u: 0.5, cx: 0.5, cy: 0.45, s: 1.08, ring: [0.5, 0.5]},
-  {u: 1, cx: 0.5, cy: 0.6, s: 1.05},
-];
+// 市民のスマホ → 写真 → 安全性 / 法令の目安 → プラットフォーム → 行政(試作の提案)
 export const S09: React.FC<{t: TItem}> = ({t}) => {
-  const f = useCurrentFrame();
-  const sw = cue(t, '地図に出す', 0.6, 0.2);
-  const rate = 14 / (sw - 0.3);
-  const o2 = eo(clamp01((f / FPS - sw) / 0.4));
-  const ka = cue(t, '職員が撮った', 0.15, 0.1), kb = cue(t, '台帳にない', 0.4, 0.1);
-  const z = 1 + 0.08 * clamp01((f / FPS - sw) / 6);
+  const s = useS();
+  const cPhoto = cue(t, '写真をとる', 0.2, 0), cSafe = cue(t, '安全性', 0.4, 0), cLaw = cue(t, '法令', 0.5, 0), cPlat = cue(t, 'プラットフォーム', 0.8, 0), cFuture = 0.5;
+  const y = 470;
   return (
     <Shell t={t}>
-      <Fill style={{background: 'radial-gradient(900px 800px at 30% 50%, rgba(59,130,246,.2), rgba(11,18,32,0) 70%)'}} />
-      <div style={{opacity: 1 - o2}}>
-        <Phone x={330} y={104} w={380} h={822}>
-          <ZoomVideo src="assets/04_gov_sp.mp4" clipSec={14} rate={rate} keys={KEYS} w={380} h={822} vw={380} vh={822} start={9} />
-        </Phone>
-        <Word at={ka} style={{left: 900, top: 250, fontSize: 130}}>撮る <span style={{color: C.accent}}>→</span> 送る</Word>
-        <Word at={kb} style={{left: 900, top: 470, fontSize: 80}}>
-          <span style={{display: 'inline-flex', alignItems: 'center', gap: 18}}>写真<Odo value="10" at={kb} size={110} />枚 <span style={{color: C.accent}}>→</span> 候補<Odo value="6" at={kb + 0.2} size={110} color={C.accent} />基</span>
-        </Word>
-      </div>
-      <div style={{position: 'absolute', left: 160, top: 50, width: 1600, height: 780, borderRadius: 16, overflow: 'hidden', opacity: o2, boxShadow: '0 30px 80px rgba(0,0,0,.6)', background: '#fff'}}>
-        <Img src={staticFile('img/gov-capture-map-pc.png')} style={{width: 1600, objectFit: 'cover', objectPosition: 'top', transform: `scale(${z})`, transformOrigin: '30% 20%'}} />
-      </div>
-      <Word at={cue(t, '違法と', 0.78, 0.1)} style={{left: 0, width: 1920, bottom: 130, textAlign: 'center'}}>
-        <span style={{display: 'inline-block', background: 'rgba(11,18,32,.92)', padding: '20px 56px', borderRadius: 16, fontSize: 76}}>違法と決めつけない。<span style={{color: C.accent}}>候補を絞る</span></span>
-      </Word>
+      <Bg />
+      <KW s={s} at={cFuture} until={cPhoto + 0.3} x={960} y={150} size={80} color={COL.sub}>今後の展開</KW>
+      <Svg>
+        <g opacity={pop(s, 0.8, 0.5)}>
+          <PhoneSvg x={260} y={y} w={230} h={440}>
+            <rect x={-80} y={-130} width={160} height={120} rx={12} fill="#334766" />
+            <circle cx={0} cy={-70} r={30} fill={COL.sub} />
+            <rect x={-80} y={20} width={160} height={30} rx={8} fill={COL.blue} />
+            <text x={0} y={42} textAnchor="middle" fontSize={22} fontWeight={800} fill="#fff" fontFamily="inherit">送る</text>
+          </PhoneSvg>
+          <text x={260} y={y + 290} textAnchor="middle" fontSize={44} fontWeight={800} fill="#fff" fontFamily="inherit">市民</text>
+        </g>
+        <Arrow x1={400} y1={y} x2={640} y2={y} p={eo(clamp01((s - cPhoto) / 0.5))} />
+        <g opacity={pop(s, cPhoto + 0.3, 0.5)}>
+          <rect x={650} y={y - 90} width={190} height={150} rx={14} fill="#f8fafc" />
+          <path d={`M660 ${y + 50} l60 -70 l40 40 l30 -30 l50 60 z`} fill="#64748b" /><circle cx={790} cy={y - 40} r={16} fill={COL.amber} />
+          <text x={745} y={y + 110} textAnchor="middle" fontSize={40} fontWeight={800} fill="#fff" fontFamily="inherit">写真</text>
+        </g>
+        <Pill x={1000} y={y - 90} w={280} text="安全性" size={46} lit={pop(s, cSafe, 0.4)} color={COL.green} />
+        <Pill x={1000} y={y + 50} w={280} text="法令の目安" size={42} lit={pop(s, cLaw, 0.4)} color={COL.amber} />
+        <Arrow x1={880} y1={y - 20} x2={1140} y2={y - 20} p={eo(clamp01((s - cSafe) / 0.5))} color={COL.sub} w={6} />
+        <g opacity={pop(s, cPlat, 0.5)} transform={`translate(1330,${y})`}>
+          <rect x={-120} y={-100} width={240} height={200} rx={26} fill="#16223d" stroke={COL.blue} strokeWidth={7} />
+          {[-50, 0, 50].map((yy) => <rect key={yy} x={-80} y={yy - 14} width={160} height={28} rx={8} fill={COL.blue} opacity={0.5 + 0.4 * Math.sin(s * 5 + yy)} />)}
+          <text x={0} y={150} textAnchor="middle" fontSize={34} fontWeight={800} fill="#fff" fontFamily="inherit">通報プラットフォーム</text>
+        </g>
+        <Arrow x1={1460} y1={y} x2={1580} y2={y} p={eo(clamp01((s - cPlat - 0.6) / 0.5))} />
+        <g opacity={pop(s, cPlat + 0.8, 0.5)}><Gov x={1730} y={y} k={0.75} /><text x={1730} y={y + 160} textAnchor="middle" fontSize={44} fontWeight={800} fill="#fff" fontFamily="inherit">行政</text></g>
+      </Svg>
+      <KW s={s} at={cPlat + 1.2} x={960} y={820} size={66}>行政に提案する<span style={{color: COL.blue}}>試作</span></KW>
     </Shell>
   );
 };

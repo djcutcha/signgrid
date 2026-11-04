@@ -32,7 +32,17 @@ export const Shell: React.FC<{t: TItem; children: React.ReactNode; bg?: string; 
 export const Subtitle: React.FC<{t: TItem}> = ({t}) => {
   const f = useCurrentFrame();
   const sec = f / FPS;
-  const parts = (t.text.match(/[^。]+。?/g) ?? [t.text]).map((x) => x.trim()).filter(Boolean);
+  const sentences = (t.text.match(/[^。？]+[。？]?/g) ?? [t.text]).map((x) => x.trim()).filter(Boolean);
+  // 長い文は「、」で区切って 38 字前後ずつ(2 行に収める)
+  const parts: string[] = [];
+  for (const sn of sentences) {
+    if (sn.length <= 44) { parts.push(sn); continue; }
+    let cur = '';
+    for (const piece of sn.match(/[^、]+、?/g) ?? [sn]) {
+      if (cur && (cur + piece).length > 40) { parts.push(cur); cur = piece; } else cur += piece;
+    }
+    if (cur) parts.push(cur);
+  }
   const total = parts.reduce((a, x) => a + x.length, 0);
   let acc = 0;
   let cur = '';
