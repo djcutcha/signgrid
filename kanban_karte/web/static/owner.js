@@ -33,12 +33,21 @@
     ];
   }
 
+  // 判定の元: 推定の範囲の両端(range)か、欄の入力値 1 点(input)か
+  function basisLine(r, input) {
+    const t = r.basis === "range"
+      ? `写真から推定した範囲の両端(${r.area_low_m2.toFixed(1)}〜${r.area_high_m2.toFixed(1)} ㎡)で判定。両端で結論が分かれた項目は「要実測」です。`
+      : `入力値(幅 ${input.w} m × 高さ ${input.h} m)で判定。`;
+    return el("li", { class: "line-basis" }, el("span", { class: "k", text: "判定の元" }), el("span", { text: t }));
+  }
+
   function resultCard(r, input) {
     const subject = "看板の点検のお願い";
     const body = `住所: ${input.address}\n看板の大きさ: 幅 ${input.w} m × 高さ ${input.h} m(約 ${r.area_m2.toFixed(1)} ㎡)\n点検をお願いします。`;
     return el("section", { class: "card owner-result", "aria-live": "polite" },
       el("h2", { text: "調べた結果" }),
-      el("ul", { class: "three" }, threeLines(r, null, r.place)),
+      el("ul", { class: "three" }, basisLine(r, input),
+        ...threeLines(r, r.basis === "range" ? `${r.area_m2.toFixed(1)} ㎡(${r.area_low_m2.toFixed(1)}〜${r.area_high_m2.toFixed(1)} ㎡)` : null, r.place)),
       r.notes && r.notes.length ? el("ul", { class: "legal-notes" }, r.notes.map((n) => el("li", { class: "sub", text: n }))) : null,
       el("p", { class: "sub", text: DUTY_NOTE }),
       el("h3", { text: `根拠条文 ${(r.citations || []).length} 件${r.ordinance_key ? `(${r.ordinance_key}の条例)` : ""}` }),
@@ -87,6 +96,7 @@
     const out = el("div", { id: "owner-out" });
     const estOut = el("div", { id: "owner-est-out" });
     const files = [null, null];
+    let fromEst = null;  // 推定で欄に入れた値と範囲。欄が手で直されていなければ「調べる」も範囲の両端で判定する
     const canEstimate = !!(KK.meta && KK.meta.can_estimate);
     const msg = el("div", { class: "notice err", role: "alert", hidden: true });
     const preview = el("div", { class: "owner-preview" });
@@ -111,6 +121,7 @@
         const res = await KK.api("/api/owner/estimate", { photos, address, target_name: target.value.trim() || null, height_m: height > 0 ? height : null });
         document.getElementById("owner-w").value = (res.estimate.w_mm / 1000).toFixed(2);
         document.getElementById("owner-h").value = (res.estimate.h_mm / 1000).toFixed(2);
+        fromEst = { w: val("owner-w"), h: val("owner-h"), low: res.judgement.area_low, high: res.judgement.area_high };
         refreshArea();
         estOut.replaceChildren(estimateCard(res));
         estOut.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -136,7 +147,11 @@
       const height = parseFloat(val("owner-height"));
       submit.disabled = true;
       try {
-        const r = await KK.api("/api/owner/judge", { address, area_m2: Math.round(w * h * 100) / 100, height_m: height > 0 ? height : null });
+        const q = { address, area_m2: Math.round(w * h * 100) / 100, height_m: height > 0 ? height : null };
+        if (fromEst && fromEst.w === val("owner-w") && fromEst.h === val("owner-h") && fromEst.low < fromEst.high) {
+          q.area_low_m2 = fromEst.low; q.area_high_m2 = fromEst.high;
+        }
+        const r = await KK.api("/api/owner/judge", q);
         out.replaceChildren(resultCard(r, { address, w, h }));
         out.scrollIntoView({ behavior: "smooth", block: "start" });
       } catch (e) { msg.hidden = false; msg.textContent = e.message; }

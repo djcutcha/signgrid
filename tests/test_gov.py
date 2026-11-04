@@ -330,7 +330,7 @@ class MapTest(unittest.TestCase):
         h = render_map(results, today=TODAY, ledger_signs=signs)
         for col, n in (("red", 2), ("orange", 2), ("green", 1), ("gray", 1)):
             self.assertIn(f'data-count="{col}">{n}</span>', h)
-        self.assertIn("候補看板 5 基 + 位置なしの写真 1 枚", h)
+        self.assertIn("看板の候補 5 基 / 位置なしの写真 1 枚", h)
         self.assertIn("https://maps.gsi.go.jp/development/ichiran.html", h)
         self.assertIn("cyberjapandata.gsi.go.jp/xyz/pale/", h)
         self.assertNotIn("tile.openstreetmap.org", h)
@@ -365,7 +365,7 @@ class CliTest(unittest.TestCase):
             shutil.copy(SAMPLE / "geocache.json", cache)  # 通信しない
             rc, out, _ = self.run_cli("intake", str(Path(d) / "s" / "photos"), "--db", db, "--geocache", cache)
             self.assertEqual(rc, 0, out)
-            self.assertIn("候補看板 5 基", out)
+            self.assertIn("看板の候補 5 基", out)
             self.assertIn("自治体の判定: 5 基", out)
             rc, out, _ = self.run_cli("match", "--db", db, "--today", "2026-11-02")
             self.assertIn("unregistered", out)

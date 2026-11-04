@@ -12,7 +12,7 @@ from kanban_karte.intake.line import client as line_client
 from kanban_karte.intake.line import reply as reply_text
 from kanban_karte.intake.line import richmenu
 from kanban_karte.intake.line.address import AddressSearch
-from kanban_karte.intake.line.jobs import Job, jobs_near
+from kanban_karte.intake.line.jobs import Job, jobs_near, load_jobs
 from kanban_karte.intake.line.webhook import LineApp
 from kanban_karte.ledger import Ledger
 from tests.test_line import SECRET, T0, USER, Base, img_event, jpeg
@@ -110,6 +110,21 @@ class SiteChoiceTest(Base):
         many = [Job(f"J-{i}", f"店{i}", "東京都豊島区東池袋1-1-1", date(2026, 11, 3)) for i in range(7)]
         items = reply_text.site_choices(jobs_near(many, date(2026, 11, 3)), 1)
         self.assertEqual(len(items), 5)  # 4 + その他
+
+    def test_sample_jobs_follow_today(self):
+        # 見本の案件は day_offset で今日から日付を決める: どの日に開いても 3 件とも現場の候補に出る(北口=今日が先頭)
+        for today in (date(2026, 11, 4), date(2026, 11, 8), date(2027, 1, 1)):
+            near = jobs_near(load_jobs(today=today), today)
+            self.assertEqual([j.site_name for j in near], ["サンプル北口店", "サンプル駅前店", "サンプル国道店"])
+            self.assertEqual(near[1].date, today - timedelta(days=1))
+
+    def test_jobs_date_and_bad_offset(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "j.json"
+            p.write_text(json.dumps({"jobs": [{"id": "A", "site_name": "a", "address": "x", "date": "2026-11-02", "day_offset": 5}]}))
+            self.assertEqual(load_jobs(p, today=date(2026, 12, 1))[0].date, date(2026, 11, 2))  # date があれば date
+            p.write_text(json.dumps({"jobs": [{"id": "A", "site_name": "a", "address": "x", "day_offset": "1"}]}))
+            self.assertEqual(load_jobs(p), [])                                                   # 壊れた形は空(「その他」だけ)
 
     def test_long_label_clipped(self):
         j = Job("J", "あ" * 30, "x", date(2026, 11, 3))

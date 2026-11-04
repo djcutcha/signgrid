@@ -197,6 +197,13 @@ def judge_from_range(estimate: DimEstimate, address: str | None, judge=legal.jud
     area_low = round(estimate.w_range[0] * estimate.h_range[0] / 1e6, 2)
     area_high = round(estimate.w_range[1] * estimate.h_range[1] / 1e6, 2)
     area_mid = round(estimate.w_mm * estimate.h_mm / 1e6, 2)
+    return judge_from_areas(area_low, area_high, area_mid, address, judge=judge, height_m=height_m)
+
+
+def judge_from_areas(area_low: float, area_high: float, area_mid: float, address: str | None, judge=legal.judge,
+                     height_m: float | None = None) -> dict:
+    """面積の範囲の両端(area_low・area_high ㎡)で法規役(自家用)を呼び、両端で結論が同じ項目はその値、違う項目は「要実測」。
+    推定カード(judge_from_range)とオーナー画面の「調べる」(推定の値のまま調べた時)が同じ原則で判定するための共通部。"""
     lo = judge(address, use="self", area_m2=area_low, height_m=height_m)
     hi = judge(address, use="self", area_m2=area_high, height_m=height_m)
 
@@ -229,6 +236,7 @@ def judge_from_range(estimate: DimEstimate, address: str | None, judge=legal.jud
             "report_duty": same(lo.report_duty, hi.report_duty), "duties": duties,
             "is_self_use_exempt": lo.is_self_use_exempt if lo.is_self_use_exempt == hi.is_self_use_exempt else None,
             "permit_term_years": hi.permit_term_years, "ordinance_key": lo.ordinance_key or hi.ordinance_key,
+            "confidence": getattr(lo, "confidence", None),
             "municipality": lo.municipality or hi.municipality, "citations": cites, "notes": notes,
             "low": {"area_m2": area_low, "permit": lo.permit_required},
             "high": {"area_m2": area_high, "permit": hi.permit_required}}

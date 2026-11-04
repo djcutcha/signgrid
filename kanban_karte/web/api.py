@@ -19,7 +19,7 @@ from ..ledger.items import _ITEMS, ITEM_KEYS, RESULTS
 from ..gov.map import COLOR_NAME, COLORS, COLOR_MEANING, summarize, write_map
 from ..gov.upload import UploadError, upload as gov_upload_photos
 from ..gov.match import WARN_DAYS, load_candidates, match_candidates
-from ..dim.estimator import DimEstimateError, DimEstimator, judge_from_range
+from ..dim.estimator import DimEstimateError, DimEstimator, judge_from_areas, judge_from_range
 from ..legal.locate import judge_at, place_dict
 from ..output.common import RANK_LABEL, size_text, unjudged_item_keys
 from ..output.client_a_form import write_client_a
@@ -353,7 +353,9 @@ def gov_batches(ledger: Ledger, today_q: str | None = None) -> dict:
         sm = summarize(_gov_results(ledger, b["id"], today))
         out["batches"].append({"id": b["id"], "created": b["created"], "dir": Path(b["dir"]).name, "name": b["name"] if "name" in b.keys() else None,
                                "photo_count": b["n_files"], "gps_count": b["n_gps"], "nogps_count": b["n_nogps"],
-                               "candidate_count": sm["total"], "by_color": sm["by_color"]})
+                               # 件数は地図の見出しと同じ式: 看板の候補= 位置で束ねた基数(灰を含まない)/ 位置なしの写真= 灰の枚数
+                               "candidate_count": sm["total"] - sm["by_color"]["gray"], "nopos_count": sm["by_color"]["gray"],
+                               "by_color": sm["by_color"]})
     return out
 
 
@@ -409,18 +411,40 @@ def _owner_num(body: dict, k: str, required: bool = False) -> float | None:
 
 
 def owner_judge(body: dict, placer=None) -> dict:
-    """住所・面積(・高さ)から自家用(use=self)の法規の判定と根拠条文。安全の判定(ランク・18項目)は出さない。"""
+    """住所・面積(・高さ)から自家用(use=self)の法規の判定と根拠条文。安全の判定(ランク・18項目)は出さない。
+    area_low_m2 と area_high_m2(写真からの推定の範囲)が両方あれば、推定カードと同じく範囲の両端で判定する
+    (basis=range。両端で結論が分かれた項目は要実測)。無ければ入力の面積 1 点で判定する(basis=input)。"""
     address = str(body.get("address") or "").strip()
     if not address:
         raise ApiError(400, "住所を入れてください")
     area, height = _owner_num(body, "area_m2", required=True), _owner_num(body, "height_m")
+    low, high = _owner_num(body, "area_low_m2"), _owner_num(body, "area_high_m2")
+    if low is not None and high is not None:
+        if low > high:
+            raise ApiError(400, "area_low_m2 は area_high_m2 以下")
+        placed_box = []
+
+        def judge(addr, **kw):
+            r, placed = judge_at(addr, placer=placer, **kw)
+            placed_box.append(placed)
+            return r
+        try:
+            j = judge_from_areas(low, high, area, address, judge=judge, height_m=height)
+        except Exception as e:
+            raise ApiError(500, f"法規の判定ができませんでした: {type(e).__name__}: {e}")
+        out = {k: j.get(k) for k in LEGAL_KEYS if k != "permit_required"}
+        out.update({"permit_required": j["permit"], "use": "self", "area_m2": area, "height_m": height, "address": address,
+                    "basis": "range", "area_low_m2": low, "area_high_m2": high, "low": j["low"], "high": j["high"],
+                    "place": place_dict(placed_box[-1] if placed_box else None, placer)})
+        return out
     try:
         r, placed = judge_at(address, use="self", area_m2=area, height_m=height, placer=placer)
     except Exception as e:
         raise ApiError(500, f"法規の判定ができませんでした: {type(e).__name__}: {e}")
     d = r.to_dict()
     out = {k: d[k] for k in LEGAL_KEYS}
-    out.update({"use": "self", "area_m2": area, "height_m": height, "address": address, "place": place_dict(placed, placer)})
+    out.update({"use": "self", "area_m2": area, "height_m": height, "address": address, "basis": "input",
+                "place": place_dict(placed, placer)})
     return out
 
 

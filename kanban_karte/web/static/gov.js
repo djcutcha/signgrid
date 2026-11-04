@@ -165,7 +165,7 @@
       lastUpload = null;
       result.append(el("div", { class: "notice gov-done" },
         el("b", { text: `送りました(束 ${r.batch_id})` }),
-        el("div", {}, `看板の候補 ${r.candidates} 基 / 位置なし ${r.no_position} 枚`),
+        el("div", {}, `看板の候補 ${r.candidates} 基 / 位置なしの写真 ${r.no_position} 枚`),
         el("div", { class: "sub", text: `位置: 写真の GPS ${s.exif} 枚 / 端末の位置 ${s.device} 枚 / なし ${s.none} 枚` +
           (r.skipped ? `。取り込み済みで飛ばした ${r.skipped} 枚` : "") +
           (r.deviceDenied ? "。端末の位置が取れなかったので、位置の無い写真は位置なしです" : "") +
@@ -203,8 +203,8 @@
     const stat = (n, t) => el("div", { class: "stat" }, el("b", { text: String(n) }), el("span", { text: t }));
     KK.setView(head,
       el("div", { class: "gov-pick" }, picker, el("span", { class: "sub", text: `登録 ${b.id}${b.name ? ` ${b.name}` : ""} / ${KK.fmtTime(b.created)}` })),
-      el("div", { class: "stats", id: "gov-results" }, stat(b.photo_count, "写真(枚)"), stat(b.candidate_count, "看板の候補(束ねた数)"),
-        stat(b.gps_count, "位置あり"), stat(b.nogps_count, "位置なし")),
+      el("div", { class: "stats", id: "gov-results" }, stat(b.photo_count, "写真(枚)"), stat(b.gps_count, "位置ありの写真(枚)"),
+        stat(b.candidate_count, "看板の候補(基。位置で束ねた数)"), stat(b.nopos_count, "位置なしの写真(枚)")),
       countChips(data, b.by_color),
       el("section", { class: "card gov-map" }, el("h2", { text: "地図" }),
         el("iframe", { src: `/api/gov/map.html?batch=${id}${tq}`, title: "巡回調査マップ", loading: "lazy", sandbox: "allow-scripts allow-popups allow-popups-to-escape-sandbox" }),

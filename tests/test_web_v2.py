@@ -159,7 +159,8 @@ class GovSampleTest(WebTest):
         self.assertEqual(len(d["batches"]), 1)
         b = d["batches"][0]
         self.assertEqual(b["photo_count"], 10)
-        self.assertEqual(b["candidate_count"], 6)          # 位置あり5基 + 位置なし写真1枚
+        self.assertEqual(b["candidate_count"], 5)          # 地図の見出しと同じ: 看板の候補 5 基
+        self.assertEqual(b["nopos_count"], 1)              # 位置なしの写真 1 枚
         self.assertEqual(b["by_color"], {"red": 2, "orange": 2, "green": 1, "gray": 1})
         self.assertEqual(set(d["colors"]), {"red", "orange", "green", "gray"})
 
@@ -224,6 +225,30 @@ class OwnerTest(WebTest):
         self.assertEqual(self.post({"address": "東京都豊島区"})[0], 400)
         self.assertEqual(self.post({"address": "東京都豊島区", "area_m2": "abc"})[0], 400)
         self.assertEqual(self.post({"address": "東京都豊島区", "area_m2": -1})[0], 400)
+
+    def test_input_basis(self):
+        d = self.post({"address": "東京都豊島区", "area_m2": 3.5})[1]
+        self.assertEqual(d["basis"], "input")
+
+    def test_range_split_needs_measure(self):
+        # 推定の範囲の両端(3.5 ㎡ 不要 / 12 ㎡ 要)で結論が分かれる -> 中央値(7 ㎡)ではなく要実測
+        st, d, _ = self.post({"address": "東京都豊島区", "area_m2": 7, "area_low_m2": 3.5, "area_high_m2": 12})
+        self.assertEqual(st, 200)
+        self.assertEqual(d["basis"], "range")
+        self.assertEqual(d["permit_required"], "要実測")
+        self.assertEqual((d["low"]["permit"], d["high"]["permit"]), ("不要", "要"))
+        self.assertTrue(any("両端で結論が分かれる" in n for n in d["notes"]))
+        self.assertTrue(d["citations"])
+
+    def test_range_same_keeps_value(self):
+        d = self.post({"address": "東京都豊島区", "area_m2": 13, "area_low_m2": 12, "area_high_m2": 14})[1]
+        self.assertEqual((d["basis"], d["permit_required"]), ("range", "要"))
+
+    def test_range_bad(self):
+        self.assertEqual(self.post({"address": "東京都豊島区", "area_m2": 7, "area_low_m2": 12, "area_high_m2": 3})[0], 400)
+        self.assertEqual(self.post({"address": "東京都豊島区", "area_m2": 7, "area_low_m2": "x", "area_high_m2": 3})[0], 400)
+        # 片方だけなら入力値で判定
+        self.assertEqual(self.post({"address": "東京都豊島区", "area_m2": 3.5, "area_low_m2": 3})[1]["basis"], "input")
 
     def test_does_not_write_db(self):
         with self.app.ledger() as lg:

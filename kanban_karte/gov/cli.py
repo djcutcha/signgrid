@@ -43,7 +43,7 @@ def cmd_intake(args) -> int:
     with Ledger(args.db) as lg:
         rep = intake(lg.conn, folder, radius_m=args.radius, gap_sec=args.gap)
         print(f"取り込み: 新規 {rep.new_photos} 枚(位置あり {rep.with_gps} / 位置なし {rep.no_gps})、"
-              f"取り込み済みで飛ばした {rep.skipped_known} 枚 → 候補看板 {rep.candidates} 基")
+              f"取り込み済みで飛ばした {rep.skipped_known} 枚 → 看板の候補 {rep.candidates} 基")
         for rel, why in rep.unreadable:
             print(f"  読めない: {rel} ({why})", file=sys.stderr)
         if not args.no_geocode and rep.candidates:
