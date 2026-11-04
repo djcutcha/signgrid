@@ -8,12 +8,15 @@ import {clamp01} from './lib';
 
 const VOICE = TL.filter((t) => t.narr).map((t) => [t.from + Math.round(NARR_OFFSET * FPS), t.from + Math.round((NARR_OFFSET + t.dur) * FPS)] as const);
 const t4 = TL.find((t) => t.id === '04')!;
-const HITS = [[0, 40], [t4.from + Math.round(hitSec(t4) * FPS) - 3, t4.from + Math.round(hitSec(t4) * FPS) + 36]] as const;
+const t11 = TL.find((t) => t.id === '11')!;
+const hitAt = (t: typeof t4) => t.from + Math.round(hitSec(t) * FPS);
+// BGM を一瞬上げる所: 冒頭と、ロゴの出る場面 04 と 11
+const HITS = [[0, 40], [hitAt(t4) - 3, hitAt(t4) + 36], [hitAt(t11) - 3, hitAt(t11) + 36]] as const;
 export const G_GAP = 0.316; // -10dB
 export const G_VOICE = 0.158; // -16dB
 export const G_HIT = 0.8;
 
-// ダッキング: 声の区間で BGM を下げる。冒頭と場面4のロゴで一瞬上げる。末尾 2 秒でフェード
+// ダッキング: 声の区間で BGM を下げる。冒頭と場面04・11のロゴで一瞬上げる。末尾 2 秒でフェード
 export const bgmGain = (f: number): number => {
   let v = 0;
   for (const [a, b] of VOICE) {

@@ -1,32 +1,29 @@
 import React from 'react';
 import {TItem, cue} from '../data/timeline';
 import {C} from '../theme';
-import {Fill, Key, Odo, Shell, Word, ZoomVideo} from '../lib';
+import {Fill, Key, Phone, Shell, Word, ZoomVideo} from '../lib';
 
+// スマホ枠の中で新規の録画(780x1688、16.2 秒)。写真 → 点線の枠 → 寸法の範囲 → 許可の判定カード
+const CLIP = 16.2;
 const KEYS: Key[] = [
-  {u: 0, cx: 0.4, cy: 0.18, s: 1.5, ring: [0.3, 0.16]},
-  {u: 0.28, cx: 0.4, cy: 0.22, s: 1.55, ring: [0.35, 0.2]},
-  {u: 0.43, cx: 0.5, cy: 0.28, s: 1.5, ring: [0.4, 0.26]},
-  {u: 0.62, cx: 0.5, cy: 0.5, s: 1.3},
-  {u: 0.72, cx: 0.55, cy: 0.3, s: 1.6, ring: [0.5, 0.3]},
-  {u: 1, cx: 0.5, cy: 0.3, s: 1.6},
+  {u: 0, cx: 0.5, cy: 0.5, s: 1.0},
+  {u: 1, cx: 0.5, cy: 0.5, s: 1.0},
 ];
-
 export const S05: React.FC<{t: TItem}> = ({t}) => {
-  const rate = 21 / (t.sec - 0.9);
-  const k9 = cue(t, '約9分', 0.7, 0.4), kd = cue(t, '7ドル', 0.9, 0.4);
+  const rate = CLIP / (t.sec - 0.9);
+  const k1 = cue(t, '写真を1枚', 0.0, 0.0), kb = cue(t, '寸法を推定', 0.15, 0.1), kr = cue(t, 'その住所', 0.3, 0.1), kp = cue(t, '許可が要るか', 0.5, 0.1), kd = cue(t, '点線の枠', 0.7, 0.1);
+  const H = 860, Wd = Math.round((H * 780) / 1688);
   return (
     <Shell t={t}>
-      <ZoomVideo src="assets/01_demo-start_pc.mp4" clipSec={21} rate={rate} keys={KEYS} start={9} />
-      <Fill style={{background: 'linear-gradient(to bottom, rgba(11,18,32,.0) 60%, rgba(11,18,32,.35))'}} />
-      <Word at={k9} style={{right: 70, top: 60, textAlign: 'right', background: 'rgba(11,18,32,.88)', padding: '22px 42px', borderRadius: 16}}>
-        <div style={{fontSize: 36, color: C.sub, fontWeight: 700}}>1店舗の一周(人の確認を除く)</div>
-        <div style={{fontSize: 150, lineHeight: 1.1, display: 'flex', justifyContent: 'flex-end'}}><span style={{fontSize: 90, alignSelf: 'flex-end', marginBottom: 14}}>約</span><Odo value="9" at={k9} size={150} /><span style={{fontSize: 90, alignSelf: 'flex-end', marginBottom: 14}}>分</span></div>
-      </Word>
-      <Word at={kd} style={{right: 70, top: 330, textAlign: 'right', background: 'rgba(11,18,32,.88)', padding: '18px 42px', borderRadius: 16}}>
-        <div style={{fontSize: 36, color: C.sub, fontWeight: 700}}>API の費用</div>
-        <div style={{fontSize: 120, lineHeight: 1.1, color: C.accent, display: 'flex', justifyContent: 'flex-end'}}><span>$</span><Odo value="7.44" at={kd} size={120} color={C.accent} /></div>
-      </Word>
+      <Fill style={{background: 'radial-gradient(900px 800px at 25% 50%, rgba(59,130,246,.2), rgba(11,18,32,0) 70%)'}} />
+      <Phone x={300} y={26} w={Wd} h={H}>
+        <ZoomVideo src="assets/05_owner_bbox_sp.mp4" clipSec={CLIP} rate={rate} keys={KEYS} w={Wd} h={H} vw={Wd} vh={H} start={9} />
+      </Phone>
+      <Word at={k1} style={{left: 900, top: 150, fontSize: 200, lineHeight: 1.1}}>写真<span style={{color: C.accent}}>1枚</span></Word>
+      <Word at={kb} style={{left: 900, top: 420, fontSize: 64}}>寸法を推定</Word>
+      <Word at={kr} style={{left: 900, top: 520, fontSize: 64}}>住所の規制と照合</Word>
+      <Word at={kp} style={{left: 900, top: 620, fontSize: 64, color: '#ffc857'}}>許可が要るか、判定</Word>
+      <Word at={kd} style={{left: 900, top: 740, fontSize: 40, color: C.sub, fontWeight: 700}}>点線の枠で、どの看板を測ったか分かる</Word>
     </Shell>
   );
 };
