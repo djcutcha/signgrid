@@ -1,8 +1,8 @@
 """寸法役 DimEstimator: 看板の写真(最大2枚)から、参照物を手がかりに幅・高さを範囲つきで推定する。
 
-写真は1枚ずつ推定する(2枚なら2回呼ぶ)。各写真で板面と参照物の枠(0〜1 に正規化した [左, 上, 右, 下])も返させ、
-画面で写真に点線で重ねる(枠が看板と違えば推定も外れている= 要実測、の目印)。2枚の結果は軸ごとに、範囲が重なれば交差、
-重ならなければ和集合にして信頼度 low・要実測(combine)。
+2枚は1回の呼び出しでまとめて推定する(写真ごとに別々に推定して範囲を交差させる方式は、範囲に正解が入る数が
+29/40 → 16/40 に落ちたので採らない。2枚は互いに独立でない。docs/EVAL.md 2026-11-04)。各写真で板面と参照物の枠
+(0〜1 に正規化した [左, 上, 右, 下])も返させ、画面で写真に点線で重ねる(枠がずれていれば推定も外れている、の目印)。
 
 送る物は 写真(長辺 1600px に縮小した JPEG)、対象の名前(どの看板の寸法か)、参照物辞書 だけ。
 鍵は環境変数 ANTHROPIC_API_KEY(.env も読む)。作法は eval/claude_judge.py と同じ(クライアント・縮小・JSON の再試行1回)。
@@ -36,15 +36,15 @@ SYSTEM = """あなたは屋外広告物(看板)の寸法を、写真から見積
 4. 辞書の寸法の揺れ(±)と、測り方の誤差を、範囲 w_range / h_range に反映する。範囲は「実際の寸法がほぼ確実に入る幅」にする(広すぎも狭すぎもしない)。
 5. 参照物が写っていない、または弱い(個体差が大きい)時は、confidence を low にして範囲を広くする。当て推量で狭い範囲を出さない。
 6. 数値はすべて mm の整数。w_mm は w_range の中、h_mm は h_range の中にあること。
-7. 測った板面と、物差しにした参照物の写真の中の位置を、枠 [左, 上, 右, 下] で返す。写真の左上が 0、右下が 1 の比率(小数2桁)。写っていない物には枠を付けない(null)。
+7. 測った板面と、物差しにした参照物の位置を、写真ごとに枠 [左, 上, 右, 下] で返す。写真の左上が 0、右下が 1 の比率(小数2桁)。写真の順に並べ、その写真に写っていない物は null にする。
 
 参照物の辞書(公開情報の一般寸法):
 {dictionary}
 
 返答は次の形の JSON オブジェクト1つだけ(前後に文章を付けない):
 {{"w_mm": 整数, "h_mm": 整数, "w_range": [最小, 最大], "h_range": [最小, 最大],
- "sign_box": 測った板面の枠 [左, 上, 右, 下](0〜1),
- "references": [{{"name": 参照物の名前, "assumed_mm": 仮定した寸法の整数, "how": どこの何を物差しにしたかの短い説明, "box": 参照物の枠 [左, 上, 右, 下] か null}}],
+ "sign_boxes": [写真ごとの板面の枠 [左, 上, 右, 下](0〜1)か null],
+ "references": [{{"name": 参照物の名前, "assumed_mm": 仮定した寸法の整数, "how": どこの何を物差しにしたかの短い説明, "boxes": [写真ごとの参照物の枠か null]}}],
  "read_from_text": 写真の文字から寸法を読んだなら true、そうでなければ false,
  "confidence": "high" か "mid" か "low",
  "notes": 対象の範囲の取り方・補正・不確かな点を短く}}"""
@@ -66,9 +66,7 @@ class DimEstimate:
     notes: str = ""
     model: str = ""
     usage: dict = field(default_factory=dict)
-    sign_box: list | None = None     # 板面の枠 [左, 上, 右, 下](0〜1)。1枚の推定の時
-    photos: list = field(default_factory=list)  # 写真ごとの結果 [{photo, w_mm, h_mm, w_range, h_range, confidence, sign_box, references}]
-    combined: str = "single"         # single 1枚 / intersect 2枚の範囲が重なった / union 重ならない軸があった(要実測)
+    photos: list = field(default_factory=list)  # 写真ごとの枠 [{photo(0始まり), sign_box, references:[{name, box}]}]
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -113,7 +111,20 @@ def parse_box(v) -> list | None:
     return [round(x0, 3), round(y0, 3), round(x1, 3), round(y1, 3)]
 
 
-def parse_estimate(text: str) -> DimEstimate:
+def _nth(v, i: int):
+    return v[i] if isinstance(v, list) and i < len(v) else None
+
+
+def photo_boxes(obj: dict, refs_raw: list, n_photos: int) -> list[dict]:
+    """応答の sign_boxes・references[].boxes を写真ごとに組み直す。枠が1つも無い写真も行は作る(画面で写真を出すため)。"""
+    out = []
+    for i in range(n_photos):
+        refs = [{"name": str(r.get("name", "")), "box": parse_box(_nth(r.get("boxes"), i))} for r in refs_raw]
+        out.append({"photo": i, "sign_box": parse_box(_nth(obj.get("sign_boxes"), i)), "references": [r for r in refs if r["box"]]})
+    return out
+
+
+def parse_estimate(text: str, n_photos: int = 1) -> DimEstimate:
     """モデル応答 → DimEstimate。不正なら ValueError。値が範囲の外なら範囲を値まで広げる。"""
     try:
         obj = json.loads(_extract_json(text))
@@ -133,51 +144,14 @@ def parse_estimate(text: str) -> DimEstimate:
     refs = obj.get("references") or []
     if not isinstance(refs, list) or not all(isinstance(r, dict) for r in refs):
         raise ValueError("references がオブジェクトのリストでない")
-    refs = [{"name": str(r.get("name", "")), "assumed_mm": r.get("assumed_mm"), "how": str(r.get("how", "")),
-             "box": parse_box(r.get("box"))} for r in refs]
+    refs = [{"name": str(r.get("name", "")), "assumed_mm": r.get("assumed_mm"), "how": str(r.get("how", ""))} for r in refs]
     rft = obj.get("read_from_text", False)
     if not isinstance(rft, bool):
         raise ValueError("read_from_text が真偽値でない")
     notes = obj.get("notes") or ""
     if not isinstance(notes, str):
         raise ValueError("notes が文字列でない")
-    return DimEstimate(w, h, wr, hr, refs, rft, conf, notes, sign_box=parse_box(obj.get("sign_box")))
-
-
-def _photo_entry(i: int, e: DimEstimate) -> dict:
-    return {"photo": i, "w_mm": e.w_mm, "h_mm": e.h_mm, "w_range": list(e.w_range), "h_range": list(e.h_range),
-            "confidence": e.confidence, "sign_box": e.sign_box, "references": e.references}
-
-
-def combine(a: DimEstimate, b: DimEstimate) -> DimEstimate:
-    """2枚の写真の推定を合わせる。軸(幅・高さ)ごとに、範囲が重なれば交差(値は両方の平均を交差の中に収める)、
-    重ならなければ和集合(値は平均)。重ならない軸が1つでもあれば combined=union・信頼度 low(画面と法規は要実測へ)。
-    重なった時の信頼度は低い方(2枚が合っても、物差しの仮定は同じ辞書なので上げない)。"""
-    order = {c: i for i, c in enumerate(CONFIDENCES)}
-    out, disagree = {}, []
-    for ax, label in (("w", "幅"), ("h", "高さ")):
-        (a0, a1), (b0, b1) = getattr(a, f"{ax}_range"), getattr(b, f"{ax}_range")
-        v = round((getattr(a, f"{ax}_mm") + getattr(b, f"{ax}_mm")) / 2)
-        lo, hi = max(a0, b0), min(a1, b1)
-        if lo <= hi:
-            out[ax] = (min(hi, max(lo, v)), (lo, hi))
-        else:
-            out[ax] = (v, (min(a0, b0), max(a1, b1)))
-            disagree.append(label)
-    conf = "low" if disagree else max(a.confidence, b.confidence, key=lambda c: order[c])
-    refs, seen = [], set()
-    for r in a.references + b.references:
-        if r["name"] not in seen:
-            seen.add(r["name"])
-            refs.append(r)
-    notes = [f"写真1: {a.notes}" if a.notes else "", f"写真2: {b.notes}" if b.notes else ""]
-    if disagree:
-        notes.append(f"2枚の写真で{'・'.join(disagree)}の推定が重ならない(範囲は両方を含む広さにした)。実測が要る")
-    else:
-        notes.append("2枚の写真の範囲が重なる部分に絞った")
-    return DimEstimate(out["w"][0], out["h"][0], out["w"][1], out["h"][1], refs, a.read_from_text or b.read_from_text, conf,
-                       " / ".join(n for n in notes if n), photos=[_photo_entry(0, a), _photo_entry(1, b)],
-                       combined="union" if disagree else "intersect")
+    return DimEstimate(w, h, wr, hr, refs, rft, conf, notes, photos=photo_boxes(obj, obj.get("references") or [], n_photos))
 
 
 class DimEstimator:
@@ -191,7 +165,6 @@ class DimEstimator:
         return self._client
 
     def build_messages(self, photos: list, target_name: str | None) -> list[dict]:
-        """1回の呼び出しの中身(写真は1枚ずつ送る。estimate が写真ごとに呼ぶ)。"""
         if not photos:
             raise DimEstimateError("写真がありません")
         content: list[dict] = []
@@ -203,7 +176,7 @@ class DimEstimator:
                 raise DimEstimateError(f"画像を開けません: {e}") from e
             content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": data}})
         n = min(len(photos), MAX_PHOTOS)
-        lines = ["写真は 1 枚です。" if n == 1 else f"写真は {n} 枚です(同じ看板を別の角度から撮ったものです)。"]
+        lines = [f"写真は {n} 枚です(同じ看板を別の角度から撮ったものです)。"]
         if target_name:
             lines.append(f"寸法を知りたい看板: {target_name}")
         else:
@@ -213,40 +186,6 @@ class DimEstimator:
         return [{"role": "user", "content": content}]
 
     def estimate(self, photos: list, target_name: str | None = None) -> DimEstimate:
-        """写真1枚なら1回、2枚なら写真ごとに1回ずつ推定して combine。2枚のうち片方だけ失敗した時は残りの1枚の結果を返す
-        (notes に書く)。費用(usage)は全呼び出しの合計。"""
-        if not photos:
-            raise DimEstimateError("写真がありません")
-        photos = list(photos)[:MAX_PHOTOS]
-        if len(photos) == 1:
-            e = self._estimate_one(photos, target_name)
-            e.photos = [_photo_entry(0, e)]
-            return e
-        got, errs = [], []
-        for i, p in enumerate(photos):
-            try:
-                got.append((i, self._estimate_one([p], target_name)))
-            except DimEstimateError as ex:
-                errs.append((i, ex))
-        total = {"input_tokens": 0, "output_tokens": 0, "attempts": 0, "cost_usd": 0.0}
-        for u in [e.usage for _, e in got] + [getattr(ex, "usage", {}) for _, ex in errs]:
-            for k in total:
-                total[k] += (u or {}).get(k) or 0
-        total["cost_usd"] = round(total["cost_usd"], 6)
-        if not got:
-            err = DimEstimateError(" / ".join(f"写真{i + 1}: {ex}" for i, ex in errs))
-            err.usage = total
-            raise err
-        if len(got) == 1:
-            i, e = got[0]
-            e.photos = [_photo_entry(i, e)]
-            e.notes = " / ".join(x for x in (e.notes, f"写真{errs[0][0] + 1}は推定できなかった({errs[0][1]})。写真{i + 1}だけで推定") if x)
-        else:
-            e = combine(got[0][1], got[1][1])
-        e.model, e.usage = self.model, total
-        return e
-
-    def _estimate_one(self, photos: list, target_name: str | None) -> DimEstimate:
         messages = self.build_messages(photos, target_name)
         system = SYSTEM.format(dictionary=ref.prompt_text())
         plain_in = out_tok = attempts = 0
@@ -270,7 +209,7 @@ class DimEstimator:
             if resp.stop_reason == "refusal":
                 raise DimEstimateError("モデルが応答を拒否しました")
             try:
-                est = parse_estimate(text)
+                est = parse_estimate(text, min(len(photos), MAX_PHOTOS))
             except ValueError as e:
                 log.append(str(e))
                 messages = messages + [

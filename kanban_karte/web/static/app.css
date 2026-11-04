@@ -350,4 +350,3 @@ dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
 .est-fig figcaption{margin-top:4px;line-height:1.5}
 .est-legend .key{display:inline-block;width:18px;height:0;border-top:2px dashed;vertical-align:middle;margin:0 4px 0 2px}
 .est-legend .key.sign{border-color:#e5281e} .est-legend .key.ref{border-color:#1f6fe0;margin-left:6px}
-.est-warn{background:var(--yellow-bg);border-left:4px solid var(--watch);padding:8px 10px;border-radius:6px;margin:6px 0;font-weight:600}

@@ -298,16 +298,14 @@ class OwnerEstimateTest(WebTest):
             self.assertNotIn(banned, d)
 
     def test_estimate_returns_boxes_per_photo(self):
-        from kanban_karte.dim.estimator import DimEstimate, _photo_entry
+        from kanban_karte.dim.estimator import DimEstimate
 
         def est(s, p, n):
-            e = DimEstimate(3200, 900, (2800, 3600), (800, 1000), [{"name": "ドア", "assumed_mm": 2000, "how": "扉", "box": [0.6, 0.4, 0.8, 0.9]}],
-                            False, "mid", "", "fake", {}, sign_box=[0.1, 0.1, 0.9, 0.3])
-            e.photos = [_photo_entry(0, e)]
-            return e
+            return DimEstimate(3200, 900, (2800, 3600), (800, 1000), [{"name": "ドア", "assumed_mm": 2000, "how": "扉"}],
+                               False, "mid", "", "fake", {}, photos=[{"photo": 0, "sign_box": [0.1, 0.1, 0.9, 0.3],
+                                                                    "references": [{"name": "ドア", "box": [0.6, 0.4, 0.8, 0.9]}]}])
         self.app.estimator_factory = lambda: type("F", (), {"estimate": est})()
         d = self.post({"address": "東京都豊島区", "photos": [self.photo_b64()]})[1]
-        self.assertEqual(d["estimate"]["combined"], "single")
         self.assertEqual(d["estimate"]["photos"][0]["sign_box"], [0.1, 0.1, 0.9, 0.3])
         self.assertEqual(d["estimate"]["photos"][0]["references"][0]["box"], [0.6, 0.4, 0.8, 0.9])
 

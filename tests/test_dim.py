@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from PIL import Image
 
 from kanban_karte.dim import reference_objects as ref
-from kanban_karte.dim.estimator import DimEstimateError, DimEstimator, combine, judge_from_range, parse_box, parse_estimate
+from kanban_karte.dim.estimator import DimEstimateError, DimEstimator, judge_from_range, parse_box, parse_estimate
 from kanban_karte.legal.judge import JudgeResult
 
 GOOD = {"w_mm": 3200, "h_mm": 900, "w_range": [2800, 3600], "h_range": [800, 1000],
@@ -68,47 +68,33 @@ class ParseTest(unittest.TestCase):
 
 
 class EstimatorTest(unittest.TestCase):
-    def test_estimate_sends_each_photo_separately_downscaled_and_name(self):
-        # 2枚なら写真ごとに1回ずつ(3枚目は捨てる)。各呼び出しは画像1枚+文
+    def test_estimate_sends_two_photos_downscaled_and_name(self):
         with tempfile.TemporaryDirectory() as td:
-            c = FakeClient(json.dumps(GOOD), json.dumps(GOOD))
+            c = FakeClient(json.dumps(GOOD))
             e = DimEstimator("claude-sonnet-5-5", c).estimate([photo(td, "a.jpg"), photo(td, "b.jpg"), photo(td, "c.jpg")], "欄間看板")
-        self.assertEqual(len(c.calls), 2)
         content = c.calls[0]["messages"][0]["content"]
-        self.assertEqual([b["type"] for b in content], ["image", "text"])
+        self.assertEqual([b["type"] for b in content], ["image", "image", "text"])  # 3枚目は捨てる
         self.assertIn("欄間看板", content[-1]["text"])
-        self.assertIn("1 枚", content[-1]["text"])
         import base64
         im = Image.open(io.BytesIO(base64.b64decode(content[0]["source"]["data"])))
         self.assertEqual(max(im.size), 1600)
         self.assertIn("ドア", c.calls[0]["system"])  # 辞書がプロンプトに入る
-        self.assertIn("sign_box", c.calls[0]["system"])  # 枠を返させる
-        self.assertEqual(e.usage["attempts"], 2)  # 2回の合計
+        self.assertEqual(e.usage["attempts"], 1)
         self.assertGreater(e.usage["cost_usd"], 0)
-        self.assertEqual((e.combined, len(e.photos)), ("intersect", 2))
+        self.assertEqual(len(c.calls), 1)  # 2枚は1回の呼び出しでまとめて(写真ごとに別々に推定しない)
+        self.assertIn("sign_boxes", c.calls[0]["system"])  # 写真ごとの枠を返させる
+        self.assertEqual([p["photo"] for p in e.photos], [0, 1])  # 枠の行は送った写真の数だけ
 
-    def test_one_photo_keeps_box_and_single(self):
+    def test_boxes_per_photo(self):
+        body = {**GOOD, "sign_boxes": [[0.2, 0.3, 0.8, 0.5], None],
+                "references": [{"name": "ドア", "assumed_mm": 2000, "how": "扉", "boxes": [None, [0.1, 0.4, 0.3, 0.9]]},
+                               {"name": "車", "assumed_mm": 4500, "how": "x"}]}
         with tempfile.TemporaryDirectory() as td:
-            c = FakeClient(json.dumps({**GOOD, "sign_box": [0.2, 0.3, 0.8, 0.5]}))
-            e = DimEstimator("m", c).estimate([photo(td)], None)
-        self.assertEqual((e.combined, e.sign_box), ("single", [0.2, 0.3, 0.8, 0.5]))
-        self.assertEqual(e.photos[0]["sign_box"], [0.2, 0.3, 0.8, 0.5])
-        self.assertEqual(e.to_dict()["photos"][0]["photo"], 0)
-
-    def test_two_photos_one_fails_uses_the_other(self):
-        with tempfile.TemporaryDirectory() as td:
-            c = FakeClient("壊れた", "まだ壊れている", json.dumps(GOOD))
-            e = DimEstimator("m", c).estimate([photo(td, "a.jpg"), photo(td, "b.jpg")], None)
-        self.assertEqual((e.combined, len(e.photos), e.photos[0]["photo"]), ("single", 1, 1))
-        self.assertIn("写真1は推定できなかった", e.notes)
-        self.assertEqual(e.usage["attempts"], 3)
-
-    def test_two_photos_both_fail(self):
-        with tempfile.TemporaryDirectory() as td:
-            c = FakeClient("x", "x", "x", "x")
-            with self.assertRaises(DimEstimateError) as cm:
-                DimEstimator("m", c).estimate([photo(td, "a.jpg"), photo(td, "b.jpg")], None)
-        self.assertEqual(cm.exception.usage["attempts"], 4)
+            e = DimEstimator("m", FakeClient(json.dumps(body))).estimate([photo(td, "a.jpg"), photo(td, "b.jpg")], None)
+        self.assertEqual(e.photos[0], {"photo": 0, "sign_box": [0.2, 0.3, 0.8, 0.5], "references": []})
+        self.assertEqual(e.photos[1], {"photo": 1, "sign_box": None, "references": [{"name": "ドア", "box": [0.1, 0.4, 0.3, 0.9]}]})
+        self.assertEqual(e.to_dict()["photos"], e.photos)
+        self.assertEqual([r["name"] for r in e.references], ["ドア", "車"])  # 物差しの一覧は枠が無くても残る
 
     def test_retry_on_bad_json(self):
         with tempfile.TemporaryDirectory() as td:
@@ -148,36 +134,12 @@ class BoxTest(unittest.TestCase):
         for bad in (None, [0.1, 0.2, 0.5], [0, 0, 120, 80], ["a", 0, 1, 1], [0.3, 0.3, 0.3, 0.6], [True, 0, 1, 1]):
             self.assertIsNone(parse_box(bad), bad)
 
-    def test_bad_box_does_not_break_estimate(self):
-        e = parse_estimate(json.dumps({**GOOD, "sign_box": [0, 0, 300, 200],
-                                       "references": [{"name": "ドア", "assumed_mm": 2000, "how": "扉", "box": [0.1, 0.4, 0.2, 0.9]}]}))
-        self.assertIsNone(e.sign_box)
-        self.assertEqual(e.references[0]["box"], [0.1, 0.4, 0.2, 0.9])
-        self.assertIsNone(parse_estimate(json.dumps(GOOD)).references[0]["box"])
-
-
-class CombineTest(unittest.TestCase):
-    def est(self, w, wr, h, hr, conf="mid", ref="ドア"):
-        return parse_estimate(json.dumps({**GOOD, "w_mm": w, "w_range": wr, "h_mm": h, "h_range": hr, "confidence": conf,
-                                          "references": [{"name": ref, "assumed_mm": 2000, "how": "x"}]}))
-
-    def test_overlap_is_intersection(self):
-        c = combine(self.est(3200, [2800, 3600], 900, [800, 1000]), self.est(3400, [3000, 3800], 950, [850, 1100], "high"))
-        self.assertEqual((c.w_range, c.h_range), ((3000, 3600), (850, 1000)))
-        self.assertEqual((c.w_mm, c.h_mm), (3300, 925))
-        self.assertEqual((c.combined, c.confidence), ("intersect", "mid"))  # 低い方
-        self.assertEqual([p["photo"] for p in c.photos], [0, 1])
-
-    def test_no_overlap_is_union_low(self):
-        c = combine(self.est(3200, [2800, 3600], 900, [800, 1000], "high"), self.est(5000, [4500, 5500], 950, [850, 1100], "high", "車"))
-        self.assertEqual((c.w_range, c.h_range), ((2800, 5500), (850, 1000)))  # 幅は和集合、高さは交差
-        self.assertEqual((c.combined, c.confidence), ("union", "low"))
-        self.assertIn("幅の推定が重ならない", c.notes)
-        self.assertEqual([r["name"] for r in c.references], ["ドア", "車"])
-
-    def test_mean_outside_intersection_is_clamped(self):
-        c = combine(self.est(2000, [1900, 3000], 900, [800, 1000]), self.est(3500, [2900, 3600], 900, [800, 1000]))
-        self.assertEqual((c.w_range, c.w_mm), ((2900, 3000), 2900))  # 平均 2750 は交差 2900〜3000 に収める
+    def test_bad_or_missing_boxes_do_not_break_estimate(self):
+        e = parse_estimate(json.dumps({**GOOD, "sign_boxes": "壊れた"}), 2)
+        self.assertEqual((e.w_mm, [p["sign_box"] for p in e.photos]), (3200, [None, None]))
+        e = parse_estimate(json.dumps({**GOOD, "sign_boxes": [[0, 0, 300, 200]]}))
+        self.assertIsNone(e.photos[0]["sign_box"])
+        self.assertEqual(len(parse_estimate(json.dumps(GOOD)).photos), 1)
 
 
 class JudgeFromRangeTest(unittest.TestCase):
