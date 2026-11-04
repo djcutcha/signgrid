@@ -2,12 +2,14 @@
 // 使い方: node timeline.mjs [cut]
 import fs from 'node:fs';
 import {execFileSync} from 'node:child_process';
-const ids = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11'];
+const ids = ['01', '02', '03', '04', '04b', '05', '06', '07', '08', '09', '10'];
 const narr = JSON.parse(fs.readFileSync('src/data/narration.json', 'utf8'));
+const durs = ids.map((id) => narr.find((r) => r.scene === id)?.duration ?? 6);
+const tail = Math.min(0.3, Math.max(0.2, (179.5 - durs.reduce((a, d) => a + 0.4 + d, 0)) / ids.length));
 let t0 = 0; const out = [];
 for (const id of ids) {
   const n = narr.find((r) => r.scene === id);
-  const frames = Math.round(Math.max(4, (n ? n.duration : 6) + 1.0) * 30);
+  const frames = Math.round(Math.max(4, (n ? n.duration : 6) + 0.4 + tail) * 30);
   out.push({id, start: t0 / 30, sec: frames / 30, narr: n ? n.duration : null});
   t0 += frames;
 }
