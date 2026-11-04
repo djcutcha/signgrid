@@ -423,6 +423,12 @@ class OwnerKindsTest(WebTest):
         self.assertEqual(d["basis"], "range")
         row = next(r for r in d["kind_checks"] if r["item"] == "wall_ratio")
         self.assertEqual(row["verdict"], "要実測")   # 両端で結論が分かれる(6 ㎡ は適合、20 ㎡ は上限 12 ㎡ か 18 ㎡ の境目より上)
+        # 袖の範囲の判定でも、許可を受ける場合の基準の行が返る
+        d = self.req("/api/owner/judge", {"address": "埼玉県さいたま市大宮区桜木町1-1-1", "area_m2": 6, "area_low_m2": 2, "area_high_m2": 13,
+                                          "kind": "projecting", "protrusion_wall_m": 0.9, "protrusion_road_m": 0.6,
+                                          "ground_clearance_m": 3.2, "over": "sidewalk"})[1]
+        self.assertTrue(d["kind_permit_checks"])
+        self.assertEqual(d["road_occupancy"]["status"], "要")
 
     def test_estimate_with_kind(self):
         from kanban_karte.dim.estimator import DimEstimate

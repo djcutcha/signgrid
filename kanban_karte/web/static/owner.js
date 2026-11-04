@@ -63,7 +63,10 @@
   const fmtM = (v) => (v === null || v === undefined ? "—" : `${(Math.round(v * 100) / 100).toFixed(2)} m`);
   function valueText(row) {
     if (row.value === null || row.value === undefined) return "—";
-    if (row.item === "wall_ratio") return `${(row.value * 100).toFixed(1)}%`;
+    if (row.item === "wall_ratio") {
+      const hi = row.value_high;
+      return hi !== undefined && hi !== null && hi !== row.value ? `${(row.value * 100).toFixed(1)}〜${(hi * 100).toFixed(1)}%` : `${(row.value * 100).toFixed(1)}%`;
+    }
     if (row.item === "road_protrusion") return row.value > 0 ? `道路側へ ${fmtM(row.value)}` : `境界の内側 ${fmtM(-row.value)}`;
     return fmtM(row.value);
   }
@@ -199,7 +202,7 @@
 
     const out = el("div", { id: "owner-out" });
     const estOut = el("div", { id: "owner-est-out" });
-    const shootBox = el("div", { class: "shoot" });
+    const shootBox = el("div", { class: "shoot" }, el("p", { class: "sub", text: "① で種類を選ぶと、その種類の撮り方が出ます。" }));
     const kindInputs = el("div", { class: "kind-inputs" });
     const msg = el("div", { class: "notice err", role: "alert", hidden: true });
     const estMsg = el("div", { class: "notice err", role: "alert", hidden: true });
@@ -212,10 +215,9 @@
       st.kind = id;
       kindBtns.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.kind === id)));
       const k = byId[id];
-      shootBox.replaceChildren(icon(id, "big"), el("p", { class: "shoot-line" }, el("b", { text: "撮り方: " }), k.shoot),
+      shootBox.replaceChildren(...[icon(id, "big"), el("p", { class: "shoot-line" }, el("b", { text: "撮り方: " }), k.shoot),
         id === "projecting" || id === "freestanding" ? el("p", { class: "sub", text: "撮った後に、写真の上で歩道の切れ目(道路との境)を指でタップして線を置きます。AI は境界を決めません。" }) : null,
-        id === "unknown" ? el("p", { class: "sub", text: "写真を送ると、AI が種類の候補を出します。候補から選んでください。" }) : null);
-      document.getElementById("owner-step2").hidden = false;
+        id === "unknown" ? el("p", { class: "sub", text: "写真を送ると、AI が種類の候補を出します。候補から選んでください。" }) : null].filter(Boolean));
       renderKindInputs();
       if (!keepEst) { estOut.replaceChildren(); st.est = null; st.taps = {}; }
       out.replaceChildren();
@@ -228,19 +230,19 @@
       const k = st.kind;
       if (k === "wall") {
         kindInputs.replaceChildren(el("h3", { text: "壁面" }),
-          el("div", { class: "dims" }, num("owner-wall-area", "壁面の面積(㎡、1 面・開口部を含む)", "60"), num("owner-eave", "軒高(m、分かれば)", "7")),
-          el("p", { class: "sub", text: "壁面の面積は、推定すると写真の緑の枠から概算して入ります。実測した値があれば直してください。" }));
+          el("div", { class: "dims" }, num("owner-wall-area", "壁面の面積(㎡)", "60"), num("owner-eave", "軒高(m、任意)", "7")),
+          el("p", { class: "sub", text: "壁面の面積は、看板が付いている壁 1 面(窓・ドアなどの開口部を含む)。推定すると写真の緑の枠から概算して入ります。実測した値があれば直してください。" }));
       } else if (k === "projecting") {
         kindInputs.replaceChildren(el("h3", { text: "袖(突出し)" }),
-          el("div", { class: "dims" }, num("owner-pw", "壁面からの出幅(m)", "0.9"), num("owner-pr", "道路境界からの出幅(m、内側は負)", "0.3", { step: "0.01" })),
-          el("div", { class: "dims" }, num("owner-gc", "下端の地上高(m)", "3.5"), num("owner-wallh", "壁面の高さ(m、分かれば)", "8")),
+          el("div", { class: "dims" }, num("owner-pw", "壁面からの出幅(m)", "0.9"), num("owner-pr", "道路境界から(m)", "0.3", { step: "0.01" })),
+          el("div", { class: "dims" }, num("owner-gc", "下端の地上高(m)", "3.5"), num("owner-wallh", "壁面の高さ(m、任意)", "8")),
           el("div", { class: "dims" },
             el("label", { class: "num", for: "owner-over" }, el("span", { text: "看板の下は" }),
               el("select", { id: "owner-over" }, el("option", { value: "", text: "分からない" }), el("option", { value: "sidewalk", text: "歩道" }),
                 el("option", { value: "roadway", text: "車道・歩道の無い道路" }))),
             el("label", { class: "num", for: "owner-mgr" }, el("span", { text: "道路の管理者(任意)" }),
               el("select", { id: "owner-mgr" }, el("option", { value: "", text: "分からない" }), ...meta.road_managers.map((m) => el("option", { value: m, text: m }))))),
-          el("p", { class: "sub", text: "写真の上で線を置くと、出幅と地上高の概算が入ります。基準の境目(±15%)は要実測になります。" }));
+          el("p", { class: "sub", text: "「道路境界から」は歩道の切れ目より道路側へ出ている長さ(内側に収まっていれば負の値)。写真の上で線を置くと、出幅と地上高の概算が入ります。基準の境目(±15%)は要実測になります。" }));
       } else if (k === "freestanding" || k === "rooftop") {
         kindInputs.replaceChildren(el("p", { class: "sub", text: `${byId[k].label}は、面積と高さで判定します(種類ごとの項目はまだ対象外)。` }));
       } else {
@@ -260,7 +262,7 @@
       const draw = () => {
         layer.replaceChildren(...order.filter((t) => st.taps[t] !== undefined).map((t) => {
           const d = TAP[t], v = st.taps[t];
-          if (d.axis === "x") return el("div", { class: "tline v", style: `left:${v * 100}%;border-color:${d.color}` }, el("span", { class: "tl-label", style: `background:${d.color}`, text: d.label }));
+          if (d.axis === "x") return el("div", { class: `tline v${t === "wall" ? " first" : ""}`, style: `left:${v * 100}%;border-color:${d.color}` }, el("span", { class: "tl-label", style: `background:${d.color}`, text: d.label }));
           if (d.axis === "y") return el("div", { class: "tline h", style: `top:${v * 100}%;border-color:${d.color}` }, el("span", { class: "tl-label", style: `background:${d.color}`, text: d.label }));
           return el("div", { class: "tdot", style: `left:${v.x * 100}%;top:${v.y * 100}%;background:${d.color}` });
         }));
@@ -392,7 +394,7 @@
       el("div", { class: "owner" },
         el("section", { class: "card step" }, el("h2", { text: "① 看板の種類を選ぶ" }), el("div", { class: "kind-grid" }, kindBtns),
           el("p", { class: "sub", text: "種類で、撮り方と調べる項目が変わります。分からない時は「分からない」で、写真から候補を出します。" })),
-        el("section", { class: "card step", id: "owner-step2", hidden: true }, el("h2", { text: "② 撮る" }), shootBox,
+        el("section", { class: "card step", id: "owner-step2" }, el("h2", { text: "② 撮る" }), shootBox,
           el("label", { class: "btn ghost block pick", for: "owner-photo" }, "写真を撮る・選ぶ"),
           el("input", { id: "owner-photo", class: "visually-hidden", type: "file", accept: "image/*", capture: "environment", onchange: (e) => setFile(0, e.target.files[0]) }),
           el("label", { class: "pick2", for: "owner-photo2" }, "もう1枚(別の角度、任意)"),

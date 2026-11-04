@@ -319,16 +319,19 @@ def judge_from_areas(area_low: float, area_high: float, area_mid: float, address
         else:  # 範囲の両端で結論が分かれる -> 要実測(根拠の条文は小さい側のものを残す)
             duties[k] = {**e, "value": legal.NEEDS_MEASURE, "reason": "推定の範囲の両端で結論が分かれる",
                          "text": "要実測(推定の範囲の両端で結論が分かれる)"}
-    kind_checks = []
-    hi_rows = {r["item"]: r for r in getattr(hi, "kind_checks", None) or []}
-    for row in getattr(lo, "kind_checks", None) or []:
-        h = hi_rows.get(row["item"])
-        if h is None or h["verdict"] == row["verdict"]:
-            kind_checks.append({**row, "value_high": h["value"] if h else row["value"]})
-        else:
-            kind_checks.append({**row, "verdict": legal.NEEDS_MEASURE, "value_high": h["value"],
-                                "note": f"推定の範囲の両端で結論が分かれる(小さい側 {row['verdict']}・大きい側 {h['verdict']})"})
-    return {"kind_category": getattr(lo, "kind_category", None), "kind_checks": kind_checks,
+    def merge_kind(attr: str) -> list[dict]:
+        out = []
+        hi_rows = {r["item"]: r for r in getattr(hi, attr, None) or []}
+        for row in getattr(lo, attr, None) or []:
+            h = hi_rows.get(row["item"])
+            if h is None or h["verdict"] == row["verdict"]:
+                out.append({**row, "value_high": h["value"] if h else row["value"]})
+            else:
+                out.append({**row, "verdict": legal.NEEDS_MEASURE, "value_high": h["value"],
+                            "note": f"推定の範囲の両端で結論が分かれる(小さい側 {row['verdict']}・大きい側 {h['verdict']})"})
+        return out
+    return {"kind_category": getattr(lo, "kind_category", None), "kind_checks": merge_kind("kind_checks"),
+            "kind_permit_checks": merge_kind("kind_permit_checks"),
             "road_occupancy": getattr(hi, "road_occupancy", None),
             "permit": permit, "area_low": area_low, "area_high": area_high, "area_mid": area_mid, "height_m": height_m,
             "inspection_required": same(lo.inspection_required, hi.inspection_required),
