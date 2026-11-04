@@ -42,6 +42,7 @@ ul { list-style:none; margin:0; padding:0; }
 .legend .lg-mean { color:var(--muted); font-size:12px; }
 .dot { display:inline-block; width:14px; height:14px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px #0004; }
 .dot.cz { background:transparent; border:2px dashed; box-shadow:none; }
+.legend.cz-legend li { grid-template-columns:18px 4.5em 2em 1fr; }
 .dot.sm { width:10px; height:10px; margin-right:6px; border-width:1px; }
 .stat li { font-size:12.5px; padding:2px 0; color:var(--muted); }
 .stat li b { color:var(--fg); }
@@ -122,10 +123,11 @@ const DATA = {"results": [{"color": "green", "status": "permitted", "label": "�
     pts.push([r.lat, r.lng]); layers.push([r, m]);
   });
   if (DATA.citizen) {
+    map.createPane("citizen"); map.getPane("citizen").style.zIndex = 650;   // 巡回の点の上に、輪だけを重ねる(下の点が見える)
     const cz = L.layerGroup();
     DATA.citizen.pins.forEach(function (c) {
       const col = DATA.citizen.colors[c.status] || "#7b1fa2";
-      L.circleMarker([c.lat, c.lng], { radius: 8, color: col, weight: 3, dashArray: "3 3", fillColor: col, fillOpacity: 0.25 })
+      L.circleMarker([c.lat, c.lng], { radius: 13, color: col, weight: 3, dashArray: "4 3", fill: false, pane: "citizen" })
         .bindTooltip("市民からの報告: " + c.status + "(" + c.date + ")").addTo(cz);
       pts.push([c.lat, c.lng]);
     });

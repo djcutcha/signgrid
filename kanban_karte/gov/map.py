@@ -103,7 +103,7 @@ def render_map(results: list[MatchResult], *, today: date, ledger_signs: list[Si
             f'<li><span class="dot cz" style="border-color:{CITIZEN_COLORS[k]}"></span><span class="lg-name">{esc(k)}</span>'
             f'<span class="lg-n" data-citizen="{esc(k)}">{citizen["by_status"].get(k, 0)}</span><span class="lg-mean">{esc(CITIZEN_MEANING[k])}</span></li>'
             for k in ("未把握", "把握済み", "点検済み", "受付"))
-        citizen_html = (f'<h2>市民からの報告 <span id="citizen-total">{citizen["total"]}</span> 件</h2><ul class="legend">{rows}</ul>'
+        citizen_html = (f'<h2>市民からの報告 <span id="citizen-total">{citizen["total"]}</span> 件</h2><ul class="legend cz-legend">{rows}</ul>'
                         '<p class="note">ピンと件数だけを出します(写真・一言・住所は出しません)。位置は約 100 m に丸めています。'
                         '右上の切り替えで層を消せます。</p>')
     return f"""<!doctype html>
@@ -150,6 +150,7 @@ ul {{ list-style:none; margin:0; padding:0; }}
 .legend .lg-mean {{ color:var(--muted); font-size:12px; }}
 .dot {{ display:inline-block; width:14px; height:14px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px #0004; }}
 .dot.cz {{ background:transparent; border:2px dashed; box-shadow:none; }}
+.legend.cz-legend li {{ grid-template-columns:18px 4.5em 2em 1fr; }}
 .dot.sm {{ width:10px; height:10px; margin-right:6px; border-width:1px; }}
 .stat li {{ font-size:12.5px; padding:2px 0; color:var(--muted); }}
 .stat li b {{ color:var(--fg); }}
@@ -230,10 +231,11 @@ const DATA = {_json_for_script(data)};
     pts.push([r.lat, r.lng]); layers.push([r, m]);
   }});
   if (DATA.citizen) {{
+    map.createPane("citizen"); map.getPane("citizen").style.zIndex = 650;   // 巡回の点の上に、輪だけを重ねる(下の点が見える)
     const cz = L.layerGroup();
     DATA.citizen.pins.forEach(function (c) {{
       const col = DATA.citizen.colors[c.status] || "#7b1fa2";
-      L.circleMarker([c.lat, c.lng], {{ radius: 8, color: col, weight: 3, dashArray: "3 3", fillColor: col, fillOpacity: 0.25 }})
+      L.circleMarker([c.lat, c.lng], {{ radius: 13, color: col, weight: 3, dashArray: "4 3", fill: false, pane: "citizen" }})
         .bindTooltip("市民からの報告: " + c.status + "(" + c.date + ")").addTo(cz);
       pts.push([c.lat, c.lng]);
     }});

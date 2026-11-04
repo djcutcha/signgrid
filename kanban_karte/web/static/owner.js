@@ -431,7 +431,7 @@
         const f = new File([u8], "report.jpg", { type: "image/jpeg" });
         setFile(0, f);
         if (address) document.getElementById("owner-address").value = address;
-        document.getElementById("owner-step2").prepend(el("p", { class: "notice", id: "owner-handoff", text: "報告で送った写真を引き継ぎました。① で種類を選んでから「写真から推定」を押してください。住所は手で入れてください。" }));
+        document.getElementById("owner-step2").prepend(el("p", { class: "notice", id: "owner-handoff", text: `報告で送った写真${address ? "と住所" : ""}を引き継ぎました。① で種類を選んでから「写真から推定」を押してください。${address ? "" : "住所は手で入れてください。"}` }));
       }
     } catch (_) { /* 引き継げなければ普通に始める */ }
     const qk = new URLSearchParams(location.search).get("kind");
