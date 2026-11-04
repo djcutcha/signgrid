@@ -1,5 +1,9 @@
 """寸法役 DimEstimator: 看板の写真(最大2枚)から、参照物を手がかりに幅・高さを範囲つきで推定する。
 
+2枚は1回の呼び出しでまとめて推定する(写真ごとに別々に推定して範囲を交差させる方式は、範囲に正解が入る数が
+29/40 → 16/40 に落ちたので採らない。2枚は互いに独立でない。docs/EVAL.md 2026-11-04)。各写真で板面と参照物の枠
+(0〜1 に正規化した [左, 上, 右, 下])も返させ、画面で写真に点線で重ねる(枠がずれていれば推定も外れている、の目印)。
+
 送る物は 写真(長辺 1600px に縮小した JPEG)、対象の名前(どの看板の寸法か)、参照物辞書 だけ。
 鍵は環境変数 ANTHROPIC_API_KEY(.env も読む)。作法は eval/claude_judge.py と同じ(クライアント・縮小・JSON の再試行1回)。
 judge_from_range は推定の範囲の両端で法規役を呼び、許可の要否が両端で同じならその値、違えば「要実測」。
@@ -32,13 +36,15 @@ SYSTEM = """あなたは屋外広告物(看板)の寸法を、写真から見積
 4. 辞書の寸法の揺れ(±)と、測り方の誤差を、範囲 w_range / h_range に反映する。範囲は「実際の寸法がほぼ確実に入る幅」にする(広すぎも狭すぎもしない)。
 5. 参照物が写っていない、または弱い(個体差が大きい)時は、confidence を low にして範囲を広くする。当て推量で狭い範囲を出さない。
 6. 数値はすべて mm の整数。w_mm は w_range の中、h_mm は h_range の中にあること。
+7. 測った板面と、物差しにした参照物の位置を、写真ごとに枠 [左, 上, 右, 下] で返す。写真の左上が 0、右下が 1 の比率(小数2桁)。写真の順に並べ、その写真に写っていない物は null にする。
 
 参照物の辞書(公開情報の一般寸法):
 {dictionary}
 
 返答は次の形の JSON オブジェクト1つだけ(前後に文章を付けない):
 {{"w_mm": 整数, "h_mm": 整数, "w_range": [最小, 最大], "h_range": [最小, 最大],
- "references": [{{"name": 参照物の名前, "assumed_mm": 仮定した寸法の整数, "how": どこの何を物差しにしたかの短い説明}}],
+ "sign_boxes": [写真ごとの板面の枠 [左, 上, 右, 下](0〜1)か null],
+ "references": [{{"name": 参照物の名前, "assumed_mm": 仮定した寸法の整数, "how": どこの何を物差しにしたかの短い説明, "boxes": [写真ごとの参照物の枠か null]}}],
  "read_from_text": 写真の文字から寸法を読んだなら true、そうでなければ false,
  "confidence": "high" か "mid" か "low",
  "notes": 対象の範囲の取り方・補正・不確かな点を短く}}"""
@@ -60,6 +66,7 @@ class DimEstimate:
     notes: str = ""
     model: str = ""
     usage: dict = field(default_factory=dict)
+    photos: list = field(default_factory=list)  # 写真ごとの枠 [{photo(0始まり), sign_box, references:[{name, box}]}]
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -88,7 +95,36 @@ def _range(v, where: str) -> tuple[int, int]:
     return (a, b) if a <= b else (b, a)
 
 
-def parse_estimate(text: str) -> DimEstimate:
+def parse_box(v) -> list | None:
+    """枠 [左, 上, 右, 下](0〜1)を正す。壊れていれば None(推定そのものは捨てない)。少しのはみ出しは 0〜1 に切る。"""
+    if not isinstance(v, (list, tuple)) or len(v) != 4:
+        return None
+    if not all(isinstance(x, (int, float)) and not isinstance(x, bool) and x == x for x in v):
+        return None
+    if any(x < -0.05 or x > 1.05 for x in v):
+        return None
+    x0, y0, x1, y1 = (min(1.0, max(0.0, float(x))) for x in v)
+    x0, x1 = sorted((x0, x1))
+    y0, y1 = sorted((y0, y1))
+    if x1 - x0 < 0.005 or y1 - y0 < 0.005:
+        return None
+    return [round(x0, 3), round(y0, 3), round(x1, 3), round(y1, 3)]
+
+
+def _nth(v, i: int):
+    return v[i] if isinstance(v, list) and i < len(v) else None
+
+
+def photo_boxes(obj: dict, refs_raw: list, n_photos: int) -> list[dict]:
+    """応答の sign_boxes・references[].boxes を写真ごとに組み直す。枠が1つも無い写真も行は作る(画面で写真を出すため)。"""
+    out = []
+    for i in range(n_photos):
+        refs = [{"name": str(r.get("name", "")), "box": parse_box(_nth(r.get("boxes"), i))} for r in refs_raw]
+        out.append({"photo": i, "sign_box": parse_box(_nth(obj.get("sign_boxes"), i)), "references": [r for r in refs if r["box"]]})
+    return out
+
+
+def parse_estimate(text: str, n_photos: int = 1) -> DimEstimate:
     """モデル応答 → DimEstimate。不正なら ValueError。値が範囲の外なら範囲を値まで広げる。"""
     try:
         obj = json.loads(_extract_json(text))
@@ -115,7 +151,7 @@ def parse_estimate(text: str) -> DimEstimate:
     notes = obj.get("notes") or ""
     if not isinstance(notes, str):
         raise ValueError("notes が文字列でない")
-    return DimEstimate(w, h, wr, hr, refs, rft, conf, notes)
+    return DimEstimate(w, h, wr, hr, refs, rft, conf, notes, photos=photo_boxes(obj, obj.get("references") or [], n_photos))
 
 
 class DimEstimator:
@@ -173,7 +209,7 @@ class DimEstimator:
             if resp.stop_reason == "refusal":
                 raise DimEstimateError("モデルが応答を拒否しました")
             try:
-                est = parse_estimate(text)
+                est = parse_estimate(text, min(len(photos), MAX_PHOTOS))
             except ValueError as e:
                 log.append(str(e))
                 messages = messages + [

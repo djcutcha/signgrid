@@ -297,6 +297,18 @@ class OwnerEstimateTest(WebTest):
         for banned in ("rank", "items", "draft_rank"):
             self.assertNotIn(banned, d)
 
+    def test_estimate_returns_boxes_per_photo(self):
+        from kanban_karte.dim.estimator import DimEstimate
+
+        def est(s, p, n):
+            return DimEstimate(3200, 900, (2800, 3600), (800, 1000), [{"name": "ドア", "assumed_mm": 2000, "how": "扉"}],
+                               False, "mid", "", "fake", {}, photos=[{"photo": 0, "sign_box": [0.1, 0.1, 0.9, 0.3],
+                                                                    "references": [{"name": "ドア", "box": [0.6, 0.4, 0.8, 0.9]}]}])
+        self.app.estimator_factory = lambda: type("F", (), {"estimate": est})()
+        d = self.post({"address": "東京都豊島区", "photos": [self.photo_b64()]})[1]
+        self.assertEqual(d["estimate"]["photos"][0]["sign_box"], [0.1, 0.1, 0.9, 0.3])
+        self.assertEqual(d["estimate"]["photos"][0]["references"][0]["box"], [0.6, 0.4, 0.8, 0.9])
+
     def test_height_is_forwarded_and_validated(self):
         # 全高(height_m)は任意。あれば範囲の両端の判定に渡り、応答に残る。不正な値は 400
         st, d, _ = self.post({"address": "東京都豊島区", "photos": [self.photo_b64()], "height_m": 4})

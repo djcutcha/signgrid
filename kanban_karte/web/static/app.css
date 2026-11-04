@@ -335,3 +335,18 @@ dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
 .size-card h2 .size-src{margin-left:6px;font-size:11.5px}
 .size-card .photos{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));margin-top:8px}
 .sum-top .size-src{margin-left:2px}
+/* オーナー: 推定の枠を写真に重ねる(赤= 測った看板、青= 物差しにした物)。白の縁取りで明るい写真でも見える */
+.est-figs{display:grid;gap:10px;margin:8px 0}
+.est-fig{margin:0}
+.est-frame{position:relative;display:block;line-height:0;border-radius:8px;overflow:hidden;background:var(--ph)}
+.est-frame img{display:block;width:100%;height:auto}
+.bbox{position:absolute;box-sizing:border-box;border:2px dashed;box-shadow:0 0 0 1px rgba(255,255,255,.85),inset 0 0 0 1px rgba(255,255,255,.85)}
+.bbox.sign{border-color:#e5281e}
+.bbox.ref{border-color:#1f6fe0}
+.bbox-label{position:absolute;left:-2px;top:-2px;transform:translateY(-100%);font-size:11px;line-height:1.4;padding:1px 5px;color:#fff;white-space:nowrap;border-radius:4px 4px 0 0}
+.bbox.sign .bbox-label{background:#e5281e}
+.bbox.ref .bbox-label{background:#1f6fe0}
+.bbox.near-top .bbox-label{transform:none;border-radius:0 0 4px 0}  /* 上端に近い枠はラベルを枠の内側へ */
+.est-fig figcaption{margin-top:4px;line-height:1.5}
+.est-legend .key{display:inline-block;width:18px;height:0;border-top:2px dashed;vertical-align:middle;margin:0 4px 0 2px}
+.est-legend .key.sign{border-color:#e5281e} .est-legend .key.ref{border-color:#1f6fe0;margin-left:6px}

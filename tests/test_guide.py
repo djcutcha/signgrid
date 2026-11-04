@@ -452,23 +452,23 @@ class SimulateTest(unittest.TestCase):
                 signs = lg.list_signs()
                 s = signs[0]
                 self.assertEqual(s.name, "① 正面の袖看板")
-                self.assertEqual(len(s.photos), 10)  # 全景1+正面1+部位8
+                self.assertEqual(len(s.photos), 8)  # 全景1+正面1+部位6(基礎部は「この部位は無い」)
                 self.assertEqual((s.size_w, s.size_h, s.size_d, s.gl_mm, s.height_m, s.size_source, s.mount, s.type),
                                  (3600, 900, 300, 2500, 3.4, "measured", "アンカーボルト", "突出"))
                 self.assertEqual([x.name for x in signs], ["① 正面の袖看板", "② 側面の看板", "① 正面の袖看板"])
                 self.assertIsNone(signs[1].size_w)  # ② は図面で送った(数字は事務所で入れる)
                 self.assertEqual((signs[1].type, len(lg.split_photos(signs[1])[1])), ("壁面", 1))
                 self.assertEqual((signs[2].size_w, signs[2].size_source), (3600, "measured"))  # ③ は①の実測を引き継いだ
-                self.assertEqual(len(s.items), 10)
-                self.assertEqual(sum(1 for v in s.evidence.values() if v["guide"] == "unknown"), 3)
-                self.assertEqual(sum(1 for v in s.evidence.values() if v["guide"] == "na"), 5)  # 表示部-4、照明装置3(この部位は無い)、その他-3
+                self.assertEqual(len(s.items), 8)
+                self.assertEqual(sum(1 for v in s.evidence.values() if v["guide"] == "unknown"), 2)
+                self.assertEqual(sum(1 for v in s.evidence.values() if v["guide"] == "na"), 8)  # 基礎部3・照明装置3(この部位は無い)、表示部-4、その他-3
             self.assertEqual(client.replies[-1][1], "終了しました")
             self.assertFalse(app.guide.active("Usimulated0000000000000000000000"))
 
     def test_operation_counts(self):
         with tempfile.TemporaryDirectory() as td:
             plan = build_guide_deliveries(PLAN, Path(td) / "c", run_id="t2")
-            self.assertEqual(plan.stats["photos"], 14)  # ①全景+正面+部位8、②全景+図面、③全景+正面
+            self.assertEqual(plan.stats["photos"], 12)  # ①全景+正面+部位6、②全景+図面、③全景+正面
             self.assertEqual(plan.stats["texts"], 8)    # 看板の名前3+①の幅・高さ・厚み・GL・支柱
 
 

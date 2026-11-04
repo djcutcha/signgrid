@@ -69,7 +69,7 @@ def measure(case: dict, est: DimEstimator) -> dict:
         return out
     out.update({"w_mm": e.w_mm, "h_mm": e.h_mm, "w_range": list(e.w_range), "h_range": list(e.h_range),
                 "confidence": e.confidence, "read_from_text": e.read_from_text, "references": e.references,
-                "notes": e.notes, "usage": e.usage})
+                "notes": e.notes, "usage": e.usage, "photos": e.photos})
     for ax, gt in (("w", case["w_mm"]), ("h", case["h_mm"])):
         v, (lo, hi) = getattr(e, f"{ax}_mm"), getattr(e, f"{ax}_range")
         out[f"{ax}_rel_err"] = rel_err(v, gt)

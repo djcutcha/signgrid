@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from PIL import Image
 
 from kanban_karte.dim import reference_objects as ref
-from kanban_karte.dim.estimator import DimEstimateError, DimEstimator, judge_from_range, parse_estimate
+from kanban_karte.dim.estimator import DimEstimateError, DimEstimator, judge_from_range, parse_box, parse_estimate
 from kanban_karte.legal.judge import JudgeResult
 
 GOOD = {"w_mm": 3200, "h_mm": 900, "w_range": [2800, 3600], "h_range": [800, 1000],
@@ -81,6 +81,20 @@ class EstimatorTest(unittest.TestCase):
         self.assertIn("ドア", c.calls[0]["system"])  # 辞書がプロンプトに入る
         self.assertEqual(e.usage["attempts"], 1)
         self.assertGreater(e.usage["cost_usd"], 0)
+        self.assertEqual(len(c.calls), 1)  # 2枚は1回の呼び出しでまとめて(写真ごとに別々に推定しない)
+        self.assertIn("sign_boxes", c.calls[0]["system"])  # 写真ごとの枠を返させる
+        self.assertEqual([p["photo"] for p in e.photos], [0, 1])  # 枠の行は送った写真の数だけ
+
+    def test_boxes_per_photo(self):
+        body = {**GOOD, "sign_boxes": [[0.2, 0.3, 0.8, 0.5], None],
+                "references": [{"name": "ドア", "assumed_mm": 2000, "how": "扉", "boxes": [None, [0.1, 0.4, 0.3, 0.9]]},
+                               {"name": "車", "assumed_mm": 4500, "how": "x"}]}
+        with tempfile.TemporaryDirectory() as td:
+            e = DimEstimator("m", FakeClient(json.dumps(body))).estimate([photo(td, "a.jpg"), photo(td, "b.jpg")], None)
+        self.assertEqual(e.photos[0], {"photo": 0, "sign_box": [0.2, 0.3, 0.8, 0.5], "references": []})
+        self.assertEqual(e.photos[1], {"photo": 1, "sign_box": None, "references": [{"name": "ドア", "box": [0.1, 0.4, 0.3, 0.9]}]})
+        self.assertEqual(e.to_dict()["photos"], e.photos)
+        self.assertEqual([r["name"] for r in e.references], ["ドア", "車"])  # 物差しの一覧は枠が無くても残る
 
     def test_retry_on_bad_json(self):
         with tempfile.TemporaryDirectory() as td:
@@ -110,6 +124,22 @@ class EstimatorTest(unittest.TestCase):
         DimEstimator("m", c).estimate([buf.getvalue()], None)
         with self.assertRaises(DimEstimateError):
             DimEstimator("m", FakeClient()).estimate([b"not an image"], None)
+
+
+class BoxTest(unittest.TestCase):
+    def test_parse_box(self):
+        self.assertEqual(parse_box([0.1, 0.2, 0.5, 0.6]), [0.1, 0.2, 0.5, 0.6])
+        self.assertEqual(parse_box([0.5, 0.6, 0.1, 0.2]), [0.1, 0.2, 0.5, 0.6])      # 逆順は並べ直す
+        self.assertEqual(parse_box([-0.02, 0, 1.03, 1]), [0.0, 0.0, 1.0, 1.0])       # 少しのはみ出しは切る
+        for bad in (None, [0.1, 0.2, 0.5], [0, 0, 120, 80], ["a", 0, 1, 1], [0.3, 0.3, 0.3, 0.6], [True, 0, 1, 1]):
+            self.assertIsNone(parse_box(bad), bad)
+
+    def test_bad_or_missing_boxes_do_not_break_estimate(self):
+        e = parse_estimate(json.dumps({**GOOD, "sign_boxes": "壊れた"}), 2)
+        self.assertEqual((e.w_mm, [p["sign_box"] for p in e.photos]), (3200, [None, None]))
+        e = parse_estimate(json.dumps({**GOOD, "sign_boxes": [[0, 0, 300, 200]]}))
+        self.assertIsNone(e.photos[0]["sign_box"])
+        self.assertEqual(len(parse_estimate(json.dumps(GOOD)).photos), 1)
 
 
 class JudgeFromRangeTest(unittest.TestCase):
