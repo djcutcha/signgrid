@@ -240,7 +240,7 @@ def guide_karte(page, base, out, tag, db):
             assert code == 200 and not res.errors, res.errors if res else code
         with Ledger(db) as lg:
             sg = next(s for s in lg.list_signs() if (s.draft_by or "").startswith("line_guide"))
-            # 受信箱は一時なので、見本の画像に差し替えて表示(pages も同じ画像に付け替え、タグ「実測」を保つ)
+            # 受信箱は一時なので、見本の画像に差し替えて表示(pages も同じ画像に付け替え、タグを保つ)
             for old, name in zip(list(sg.photos), plan_photo_names(plan_file)):
                 new = f"photos/{Path(name).name}"
                 lg.conn.execute("UPDATE pages SET image_path=? WHERE image_path=?", (new, lg.rel_path(old)))
@@ -254,11 +254,12 @@ def guide_karte(page, base, out, tag, db):
 def plan_photo_names(plan_file):
     import json
     doc = json.loads(Path(plan_file).read_text(encoding="utf-8"))
-    sg = doc["signs"][0]  # 写真の並び(台帳の看板の写真と同じ): 全景、部位の写真、巻尺の写真(末尾)
-    names = [sg["overview"]]
+    sg = doc["signs"][0]  # 写真の並び(台帳の看板の写真と同じ): 全景、正面、部位の写真、図面(末尾)
+    names = [sg["overview"], *(sg.get("front") or [])]
     for p in sg["parts"]:
         names += p.get("photos", [])
-    return names + (sg.get("measure") or {}).get("photos", [])
+    m = sg.get("measure")
+    return names + (m.get("drawing", []) if isinstance(m, dict) else [])
 
 
 def workflow(page, base, out, tag, db):

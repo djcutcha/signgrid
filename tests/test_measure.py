@@ -63,8 +63,8 @@ class ParseLengthTest(unittest.TestCase):
 class MeasureBase(GuideBase):
     skip_measure = False
 
-    def to_overview(self, name="① 正面の袖看板", before=()):
-        """現場を決めて看板の名前を送り、全景まで。before=台帳に先に入れる看板(site_id は今の現場に付ける)。"""
+    def to_overview(self, name="① 正面の袖看板", before=(), kind="proj"):
+        """現場を決めて看板の名前を送り、全景 → 正面は撮れない → 種類 まで。before=台帳に先に入れる看板(site_id は今の現場に付ける)。"""
         self.start_with_site()
         site = self.app_.guide.load(USER).site_id
         with self.ledger() as lg:
@@ -75,17 +75,15 @@ class MeasureBase(GuideBase):
                 lg.upsert_sign(sg)
         self.say(name)
         self.photo()  # 全景
+        self.tap(front="skip")
+        self.tap(kind=kind)
 
-    def measure_all(self, w="3.6m", h="900mm", gl="2500", mount=0, post="□50", photos=1):
+    def measure_all(self, w="3.6m", h="900mm", d="300mm", gl="2500", mount="アンカーボルト", post="□50"):
         self.tap(m="go")
-        for v in (w, h, gl):
+        for v in (w, h, d, gl):
             self.say(v)
-        self.tap(mount=mount)
+        self.tap(mount=M.MOUNTS.index(mount))
         self.say(post)
-        for _ in range(photos):
-            self.photo()
-        if photos == 1:
-            self.tap(m="nopic")
 
     def sign(self, i=-1):
         with self.ledger() as lg:
@@ -95,14 +93,14 @@ class MeasureBase(GuideBase):
 class StepConditionTest(MeasureBase):
     def test_new_sign_without_size_gets_the_step(self):
         self.to_overview()
-        self.assertEqual(self.last(), "全景を受け取りました\nこの看板の寸法を測りますか(初回の点検では、測って台帳に残します)")
-        self.assertEqual([q["action"]["label"] for q in self.last_quick()], ["測る", "飛ばす"])
+        self.assertEqual(self.last(), "この看板の寸法を測りますか(初回の点検では、測って台帳に残します。図面があれば図面で送れます)")
+        self.assertEqual([q["action"]["label"] for q in self.last_quick()], ["測る", "図面で送る", "飛ばす"])
 
     def test_sign_with_size_in_ledger_skips_the_step_and_says_so_at_the_end(self):
         self.to_overview(before=[Sign(id="old", name="① 正面の袖看板", size_w=3600, size_h=900,
                                       size_source="measured", size_by="line_guide:zzzz", size_at="2026-04-01",
                                       gl_mm=2500, gl_edge="bottom", height_m=3.4, mount="ビス", post="□50")])
-        self.assertEqual(self.last(), "全景を受け取りました\n基礎部・上部構造を撮ってください(近くで1〜3枚)")
+        self.assertTrue(self.last().startswith("基礎部・上部構造を撮ってください(近くで1〜3枚)"))
         with self.ledger() as lg:
             s = [x for x in lg.list_signs() if x.id != "old"][0]
             self.assertEqual((s.size_w, s.size_h, s.size_source, s.size_at, s.gl_mm, s.height_m, s.mount, s.post),
@@ -132,7 +130,7 @@ class SkipTest(MeasureBase):
     def test_skip_at_the_first_question_writes_nothing(self):
         self.to_overview()
         self.tap(m="skip")
-        self.assertEqual(self.last(), "寸法の実測は飛ばしました\n基礎部・上部構造を撮ってください(近くで1〜3枚)")
+        self.assertTrue(self.last().startswith("寸法の実測は飛ばしました\n基礎部・上部構造を撮ってください(近くで1〜3枚)"))
         s = self.sign()
         self.assertEqual((s.size_w, s.size_h, s.size_source, s.gl_mm, s.mount, s.post), (None,) * 6)
 
@@ -154,10 +152,12 @@ class SkipTest(MeasureBase):
         self.tap(m="go")
         self.say("3600")
         self.say("900mm")  # 900 に単位付き: 確認なし
+        self.say("飛ばす")  # 厚みを飛ばす
+        self.assertIn("GL(地面)", self.last())
         self.say("飛ばす")  # GL を飛ばす
         self.assertEqual(self.last(), "取付方法を選んでください")
         s = self.sign()
-        self.assertEqual((s.size_w, s.size_h, s.gl_mm, s.height_m, s.size_source), (3600, 900, None, None, "measured"))
+        self.assertEqual((s.size_w, s.size_h, s.size_d, s.gl_mm, s.height_m, s.size_source), (3600, 900, None, None, None, "measured"))
 
     def test_back_and_quit(self):
         self.to_overview()
@@ -168,8 +168,14 @@ class SkipTest(MeasureBase):
         self.say("戻る")
         self.assertIn("寸法を測りますか", self.last())
         self.say("戻る")
+        self.assertEqual(self.last(), "看板の種類を選んでください")
+        self.say("戻る")
+        self.assertIn("表示面を正面から", self.last())
+        self.say("戻る")
         self.assertEqual(self.last(), "全景を1枚撮ってください")
         self.photo()
+        self.tap(front="skip")
+        self.tap(kind="wall")
         self.tap(m="go")
         self.say("3600")
         self.say("900mm")
@@ -223,6 +229,7 @@ class InputTest(MeasureBase):
         self.tap(m="go")
         self.say("3600")
         self.say("900mm")
+        self.tap(m="dx")
         self.tap(m="glx")
         self.assertEqual(self.last(), "取付方法を選んでください")
         s = self.sign()
@@ -233,6 +240,7 @@ class InputTest(MeasureBase):
         self.tap(m="go")
         self.say("3600")
         self.say("900mm")
+        self.tap(m="dx")
         self.say("0")
         s = self.sign()
         self.assertEqual((s.gl_mm, s.gl_edge, s.height_m), (0, "bottom", 0.9))
@@ -242,6 +250,7 @@ class InputTest(MeasureBase):
         self.tap(m="go")
         self.say("3600")
         self.say("900mm")
+        self.tap(m="dx")
         self.say("2500")
         self.tap(mount=M.MOUNTS.index("分からない"))
         self.tap(m="nopost")
@@ -253,7 +262,7 @@ class InputTest(MeasureBase):
         self.tap(m="go")
         self.tap(m="go")  # 幅の問いで「測る」を押し直しても進まない
         self.assertIn("幅(mm)", self.last())
-        self.tap(m="nopic")
+        self.tap(m="drawn")
         self.assertIn("幅(mm)", self.last())
 
 
@@ -262,37 +271,80 @@ class LedgerTest(MeasureBase):
         self.to_overview()
         self.measure_all()
         s = self.sign()
-        self.assertEqual((s.size_w, s.size_h, s.gl_mm, s.gl_edge, s.mount, s.post), (3600, 900, 2500, "bottom", "ビス", "□50"))
+        self.assertEqual((s.size_w, s.size_h, s.size_d, s.gl_mm, s.gl_edge, s.mount, s.post),
+                         (3600, 900, 300, 2500, "bottom", "アンカーボルト", "□50"))
         self.assertEqual((s.size_source, s.size_by, s.size_at), ("measured", "line_guide:" + USER[-4:], "2026-11-03"))
         self.assertEqual(s.height_m, 3.4)  # GL(下端まで)+ 高さ
-        self.assertEqual(self.last(), "基礎部・上部構造を撮ってください(近くで1〜3枚)")
+        self.assertTrue(self.last().startswith("基礎部・上部構造を撮ってください(近くで1〜3枚)"))
 
-    def test_tape_photos_are_tagged_and_kept_at_the_end(self):
+    def test_depth_unitless_asks_to_confirm(self):
         self.to_overview()
-        self.measure_all(photos=2)
-        self.assertEqual(self.last(), "巻尺の写真 2枚\n基礎部・上部構造を撮ってください(近くで1〜3枚)")  # 2枚で自動的に次へ
+        self.tap(m="go")
+        self.say("3600")
+        self.say("900mm")
+        self.assertEqual(self.last_quick()[0]["action"]["label"], "分からない")
+        self.say("300")
+        self.assertEqual(self.last(), "「300」を 300 mm(0.3 m)として受け取ります。合っていますか")
+        self.say("はい")
+        self.assertIn("GL(地面)", self.last())
+        self.assertEqual(self.sign().size_d, 300)
+
+    def test_mount_other_takes_text(self):
+        self.to_overview()
+        self.tap(m="go")
+        self.say("3600")
+        self.say("900mm")
+        self.tap(m="dx")
+        self.tap(m="glx")
+        self.tap(mount=M.MOUNTS.index(M.MOUNT_OTHER))
+        self.assertEqual(self.last(), "取付方法を文字で送ってください(30字まで)")
+        self.say("ケミカルアンカー")
+        self.assertIn("支柱", self.last())
+        self.tap(m="nopost")
+        self.assertEqual(self.sign().mount, "ケミカルアンカー")
+
+    def test_mount_buttons_fit_line(self):
+        self.assertLessEqual(len(M.MOUNTS), 13)  # クイックリプライは 13 個まで
+        self.assertTrue(all(len(x) <= 20 for x in M.MOUNTS))
+
+    def test_drawing_photos_are_tagged_and_kept_at_the_end(self):
+        self.to_overview()
+        self.tap(m="draw")
+        self.assertEqual(self.last(), "図面の写真か画像を送ってください(1〜3枚)")
+        self.photo()
+        self.tap(m="drawn")
+        self.assertTrue(self.last().startswith("図面 1枚を受け取りました。寸法は図面から事務所で入れます\n基礎部・上部構造を撮ってください(近くで1〜3枚)"))
         self.photo()  # 部位の写真
         with self.ledger() as lg:
             s = lg.list_signs()[0]
             tags = {lg.rel_path(r["image_path"]): r["tag"] for r in lg.conn.execute("SELECT image_path, tag FROM pages")}
-            self.assertEqual([tags[p] for p in s.photos], ["overview", "基礎部・上部構造", MEASURE_TAG, MEASURE_TAG])
+            self.assertEqual([tags[p] for p in s.photos], ["overview", "基礎部・上部構造", FIGURE_TAG])
             photos, figures = lg.split_photos(s)
-            self.assertEqual(photos, s.photos[:2])
-            self.assertEqual(figures, [])
+            self.assertEqual((photos, figures), (s.photos[:2], s.photos[2:]))
+            self.assertIsNone(s.size_w)  # 数字は事務所で図面から入れる
 
-    def test_photo_numbers_in_evidence_ignore_tape_photos(self):
+    def test_three_drawings_advance_and_back_returns_to_drawing(self):
         self.to_overview()
-        self.measure_all(photos=1)
+        self.tap(m="draw")
+        for _ in range(3):
+            self.photo()
+        self.assertTrue(self.last().startswith("図面 3枚を受け取りました"))
+        self.say("戻る")
+        self.assertIn("図面", self.last())
+
+    def test_drawing_can_switch_to_numbers(self):
+        self.to_overview()
+        self.tap(m="draw")
+        self.tap(m="go")
+        self.assertIn("幅(mm)", self.last())
+
+    def test_photo_numbers_in_evidence_count_overview_for_the_base(self):
+        self.to_overview()
+        self.measure_all()
         self.photo()
         self.tap(next=1, p=0)
         self.tap(ans="a", item="基礎部・上部構造-1")
-        self.assertEqual(self.sign().evidence["基礎部・上部構造-1"]["photos"], [2])  # 全景=1、部位の写真=2
-
-    def test_no_photo_button(self):
-        self.to_overview()
-        self.measure_all(photos=0)
-        self.tap(m="nopic")
-        self.assertEqual(self.last(), "基礎部・上部構造を撮ってください(近くで1〜3枚)")
+        self.assertEqual(self.sign().evidence["基礎部・上部構造-1"]["photos"], [1, 2])  # 全景=1(傾きは全景で見る)、部位の写真=2
 
     def test_old_ledger_gets_the_new_columns(self):
         with tempfile.TemporaryDirectory() as td:
@@ -308,7 +360,7 @@ class LedgerTest(MeasureBase):
             c.close()
             with Ledger(db) as lg:
                 cols = {r[1] for r in lg.conn.execute("PRAGMA table_info(signs)")}
-                self.assertTrue({"size_source", "size_by", "size_at", "gl_mm", "gl_edge", "mount", "post"} <= cols)
+                self.assertTrue({"size_source", "size_by", "size_at", "size_d", "gl_mm", "gl_edge", "mount", "post"} <= cols)
                 s = lg.get_sign("a")
                 self.assertEqual((s.size_w, s.size_source), (3000, None))
                 self.assertEqual(api.size_info(s)["source"], "legacy")
@@ -325,7 +377,7 @@ class KarteBadgeTest(MeasureBase):
         self.assertEqual(api.size_info(Sign(id="a", size_w=1, size_h=1, size_source="drawing"))["source"], "drawing")
         self.assertEqual(api.size_info(Sign(id="a", size_w=1, size_source="measured"))["source"], "none")  # 幅×高さが揃っていない
 
-    def test_detail_shows_measured_badge_and_separates_tape_photos(self):
+    def test_detail_shows_measured_badge(self):
         self.to_overview()
         self.measure_all()
         self.photo()
@@ -333,9 +385,9 @@ class KarteBadgeTest(MeasureBase):
         with self.ledger() as lg:
             d = api.sign_detail(lg, sid)
             self.assertEqual(d["size_info"]["source"], "measured")
-            self.assertEqual((d["size_info"]["at"], d["size_info"]["gl_mm"], d["size_info"]["mount"]), ("2026-11-03", 2500, "ビス"))
-            self.assertEqual([p["measure"] for p in d["photos"]], [False, False, True])
-            self.assertEqual(d["photo_count"], 2)  # 実測写真は「写真 n 枚」に数えない
+            self.assertEqual((d["size_info"]["at"], d["size_info"]["gl_mm"], d["size_info"]["mount"], d["size_info"]["size_d"]),
+                             ("2026-11-03", 2500, "アンカーボルト", 300))
+            self.assertEqual(d["photo_count"], 2)
             self.assertEqual(api.signs(lg, None)[0]["photo_count"], 2)
 
 
@@ -372,21 +424,18 @@ class LegalRejudgeTest(MeasureBase):
 class DraftInputTest(MeasureBase):
     def test_measure_and_figure_photos_are_not_draft_input(self):
         self.to_overview()
-        self.measure_all()
-        self.photo()
+        self.tap(m="draw")
+        self.photo()        # 図面
+        self.tap(m="drawn")
+        self.photo()        # 部位の写真
         with self.ledger() as lg:
             s = lg.list_signs()[0]
-            fig = s.photos[0]  # 図面として扱う頁を1枚
-            lg.conn.execute("UPDATE pages SET tag=? WHERE image_path=?", (FIGURE_TAG, fig))
-            lg.conn.commit()
             photos, figures = lg.split_photos(s)
-            self.assertEqual(figures, [fig])
-            self.assertEqual(photos, [s.photos[1]])
-            self.assertNotIn(s.photos[2], photos)  # 実測
+            self.assertEqual(figures, [s.photos[2]])
+            self.assertEqual(photos, s.photos[:2])
             from kanban_karte.pipeline import draft
             item = draft.eval_item_for(lg, s)
-            self.assertEqual(len(item.photo_paths), 1)
-
+            self.assertEqual(len(item.photo_paths), 2)
 
 if __name__ == "__main__":
     unittest.main()

@@ -39,10 +39,11 @@
     return el("span", { class: `chip ${cls} size-src`, text: when ? `${label} ${when}` : label });
   }
 
-  // 寸法: 幅×高さ+出どころのバッジ、全高、GL・取付方法・支柱(実測した時)、巻尺の写真
+  // 寸法: 幅×高さ+出どころのバッジ、厚み、全高、GL・取付方法・支柱(実測した時)、スケールの写真(古い台帳)
   function sizeCard(d) {
     const info = d.size_info, shots = d.photos.filter((p) => p.measure).map((p, i) => ({ ...p, no: i + 1 }));
     const kv = [["寸法", d.size || "—"]];
+    if (info.size_d) kv.push(["厚み", `${info.size_d} mm`]);
     if (d.height_m) kv.push(["全高", `${d.height_m} m`]);
     if (info.gl_mm != null) kv.push(["GL から", `${info.gl_mm} mm(${info.gl_edge === "top" ? "上端" : "看板の下端"}まで)`]);
     if (info.mount) kv.push(["取付方法", info.mount]);

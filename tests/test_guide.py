@@ -8,6 +8,7 @@ from pathlib import Path
 
 from kanban_karte.eval.judge import Judge, Prediction
 from kanban_karte.intake.line import richmenu
+from kanban_karte.intake.line import shoot as S
 from kanban_karte.intake.line.guide import ANSWER_LABEL, PARTS, Guide, GuideState
 from kanban_karte.intake.line.guide_ledger import LedgerSink, draft_by
 from kanban_karte.intake.line.simulate import DirContentClient, build_guide_deliveries
@@ -53,13 +54,17 @@ class GuideBase(Base):
     def last_quick(self):
         return self.client.extras[-1]["quick_replies"]
 
-    skip_measure = True  # 既存の流れの試験は、実測の最初の問いが出たら「飛ばす」で通す(実測は MeasureTest が試す)
+    skip_measure = True  # 既存の流れの試験は、正面は「撮れない」、種類は「その他」、実測の最初の問いは「飛ばす」で通す(実測は MeasureTest が試す)
 
     def photo(self):
         self.n += 1
         self.client.contents[f"p{self.n}"] = jpeg()
         res = self.send(img_event(f"p{self.n}", token=f"tok-p{self.n}"))
         st = self.app_.guide.load(USER)
+        if self.skip_measure and st is not None and st.step == "front" and st.photos == 0:
+            self.tap(front="skip")  # 正面と種類は ShootTest が試す。既存の流れの試験は通す
+            res = self.tap(kind="other")
+            st = self.app_.guide.load(USER)
         if self.skip_measure and st is not None and st.step == "measure" and st.m_sub == "ask":
             res = self.tap(m="skip")
         return res
@@ -91,12 +96,13 @@ class StateMachineTest(GuideBase):
         self.say("① 正面の袖看板")
         self.assertEqual(self.last(), "全景を1枚撮ってください")
         self.photo()
-        self.assertEqual(self.last(), "寸法の実測は飛ばしました\n基礎部・上部構造を撮ってください(近くで1〜3枚)")
+        self.assertEqual(self.last(), "寸法の実測は飛ばしました\n基礎部・上部構造を撮ってください(近くで1〜3枚)\n"
+                                      "地面との境目(基礎)を近くで。傾きは全景で見ます")  # 種類「その他」の撮る場所
         self.assertEqual([i["action"]["label"] for i in self.last_quick()], ["この部位は無い"])
         self.photo()
         self.assertEqual([i["action"]["label"] for i in self.last_quick()], ["次へ"])
         self.tap(next=1, p=0)
-        self.assertEqual(self.last(), "基礎部・上部構造 1/3\n上部構造全体の傾斜、ぐらつき")
+        self.assertEqual(self.last(), "基礎部・上部構造 1/3\n上部構造全体の傾斜、ぐらつき(傾きは全景で、ぐらつきは手の届く所で)")
         self.assertEqual([i["action"]["label"] for i in self.last_quick()], list(ANSWER_LABEL.values()))
         self.assertEqual(self.last_quick()[0]["action"]["data"], "act=guide&ans=a&item=%E5%9F%BA%E7%A4%8E%E9%83%A8%E3%83%BB%E4%B8%8A%E9%83%A8%E6%A7%8B%E9%80%A0-1")
 
@@ -168,7 +174,7 @@ class StateMachineTest(GuideBase):
         self.photo()
         self.tap(next=1, p=0)
         self.say("柱の根元に水たまり")
-        self.assertEqual(self.last(), "メモを受け取りました\n基礎部・上部構造 1/3\n上部構造全体の傾斜、ぐらつき")
+        self.assertEqual(self.last(), "メモを受け取りました\n基礎部・上部構造 1/3\n上部構造全体の傾斜、ぐらつき(傾きは全景で、ぐらつきは手の届く所で)")
         msgs = list(self.inbox.glob("*/*/messages.jsonl"))
         self.assertIn("柱の根元に水たまり", msgs[0].read_text(encoding="utf-8"))
         self.assertNotIn("戻る", msgs[0].read_text(encoding="utf-8"))
@@ -300,7 +306,7 @@ class LedgerTest(GuideBase):
             self.assertEqual(len(s.photos), 3)
             tags = [r["tag"] for r in lg.list_pages(s.source_bundle)]
             self.assertEqual(tags, [None, "overview", "基礎部・上部構造", "基礎部・上部構造"])  # 先頭は始める前に送った位置つきの写真
-            self.assertEqual(s.evidence["基礎部・上部構造-1"]["photos"], [2, 3])
+            self.assertEqual(s.evidence["基礎部・上部構造-1"]["photos"], [1, 2, 3])  # 全景(傾きを見る)+部位の写真
             cs = lg.list_corrections(s.id)
             self.assertEqual([(c["item"], c["old_value"], c["new_value"], c["corrected_by"]) for c in cs],
                              [("基礎部・上部構造-1", None, "経過観察", "line_guide")])
@@ -446,10 +452,12 @@ class SimulateTest(unittest.TestCase):
                 signs = lg.list_signs()
                 s = signs[0]
                 self.assertEqual(s.name, "① 正面の袖看板")
-                self.assertEqual(len(s.photos), 10)  # 全景1+部位9+巻尺の写真1(末尾)
-                self.assertEqual((s.size_w, s.size_h, s.gl_mm, s.height_m, s.size_source), (3600, 900, 2500, 3.4, "measured"))
+                self.assertEqual(len(s.photos), 10)  # 全景1+正面1+部位8
+                self.assertEqual((s.size_w, s.size_h, s.size_d, s.gl_mm, s.height_m, s.size_source, s.mount, s.type),
+                                 (3600, 900, 300, 2500, 3.4, "measured", "アンカーボルト", "突出"))
                 self.assertEqual([x.name for x in signs], ["① 正面の袖看板", "② 側面の看板", "① 正面の袖看板"])
-                self.assertIsNone(signs[1].size_w)  # ② は飛ばした
+                self.assertIsNone(signs[1].size_w)  # ② は図面で送った(数字は事務所で入れる)
+                self.assertEqual((signs[1].type, len(lg.split_photos(signs[1])[1])), ("壁面", 1))
                 self.assertEqual((signs[2].size_w, signs[2].size_source), (3600, "measured"))  # ③ は①の実測を引き継いだ
                 self.assertEqual(len(s.items), 10)
                 self.assertEqual(sum(1 for v in s.evidence.values() if v["guide"] == "unknown"), 3)
@@ -460,8 +468,8 @@ class SimulateTest(unittest.TestCase):
     def test_operation_counts(self):
         with tempfile.TemporaryDirectory() as td:
             plan = build_guide_deliveries(PLAN, Path(td) / "c", run_id="t2")
-            self.assertEqual(plan.stats["photos"], 12)  # ①全景+部位9+巻尺1、②全景、③全景
-            self.assertEqual(plan.stats["texts"], 7)    # 看板の名前3+①の幅・高さ・GL・支柱
+            self.assertEqual(plan.stats["photos"], 14)  # ①全景+正面+部位8、②全景+図面、③全景+正面
+            self.assertEqual(plan.stats["texts"], 8)    # 看板の名前3+①の幅・高さ・厚み・GL・支柱
 
 
 class KarteBadgeTest(GuideBase):
@@ -489,6 +497,109 @@ class KarteBadgeTest(GuideBase):
             by = {i["key"]: i for i in web_api.sign_detail(lg, sid)["items"]}
             self.assertTrue(by["基礎部・上部構造-1"]["corrected"])
             self.assertIsNone(by["基礎部・上部構造-1"]["guide"])
+
+
+
+class ShootTest(GuideBase):
+    """全景 → 正面(各面)→ 看板の種類 → 寸法 → 部位(種類ごとの撮る場所)。"""
+    skip_measure = False
+
+    def to_front(self, name="① 袖看板"):
+        self.start_with_site()
+        self.say(name)
+        self.photo()  # 全景
+
+    def test_front_then_kind_then_measure(self):
+        self.to_front()
+        self.assertEqual(self.last(), "全景を受け取りました\n表示面を正面から撮ってください(文字や絵が読めるように。面が複数あれば各面)")
+        self.assertEqual([q["action"]["label"] for q in self.last_quick()], ["正面から撮れない"])
+        self.photo()
+        self.assertEqual(self.last(), "正面 1枚\n別の面があれば続けて撮るか、「次へ」を押してください")
+        self.photo()  # 2面目
+        self.tap(front="next")
+        self.assertEqual(self.last(), "看板の種類を選んでください")
+        self.assertEqual([q["action"]["label"] for q in self.last_quick()], [label for _, label, _ in S.KINDS])
+        self.tap(kind="pole")
+        self.assertIn("寸法を測りますか", self.last())
+        self.tap(m="skip")
+        self.assertEqual(self.last(), "寸法の実測は飛ばしました\n基礎部・上部構造を撮ってください(近くで1〜3枚)\n" + S.SHOOT["基礎部・上部構造"]["pole"])
+        with self.ledger() as lg:
+            s = lg.list_signs()[0]
+            tags = {lg.rel_path(r["image_path"]): r["tag"] for r in lg.conn.execute("SELECT image_path, tag FROM pages")}
+            self.assertEqual([tags[p] for p in s.photos], ["overview", S.FRONT_TAG, S.FRONT_TAG])
+            self.assertEqual(s.type, "ポール")
+
+    def test_front_photos_count_for_the_display_items(self):
+        self.to_front()
+        self.photo()  # 正面
+        self.tap(front="next")
+        self.tap(kind="wall")
+        self.tap(m="skip")
+        for p in range(3):
+            self.tap(nopart=1, p=p)
+        self.assertEqual(self.last(), "表示部を撮ってください(近くで1〜3枚)\n表示面の傷み・側板・底と水抜き穴を近くで。正面の写真は撮ってあります")
+        self.photo()
+        self.tap(next=1, p=3)
+        self.tap(ans="b", item="表示部-1")
+        with self.ledger() as lg:
+            self.assertEqual(lg.list_signs()[0].evidence["表示部-1"]["photos"], [2, 3])  # 正面=2、表示部の写真=3
+
+    def test_front_skipped_drops_the_front_note(self):
+        self.to_front()
+        self.tap(front="skip")
+        self.tap(kind="wall")
+        self.tap(m="skip")
+        for p in range(3):
+            self.tap(nopart=1, p=p)
+        self.assertEqual(self.last(), "表示部を撮ってください(近くで1〜3枚)\n表示面の傷み・側板・底と水抜き穴を近くで")
+
+    def test_four_fronts_advance_and_stale_buttons(self):
+        self.to_front()
+        self.tap(front="next")  # まだ1枚も無い: 進まない
+        self.assertIn("表示面を正面から", self.last())
+        for _ in range(S.MAX_FRONT_PHOTOS):
+            self.photo()
+        self.assertEqual(self.last(), f"正面 {S.MAX_FRONT_PHOTOS}枚\n看板の種類を選んでください")
+        self.tap(front="skip")  # 古いボタン
+        self.assertEqual(self.last(), "看板の種類を選んでください")
+        self.tap(kind="nope")
+        self.assertEqual(self.last(), "看板の種類を選んでください")
+
+    def test_kind_by_text_skip_and_back(self):
+        self.to_front()
+        self.say("飛ばす")  # 正面は飛ばせる
+        self.say("戻る")
+        self.assertIn("表示面を正面から", self.last())
+        self.tap(front="skip")
+        self.say("突出(袖)")
+        self.assertIn("寸法を測りますか", self.last())
+        self.say("戻る")
+        self.assertEqual(self.last(), "看板の種類を選んでください")
+        self.say("飛ばす")  # 種類も飛ばせる(撮る場所は共通の言い方)
+        self.tap(m="skip")
+        self.assertTrue(self.last().endswith(S.SHOOT["基礎部・上部構造"]["*"]))
+        with self.ledger() as lg:
+            self.assertEqual(lg.list_signs()[0].type, "突出")  # 先に選んだ種類は台帳に残る(飛ばしても消さない)
+
+    def test_kind_does_not_overwrite_the_ledger(self):
+        self.to_front()
+        with self.ledger() as lg:
+            s = lg.list_signs()[0]
+            s.type = "野立て"
+            lg.upsert_sign(s)
+        self.tap(front="skip")
+        self.tap(kind="wall")
+        with self.ledger() as lg:
+            self.assertEqual(lg.list_signs()[0].type, "野立て")
+
+    def test_every_hint_keeps_replies_within_three_lines(self):
+        g = Guide(self.inbox)
+        for kind in (*S.KIND_KEYS, None):
+            for part in range(len(PARTS)):
+                st = GuideState(step="photo", part=part, kind=kind)
+                self.assertLessEqual(len(g._with("寸法の実測は飛ばしました", g.prompt(st)).text.splitlines()), 3)
+        for k, label, _ in S.KINDS:
+            self.assertLessEqual(len(label), 20)
 
 
 if __name__ == "__main__":

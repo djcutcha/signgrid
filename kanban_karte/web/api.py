@@ -69,7 +69,7 @@ def size_info(s: Sign) -> dict:
     """寸法の出どころ(カルテのバッジ)。source: measured 実測 / estimated 推定(AI)/ drawing 図面 / legacy 幅×高さはあるが出どころ未記録 / none 未入力。"""
     has = bool(s.size_w and s.size_h)
     source = s.size_source if has and s.size_source else ("legacy" if has else "none")
-    return {"source": source, "at": s.size_at, "by": s.size_by, "gl_mm": s.gl_mm, "gl_edge": s.gl_edge,
+    return {"source": source, "at": s.size_at, "by": s.size_by, "size_d": s.size_d, "gl_mm": s.gl_mm, "gl_edge": s.gl_edge,
             "mount": s.mount, "post": s.post}
 
 
