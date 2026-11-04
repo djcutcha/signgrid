@@ -62,7 +62,21 @@
               "quote_verified": true
             }
           ],
-          "confidence": 0.6
+          "confidence": 0.6,
+          "wall_ratio_max": 0.2,
+          "wall_ratio_floor_m2": null,
+          "verified": "official",
+          "verified_url": "https://www.city.saitama.lg.jp/001/010/004/p030742_d/fil/beppyou.pdf",
+          "verified_at": "2026-11-04",
+          "kind_citations": [
+            {
+              "source": "施行規則",
+              "article": "規則別表 別表第1 1 禁止地域等以外 壁面利用広告 1",
+              "quote": "表示面積は、建築物の各面に対してその壁面面積の5分の1以下であること。",
+              "url": "https://www.city.saitama.lg.jp/001/010/004/p030742_d/fil/beppyou.pdf",
+              "verbatim": true
+            }
+          ]
         },
         {
           "kind": "突出し広告",
@@ -82,7 +96,22 @@
               "quote_verified": true
             }
           ],
-          "confidence": 0.6
+          "confidence": 0.6,
+          "top_limit": "wall_with_overshoot_le_protrusion",
+          "protrusion_from_wall_max_m": 1.2,
+          "road_protrusion_allowed": false,
+          "verified": "official",
+          "verified_url": "https://www.city.saitama.lg.jp/001/010/004/p030742_d/fil/beppyou.pdf",
+          "verified_at": "2026-11-04",
+          "kind_citations": [
+            {
+              "source": "施行規則",
+              "article": "規則別表 別表第1 1 禁止地域等以外 突出し広告 1〜3",
+              "quote": "上端の高さが壁面の高さを超える場合は、超える部分の高さは、壁面からの突出し幅以下であること。/壁面からの突出し幅は、1.2メートル以下であること。/道路上に突き出していないこと。",
+              "url": "https://www.city.saitama.lg.jp/001/010/004/p030742_d/fil/beppyou.pdf",
+              "verbatim": true
+            }
+          ]
         },
         {
           "kind": "広告塔・広告板",
@@ -142,7 +171,21 @@
               "quote_verified": true
             }
           ],
-          "confidence": 0.6
+          "confidence": 0.6,
+          "wall_ratio_max": null,
+          "top_limit": "eave",
+          "verified": "official",
+          "verified_url": "https://www.city.saitama.lg.jp/001/010/004/p030742_d/fil/beppyou.pdf",
+          "verified_at": "2026-11-04",
+          "kind_citations": [
+            {
+              "source": "施行規則",
+              "article": "規則別表 別表第1 1 禁止地域等 壁面利用広告",
+              "quote": "総表示面積は、5平方メートル以下であること。/上端の高さは、軒高以下であること。",
+              "url": "https://www.city.saitama.lg.jp/001/010/004/p030742_d/fil/beppyou.pdf",
+              "verbatim": true
+            }
+          ]
         },
         {
           "kind": "突出し広告",
@@ -162,7 +205,23 @@
               "quote_verified": true
             }
           ],
-          "confidence": 0.6
+          "confidence": 0.6,
+          "top_limit": "eave",
+          "protrusion_from_wall_max_m": 1.0,
+          "road_protrusion_allowed": false,
+          "verified": "official",
+          "verified_url": "https://www.city.saitama.lg.jp/001/010/004/p030742_d/fil/beppyou.pdf",
+          "verified_at": "2026-11-04",
+          "kind_citations": [
+            {
+              "source": "施行規則",
+              "article": "規則別表 別表第1 1 禁止地域等 突出し広告 1〜4",
+              "quote": "総表示面積は、3平方メートル以下であること。/上端の高さは、軒高以下であること。/壁面からの突出し幅は、1メートル以下であること。/道路上に突き出していないこと。",
+              "url": "https://www.city.saitama.lg.jp/001/010/004/p030742_d/fil/beppyou.pdf",
+              "verbatim": true
+            }
+          ],
+          "kind_note": "埼玉県・越谷市の禁止地域の突出しは上端『壁面の高さ以下』、さいたま市は『軒高以下』。"
         },
         {
           "kind": "広告塔・広告板",
@@ -490,6 +549,129 @@
         }
       ],
       "confidence": 0.85
+    },
+    "permit_standards": [
+      {
+        "kind": "壁面広告",
+        "when": "許可基準(一般)",
+        "self_use_only": false,
+        "zone": "permit_zone",
+        "height_max_m": null,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": "近隣商業・商業地域の緩和(3/10)は無い。",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "規則別表 別表第2 1 壁面利用広告 1",
+            "quote": "表示面積は、建築物の各面に対してその壁面面積の5分の1以下であること",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.9,
+        "wall_ratio_max": 0.2,
+        "wall_ratio_floor_m2": null,
+        "verified": "official",
+        "verified_url": "https://www.city.saitama.lg.jp/001/010/004/p030742_d/fil/beppyou.pdf",
+        "verified_at": "2026-11-04",
+        "kind_citations": [
+          {
+            "source": "施行規則",
+            "article": "規則別表 別表第2 1 壁面利用広告 1",
+            "quote": "表示面積は、建築物の各面に対してその壁面面積の5分の1以下であること。",
+            "url": "https://www.city.saitama.lg.jp/001/010/004/p030742_d/fil/beppyou.pdf",
+            "verbatim": true
+          }
+        ],
+        "kind_note": "近隣商業・商業地域の緩和(3/10)は無い。"
+      },
+      {
+        "kind": "突出し広告",
+        "when": "許可基準(一般)",
+        "self_use_only": false,
+        "zone": "permit_zone",
+        "height_max_m": null,
+        "ground_clearance_min_m": null,
+        "protrusion_max_m": null,
+        "area_max_m2": null,
+        "conditions": "上端は『壁面高さ以下』ではなく『超えてよいが、超える高さ≦壁面からの突出し幅』。top_limit は専用値 wall_with_overshoot_le_protrusion。",
+        "citations": [
+          {
+            "source": "施行規則",
+            "article": "規則別表 別表第2 1 突出し広告 1〜4",
+            "quote": "上端の高さが壁面の高さを超える場合は、超える部分の高さは壁面からの突出し幅以下であること",
+            "quote_verified": true
+          },
+          {
+            "source": "施行規則",
+            "article": "規則別表 別表第2 1 突出し広告 1〜4",
+            "quote": "道路上への突出し幅は、道路境界から1メートル以下であること",
+            "quote_verified": true
+          },
+          {
+            "source": "施行規則",
+            "article": "規則別表 別表第2 1 突出し広告 1〜4",
+            "quote": "下端の高さは、歩道上にあっては路面から2.5メートル以上、車道上にあっては路面から4.5メートル以上であること",
+            "quote_verified": true
+          }
+        ],
+        "confidence": 0.9,
+        "top_limit": "wall_with_overshoot_le_protrusion",
+        "protrusion_from_wall_max_m": 1.2,
+        "protrusion_from_road_boundary_max_m": 1.0,
+        "ground_clearance_sidewalk_min_m": 2.5,
+        "ground_clearance_roadway_min_m": 4.5,
+        "road_protrusion_allowed": true,
+        "verified": "official",
+        "verified_url": "https://www.city.saitama.lg.jp/001/010/004/p030742_d/fil/beppyou.pdf",
+        "verified_at": "2026-11-04",
+        "kind_citations": [
+          {
+            "source": "施行規則",
+            "article": "規則別表 別表第2 1 突出し広告 1〜4",
+            "quote": "上端の高さが壁面の高さを超える場合は、超える部分の高さは壁面からの突出し幅以下であること。/壁面からの突き出し幅は、1.2メートル以下であること。/道路上への突出し幅は、道路境界から1メートル以下であること。/下端の高さは、歩道上にあっては路面から2.5メートル以上、車道上にあっては路面から4.5メートル以上であること。",
+            "url": "https://www.city.saitama.lg.jp/001/010/004/p030742_d/fil/beppyou.pdf",
+            "verbatim": true
+          }
+        ],
+        "kind_note": "上端は『壁面高さ以下』ではなく『超えてよいが、超える高さ≦壁面からの突出し幅』。top_limit は専用値 wall_with_overshoot_le_protrusion。"
+      }
+    ],
+    "road_occupancy": {
+      "law_citation": {
+        "source": "法律",
+        "article": "道路法 第32条第1項",
+        "quote": "道路に次の各号のいずれかに掲げる工作物、物件又は施設を設け、継続して道路を使用しようとする場合においては、道路管理者の許可を受けなければならない。(第1号 広告塔その他これらに類する工作物)",
+        "url": "https://laws.e-gov.go.jp/api/1/lawdata/327AC1000000180"
+      },
+      "use_permit_citation": {
+        "source": "法律",
+        "article": "道路交通法 第77条第1項第2号",
+        "quote": "道路に石碑、銅像、広告板、アーチその他これらに類する工作物を設けようとする者は、所轄警察署長の許可を受けなければならない。",
+        "url": "https://laws.e-gov.go.jp/api/1/lawdata/335AC0000000105"
+      },
+      "by_manager": [
+        {
+          "manager": "市道",
+          "verified": "copy",
+          "protrusion_from_road_boundary_max_m": null,
+          "ground_clearance_sidewalk_min_m": null,
+          "ground_clearance_no_sidewalk_min_m": null,
+          "self_use_only": true,
+          "general_not_allowed": true,
+          "note": "道路に突き出す広告物は屋外広告物条例の適用確認票を先に受ける。確認票(2025-07-01版)に『一般広告物は屋外広告物条例で許可できないため、道路占用許可は出ない』。数値は条例別表第2(道路境界1m、下端 歩道2.5m・車道4.5m)に従う。道路使用許可は『必要となる場合』。今回は再取得していない。",
+          "confidence": 0.6,
+          "kind_citations": [
+            {
+              "source": "道路管理者の基準",
+              "article": "さいたま市 道路占用 案内/確認票",
+              "quote": "道路上に突出看板、日よけ、工事用足場や仮囲いを設置する場合は道路占用許可が必要です。",
+              "url": "https://www.city.saitama.lg.jp/005/003/011/004/sennyoushinsei.html"
+            }
+          ]
+        }
+      ]
     }
   },
   "extraction_notes": [

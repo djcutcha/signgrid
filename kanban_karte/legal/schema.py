@@ -274,7 +274,7 @@ def validate_permit_standards(items) -> list[str]:
         for k in ("height_max_m", "ground_clearance_min_m", "protrusion_max_m", "area_max_m2"):
             _num_or_none(errs, p, s, k)
         K.validate_std_keys(errs, p, s)
-        _citations(errs, p, s)
+        _citations(errs, p, s, required=not s.get("kind_citations"))   # 照合済みの引用(kind_citations)があれば逐語の引用は任意
         _conf(errs, p, s)
     return errs
 
@@ -308,6 +308,8 @@ def validate_rules(rules: dict) -> list[str]:
                 if not isinstance(s.get("kind"), str):
                     errs.append(f"{p}.kind がない")
                 K.validate_std_keys(errs, p, s)   # 任意: 壁面率・出幅・地上高 等(kinds.py)
+                if any(z not in ZONE_VOCAB for z in (s.get("wall_ratio_by_zone") or {})):
+                    errs.append(f"{p}.wall_ratio_by_zone のキーは ZONE_VOCAB の語")
                 _citations(errs, p, s)
                 _conf(errs, p, s)
         pz = su.get("prohibited_zone_permit")

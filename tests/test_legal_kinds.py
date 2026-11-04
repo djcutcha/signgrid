@@ -6,7 +6,12 @@ from kanban_karte.legal import kinds as K
 from kanban_karte.legal import schema as S
 from kanban_karte.legal.judge import NEEDS_MEASURE, NOT_REQUIRED, REQUIRED
 
-from tests.test_legal_judge import J, make_rules, std
+from tests.test_legal_judge import J as J0, make_rules, std
+
+
+def J(rules, **kw):
+    kw.setdefault("by_kind", True)
+    return J0(rules, **kw)
 
 
 def wall_std(ratio=0.2, floor=10, zone="permit_zone", top="eave", **kw):
@@ -179,10 +184,10 @@ class ProjectingTest(unittest.TestCase):
         r["road_occupancy"] = {"by_manager": [
             {"manager": "都道", "protrusion_from_road_boundary_max_m": 1.0, "ground_clearance_sidewalk_min_m": 2.5,
              "ground_clearance_no_sidewalk_min_m": 4.5, "self_use_only": None, "general_not_allowed": None, "note": None,
-             "citations": [{"source": "道路管理者の基準", "article": "占用基準", "quote": "袖看板 出幅 1m 以下"}], "confidence": 0.8,
-             "verified": "unverified"},
-            {"manager": "市道", "protrusion_from_road_boundary_max_m": 1.0, "citations": [{"source": "道路管理者の基準", "article": "x", "quote": "y"}],
-             "confidence": 0.8}]}
+             "kind_citations": [{"source": "道路管理者の基準", "article": "占用基準", "quote": "袖看板 出幅 1m 以下"}], "confidence": 0.8,
+             "verified": "official"},
+            {"manager": "市道", "protrusion_from_road_boundary_max_m": 1.0, "kind_citations": [], "confidence": 0.0,
+             "verified": "unverified", "note": "未確認"}]}
         self.assertEqual(S.validate_rules(r), [])
         res = J(r, kind="袖", area_m2=1, protrusion_wall_m=0.9, protrusion_road_m=0.5, ground_clearance_m=3.0, over="sidewalk")
         self.assertEqual(len(res.road_occupancy["by_manager"]), 2)
@@ -192,6 +197,11 @@ class ProjectingTest(unittest.TestCase):
         self.assertEqual([b["manager"] for b in bm], ["都道"])
         self.assertEqual([row["verdict"] for row in bm[0]["rows"]], [K.OK, K.OK])
         self.assertNotIn("道路の管理者(国道", res.road_occupancy["text"])
+        # 照合できていない管理者の数値は判定に使わない(注意文だけ)
+        res = J(r, kind="袖", area_m2=1, protrusion_wall_m=0.9, protrusion_road_m=0.5, ground_clearance_m=3.0, over="sidewalk",
+                road_manager="市道")
+        self.assertEqual(res.road_occupancy["by_manager"][0]["rows"], [])
+        self.assertEqual(res.road_occupancy["by_manager"][0]["note"], "未確認")
 
     def test_wall_kind_has_no_road_notice(self):
         res = J(make_rules([wall_std()]), kind="壁面", area_m2=5, wall_area_m2=100, height_m=3, eave_height_m=6)
@@ -200,6 +210,78 @@ class ProjectingTest(unittest.TestCase):
     def test_bad_over(self):
         with self.assertRaises(ValueError):
             J(self.r, kind="袖", area_m2=1, over="air")
+
+
+class AddendumShapesTest(unittest.TestCase):
+    """照合済みの追記案の形: 用途地域ごとの比率・上限つき比率・未確認のキー・東京都の 0.5m 例外・はみ出しを出幅まで許す上端。"""
+
+    def test_ratio_by_zone(self):
+        s = wall_std(ratio=0.2, floor=10, top=None)
+        s["wall_ratio_by_zone"] = {"商業地域": 0.3}
+        r = make_rules([s])
+        self.assertEqual(S.validate_rules(r), [])
+        # 壁面 100 ㎡、看板 25 ㎡: 1/5(20)なら超過寄り、3/10(30)なら要実測 -> 用途地域不明は要実測
+        self.assertEqual(item(J(r, kind="壁面", area_m2=25, wall_area_m2=100), "wall_ratio")["verdict"], K.MEASURE)
+        self.assertEqual(item(J(r, kind="壁面", area_m2=15, wall_area_m2=100, place="商業地域"), "wall_ratio")["verdict"], K.OK)
+        self.assertEqual(item(J(r, kind="壁面", area_m2=25, wall_area_m2=100, place="第一種住居地域"), "wall_ratio")["verdict"], K.OVER)
+
+    def test_cap(self):
+        s = wall_std(ratio=0.2, floor=None, top=None)
+        s["wall_ratio_cap_m2"] = 10
+        r = make_rules([s])
+        # 壁面 200 ㎡ × 1/5 = 40 ㎡ だが 10 ㎡ 以下の上限 -> 15 ㎡ は超過
+        self.assertEqual(item(J(r, kind="壁面", area_m2=15, wall_area_m2=200), "wall_ratio")["verdict"], K.OVER)
+
+    def test_unverified_key_is_measure(self):
+        s = std(kind="全種類", zone="all", area=10, height=None)
+        s["unverified_keys"] = ["wall_ratio_max", "road_protrusion_allowed"]
+        r = make_rules([s])
+        self.assertEqual(J(r, kind="袖", area_m2=2, by_kind=False).kind_checks, [])   # 台帳などの呼び出しは今までどおり
+        res = J(r, kind="袖", area_m2=2)
+        row = item(res, "road_protrusion")
+        self.assertEqual((row["verdict"], row["verified"]), (K.MEASURE, "unverified"))
+        self.assertEqual(res.permit_required, NEEDS_MEASURE)
+        self.assertTrue(any("照合できていない" in n for n in res.notes))
+        self.assertEqual(J(r, area_m2=2).permit_required, NOT_REQUIRED)   # 種類なしは従来どおり
+
+    def test_tokyo_near_projection_exception(self):
+        s = proj_std(wall=1.5, road=1.0, allowed=True, sw=3.5, top=None)
+        s[K.GC_SW_NEAR] = 2.5
+        r = make_rules([s])
+        res = J(r, kind="袖", area_m2=1, protrusion_wall_m=0.4, protrusion_road_m=0.3, ground_clearance_m=3.0, over="sidewalk")
+        self.assertEqual((item(res, "clearance")["limit"], item(res, "clearance")["verdict"]), (2.5, K.OK))
+        res = J(r, kind="袖", area_m2=1, protrusion_wall_m=0.9, protrusion_road_m=0.8, ground_clearance_m=3.0, over="sidewalk")
+        self.assertEqual((item(res, "clearance")["limit"], item(res, "clearance")["verdict"]), (3.5, K.MEASURE))
+
+    def test_overshoot_top(self):
+        r = make_rules([proj_std(wall=1.2, allowed=False, top="wall_with_overshoot_le_protrusion")])
+        res = J(r, kind="袖", area_m2=1, protrusion_wall_m=1.0, protrusion_road_m=-1, height_m=6.5, wall_height_m=6)
+        self.assertEqual(item(res, "top_overshoot")["limit"], 7.0)
+        self.assertEqual(item(res, "top_overshoot")["verdict"], K.MEASURE)   # 7.0 の -15% より上
+        res = J(r, kind="袖", area_m2=1, protrusion_wall_m=1.0, protrusion_road_m=-1, height_m=9, wall_height_m=6)
+        self.assertEqual(item(res, "top_overshoot")["verdict"], K.OVER)
+
+    def test_permit_checks_are_separate(self):
+        r = make_rules([proj_std(wall=1.2, allowed=False, top=None)])
+        ps = {"kind": "突出し広告", "when": "許可基準(一般)", "self_use_only": False, "zone": "permit_zone",
+              "height_max_m": None, "ground_clearance_min_m": None, "protrusion_max_m": None, "area_max_m2": None,
+              "protrusion_from_wall_max_m": 1.2, "road_protrusion_allowed": True, "ground_clearance_sidewalk_min_m": 3.0,
+              "ground_clearance_roadway_min_m": 4.5, "citations": [dict(tests_cite())], "confidence": 0.9, "verified": "official"}
+        r["permit_standards"] = [ps]
+        self.assertEqual(S.validate_rules(r), [])
+        res = J(r, kind="袖", area_m2=1, protrusion_wall_m=0.9, protrusion_road_m=0.6, ground_clearance_m=3.6, over="sidewalk")
+        self.assertEqual(item(res, "road_protrusion")["verdict"], K.OVER)         # 許可不要の枠からは外れる
+        self.assertEqual(res.permit_required, REQUIRED)
+        prow = {r_["item"]: r_["verdict"] for r_ in res.kind_permit_checks}
+        self.assertEqual(prow, {"protrusion_wall": K.OK, "clearance": K.OK})    # 許可の基準には合う
+        # 禁止区域なら permit_zone の許可基準は当てない
+        res = J(r, kind="袖", area_m2=1, protrusion_wall_m=0.9, protrusion_road_m=0.6, place="禁止区域")
+        self.assertEqual(res.kind_permit_checks, [])
+
+
+def tests_cite():
+    from tests.test_legal_judge import CITE
+    return CITE
 
 
 class SchemaTest(unittest.TestCase):
@@ -217,7 +299,7 @@ class SchemaTest(unittest.TestCase):
 
     def test_road_occupancy_shape(self):
         r = make_rules([proj_std()])
-        r["road_occupancy"] = {"by_manager": [{"manager": "私道", "citations": [], "confidence": 2}]}
+        r["road_occupancy"] = {"by_manager": [{"manager": "私道", "kind_citations": [], "confidence": 2}]}
         errs = S.validate_rules(r)
         self.assertTrue(any("manager" in e for e in errs))
         self.assertTrue(any("citations" in e for e in errs))
@@ -232,3 +314,56 @@ class SchemaTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ShippedRulesTest(unittest.TestCase):
+    """data/ordinances/rules_*.json に取り込んだ照合済みの値(法規_壁面袖_rules追記案_2026-11-04.json、official だけ)で判定する。"""
+
+    def j(self, muni, **kw):
+        from kanban_karte.legal.judge import judge
+        return judge(municipality=muni, use="self", by_kind=True, **kw)
+
+    def test_koshigaya_wall_ratio(self):
+        # 越谷市 許可地域の自家用・許可不要の壁面: 1/5(近隣商業・商業 3/10)。壁面 60 ㎡ に 6 ㎡ = 0.1 は適合
+        res = self.j("越谷市", kind="壁面", area_m2=6, wall_area_m2=60, place="第一種住居地域")
+        row = item(res, "wall_ratio")
+        self.assertEqual((row["verdict"], row["limit"], row["verified"]), (K.OK, 0.2, "official"))
+        self.assertTrue(row["citations"][0]["url"].startswith("https://www.city.koshigaya"))
+        self.assertFalse(row["citations"][0]["verbatim"])   # 越谷市は文字欠けを補った要旨
+        res = self.j("越谷市", kind="壁面", area_m2=14, wall_area_m2=60, place="商業地域")
+        self.assertEqual(item(res, "wall_ratio")["verdict"], K.OK)       # 3/10 = 18 ㎡ の -15%(15.3)より下
+        res = self.j("越谷市", kind="壁面", area_m2=16, wall_area_m2=60, place="第一種住居地域")
+        self.assertEqual(item(res, "wall_ratio")["verdict"], K.OVER)     # 1/5 = 12 ㎡
+
+    def test_saitama_floor_10m2(self):
+        # 埼玉県(県条例の市)許可地域: 1/5 が 10 ㎡ 未満なら 10 ㎡ まで。壁面 30 ㎡ に 8 ㎡ は適合
+        res = self.j("埼玉県", kind="壁面", area_m2=8, wall_area_m2=30, place="第一種住居地域")
+        self.assertEqual(item(res, "wall_ratio")["verdict"], K.OK)
+
+    def test_saitama_city_projecting(self):
+        # さいたま市 許可地域の自家用・許可不要の袖: 出幅 1.2m、道路上に突き出さない。許可の基準: 歩道上 2.5m・車道上 4.5m
+        res = self.j("さいたま市", kind="袖", area_m2=1, protrusion_wall_m=0.9, protrusion_road_m=0.6,
+                     ground_clearance_m=3.2, over="sidewalk", place="第一種住居地域", height_m=5, wall_height_m=6)
+        self.assertEqual(item(res, "road_protrusion")["verdict"], K.OVER)
+        self.assertEqual(res.permit_required, REQUIRED)
+        prow = {r["item"]: r for r in res.kind_permit_checks}
+        self.assertEqual((prow["clearance"]["limit"], prow["clearance"]["verdict"]), (2.5, K.OK))
+        self.assertEqual(prow["protrusion_road"]["limit"], 1.0)
+        self.assertEqual(res.road_occupancy["status"], "要")
+        self.assertEqual([b["rows"] for b in res.road_occupancy["by_manager"]], [[]])   # 市道の数値は copy -> 判定に使わない
+
+    def test_tokyo_projecting_unverified_self_use(self):
+        # 東京都の自家用・許可不要(別表第2)の『壁面から突出させない』は copy 扱い -> 袖は要実測、許可の基準は照合済みで判定
+        res = self.j("東京都", kind="袖", area_m2=1, protrusion_wall_m=0.8, protrusion_road_m=0.3, ground_clearance_m=3.0,
+                     over="sidewalk", place="第一種住居地域", height_m=5, wall_height_m=8)
+        self.assertEqual(res.permit_required, NEEDS_MEASURE)
+        self.assertEqual(item(res, "road_protrusion")["verified"], "unverified")
+        prow = {r["item"]: r for r in res.kind_permit_checks}
+        self.assertEqual((prow["protrusion_wall"]["limit"], prow["protrusion_road"]["limit"]), (1.5, 1.0))
+        self.assertEqual((prow["clearance"]["limit"], prow["clearance"]["verdict"]), (2.5, K.OK))   # 出幅 0.5m 以下の例外
+
+    def test_ledger_calls_unchanged(self):
+        # by_kind なし(台帳・影響の集計)は種類ごとの判定をしない
+        from kanban_karte.legal.judge import judge
+        res = judge(municipality="東京都", use="self", kind="袖", area_m2=1, place="第一種住居地域")
+        self.assertEqual((res.kind_checks, res.road_occupancy), ([], None))
