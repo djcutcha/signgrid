@@ -24,7 +24,7 @@ from urllib.parse import quote, unquote, urlsplit, parse_qs
 from ..gov.geocode import Geocoder
 from ..ledger.db import Ledger
 from ..legal.locate import SamplePlacer, make_placer
-from . import api
+from . import api, expert
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STATIC = Path(__file__).with_name("static")
@@ -115,6 +115,8 @@ def make_handler(app: App):
             url = urlsplit(self.path)
             path, q = unquote(url.path), parse_qs(url.query)
             try:
+                if expert.wants(path):   # 有資格者の言葉づけ画面(expert.py)
+                    return expert.serve(self, app, "GET", path, q, None)
                 if path == "/" or path == "/index.html":
                     return self._file(STATIC / "index.html", "text/html; charset=utf-8")
                 if path in ("/gov", "/owner"):  # 末尾スラッシュ無しは入口へ転送(クエリは引き継ぐ)
@@ -187,6 +189,8 @@ def make_handler(app: App):
             except ValueError:
                 return self._error(400, "本文が JSON のオブジェクトではありません")
             try:
+                if expert.wants(path):
+                    return expert.serve(self, app, "POST", path, {}, body)
                 if (self.command == "PUT") != bool(SIGN_HEIGHT.match(path)):    # PUT は全高だけ。全高は PUT だけ
                     return self._error(405, "この経路は " + ("PUT" if SIGN_HEIGHT.match(path) else "POST") + " で送ってください")
                 if path == "/api/owner/judge":  # 台帳を開かない・書かない
