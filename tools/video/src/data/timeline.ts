@@ -4,7 +4,7 @@ import {FPS} from '../theme';
 export type Narr = {scene: string; file: string; text: string; duration: number};
 const NARR = narrationRaw as Narr[];
 
-export const SCENE_IDS = ['01', '02', '03', '04', '05', '06a', '06b', '07', '07b', '08', '09', '10'];
+export const SCENE_IDS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11'];
 export const NARR_OFFSET = 0.4; // 秒: 場面頭からナレーション開始
 export const TAIL = 1.0; // 秒: 声の後ろの余白
 export const MIN_SEC = 4;

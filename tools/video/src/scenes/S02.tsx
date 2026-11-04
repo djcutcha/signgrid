@@ -1,7 +1,10 @@
 import React from 'react';
 import {TItem, cue} from '../data/timeline';
 import {C} from '../theme';
-import {Chars, Drift, Fill, Shell, Word, clamp01, eo, useSec} from '../lib';
+import {Chars, Drift, Fill, Photo, Shell, Word, clamp01, eo, useSec} from '../lib';
+
+// 実写に差し替えるときは、ここに runs/video_v2/assets/images/ の下のファイル名を入れる(例: 'assets/images/02_self.png')。null の間は暗い背景
+const SELF_PHOTO: string | null = null;
 
 export const S02: React.FC<{t: TItem}> = ({t}) => {
   const s = useSec();
@@ -10,7 +13,7 @@ export const S02: React.FC<{t: TItem}> = ({t}) => {
   const zoom = 1 + 0.05 * clamp01(s / t.sec);
   return (
     <Shell t={t}>
-      <Drift frames={t.frames} />
+      {SELF_PHOTO ? <Photo src={SELF_PHOTO} frames={t.frames} z0={1.0} z1={1.06} grad={0.9} /> : <Drift frames={t.frames} />}
       <Fill style={{transform: `scale(${zoom})`}}>
         <Word at={0.3} style={{left: 0, width: 1920, top: 330, textAlign: 'center', fontSize: 40, fontWeight: 700, color: C.sub, letterSpacing: 6}}>私は</Word>
         <div style={{position: 'absolute', left: 0, width: 1920, top: 400, textAlign: 'center'}}>

@@ -1,21 +1,30 @@
 import React from 'react';
+import {Img, staticFile} from 'remotion';
 import {TItem, cue} from '../data/timeline';
 import {C} from '../theme';
-import {Fill, Photo, Shell, Word, clamp01, eo, useSec} from '../lib';
+import {Chars, Fill, Photo, Shell, Word, clamp01, eo, useSec} from '../lib';
 
+// 現場の手元(生成写真。実写があれば差し替え)→ 公開リポジトリの画面(repo_readme.png)
 export const S10: React.FC<{t: TItem}> = ({t}) => {
   const s = useSec();
-  const sg = cue(t, 'SignGrid', 0.8, 0.05);
-  const off = clamp01((s - (sg - 0.5)) / 0.3);
-  const p = eo(clamp01((s - sg) / 0.4));
+  const sw = cue(t, '写真の判定', 0.7, 0.2);
+  const o2 = eo(clamp01((s - sw) / 0.4));
+  const pan = -400 * eo(clamp01((s - sw - 0.5) / 5));
   return (
-    <Shell t={t} bg="#000">
-      <Photo src="assets/images/10_city_aerial.png" frames={Math.round(sg * 30)} z0={1.0} z1={1.12} ox={50} oy={55} opacity={1 - off} />
-      <Word at={cue(t, 'その両側', 0.55, 0.3)} until={sg - 0.7} style={{left: 0, width: 1920, top: 700, textAlign: 'center', fontSize: 120}}>現場と行政、<span style={{color: '#7fb0ff'}}>その両側から</span></Word>
-      <Fill style={{opacity: p, transform: `scale(${1.06 - 0.06 * p})`}}>
-        <div style={{position: 'absolute', left: 0, width: 1920, top: 400, textAlign: 'center', fontSize: 160, fontWeight: 800, color: '#fff'}}>SignGrid 看板カルテ</div>
-        <div style={{position: 'absolute', left: 0, width: 1920, top: 640, textAlign: 'center', fontSize: 40, fontWeight: 700, color: C.sub, letterSpacing: 3}}>Built with Claude: Japan 2026</div>
+    <Shell t={t}>
+      <Photo src="assets/images/08_office_hands.png" frames={Math.round(sw * 30)} z0={1.0} z1={1.14} ox={40} oy={65} pan={-70} grad={0.9} opacity={1 - o2} />
+      <div style={{position: 'absolute', left: 110, top: 540, opacity: 1 - o2}}>
+        <Chars text="11月5日、" at={cue(t, '11月5日', 0.0, 0.1)} size={150} step={0.07} />
+      </div>
+      <div style={{position: 'absolute', left: 110, top: 710, opacity: 1 - o2}}>
+        <Chars text="自分たちの現場で使い始めた" at={cue(t, '私たちの会社', 0.4, 0.1)} size={92} step={0.05} color="#7fb0ff" />
+      </div>
+      <Fill style={{opacity: o2, overflow: 'hidden', background: '#fff'}}>
+        <Img src={staticFile('assets/images/repo_readme.png')} style={{width: 1920, height: 1500, transform: `translateY(${pan}px)`}} />
       </Fill>
+      <Word at={sw + 0.3} style={{left: 0, width: 1920, top: 70, textAlign: 'center'}}>
+        <span style={{display: 'inline-block', background: 'rgba(11,18,32,.92)', padding: '16px 56px', borderRadius: 16, fontSize: 80}}>コードは<span style={{color: C.accent}}>公開リポジトリ</span>に</span>
+      </Word>
     </Shell>
   );
 };

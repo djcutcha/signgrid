@@ -2,36 +2,37 @@ import React from 'react';
 import {useCurrentFrame} from 'remotion';
 import {TItem, cue} from '../data/timeline';
 import {C, FPS} from '../theme';
-import {Drift, Odo, Shell, Word, clamp01, eo} from '../lib';
+import {Key, Shell, Word, ZoomVideo, clamp01} from '../lib';
 
-const ROWS = [
-  {l: '要対応の見逃し', v: '5/9', red: true, k: '見逃し'},
-  {l: '誤警報', v: '1/38', k: '誤警報'},
-  {l: '完全一致', v: '70.2%', k: '完全一致'},
+const STEPS = ['訂正', '聞き返し', '規則候補', '矛盾', '承認', '次に効く'];
+const TH = [0, 0.16, 0.3, 0.5, 0.68, 0.86];
+const KEYS: Key[] = [
+  {u: 0, cx: 0.4, cy: 0.5, s: 1.9, ring: [0.35, 0.55]},
+  {u: 0.16, cx: 0.42, cy: 0.3, s: 2.0, ring: [0.4, 0.33]},
+  {u: 0.3, cx: 0.55, cy: 0.3, s: 1.7},
+  {u: 0.5, cx: 0.33, cy: 0.42, s: 2.0, ring: [0.3, 0.4]},
+  {u: 0.68, cx: 0.35, cy: 0.38, s: 2.0, ring: [0.2, 0.46]},
+  {u: 0.86, cx: 0.62, cy: 0.3, s: 1.7, ring: [0.6, 0.3]},
+  {u: 1, cx: 0.62, cy: 0.35, s: 1.7},
 ];
+
 export const S07: React.FC<{t: TItem}> = ({t}) => {
   const f = useCurrentFrame();
-  const cm = cue(t, 'まだ道半ば', 0.55, 0.1);
-  const d = eo(clamp01((f / FPS - cm) / 0.6));
-  const c1 = cue(t, 'だから判定は下書き', 0.7, 0.1), c2 = cue(t, '確定するのは', 0.85, 0.1);
+  const rate = 18 / (t.sec - 0.9);
+  const u = clamp01(((f - 9) / FPS) * rate / 18);
+  const idx = TH.reduce((a, th, i) => (u >= th ? i : a), 0);
+  const kc = cue(t, '有資格者の目が', 0.85, 0.2);
   return (
     <Shell t={t}>
-      <Drift frames={t.frames} />
-      <div style={{position: 'absolute', left: 160, top: 170, width: 1600, opacity: 1 - 0.9 * d, transform: `scale(${1 - 0.05 * d})`, transformOrigin: '50% 40%'}}>
-        <div style={{fontSize: 44, color: C.sub, fontWeight: 700, marginBottom: 20}}>正直に測りました</div>
-        {ROWS.map((r, i) => {
-          const at = cue(t, r.k, 0.2 + i * 0.12, 0.2);
-          const p = eo(clamp01((f / FPS - at) / 0.4));
-          return (
-            <div key={i} style={{opacity: p, transform: `translateX(${(1 - p) * -40}px)`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: C.panel, borderRadius: 16, padding: '18px 56px', marginBottom: 22, borderLeft: `8px solid ${r.red ? C.warn : C.accent}`}}>
-              <span style={{fontSize: 58, fontWeight: 700}}>{r.l}</span>
-              <span style={{fontSize: 140, color: r.red ? C.warn : C.text}}><Odo value={r.v} at={at} size={140} color={r.red ? C.warn : C.text} /></span>
-            </div>
-          );
-        })}
+      <ZoomVideo src="assets/02_inherit-loop_pc.mp4" clipSec={18} rate={rate} keys={KEYS} start={9} />
+      <div style={{position: 'absolute', left: 0, width: 1920, top: 36, display: 'flex', justifyContent: 'center', gap: 14}}>
+        {STEPS.map((s, i) => (
+          <div key={i} style={{padding: '14px 30px', borderRadius: 14, fontSize: 40, fontWeight: 800, background: i === idx ? C.accent : 'rgba(11,18,32,.82)', color: i <= idx ? '#fff' : 'rgba(255,255,255,.45)', transform: `scale(${i === idx ? 1.08 : 1})`}}>{s}</div>
+        ))}
       </div>
-      <Word at={c1} style={{left: 0, width: 1920, top: 330, textAlign: 'center', fontSize: 150}}>判定は<span style={{color: C.accent}}>下書き</span></Word>
-      <Word at={c2} style={{left: 0, width: 1920, top: 560, textAlign: 'center', fontSize: 120}}>確定は<span style={{color: C.accent}}>有資格者</span></Word>
+      <Word at={kc} style={{left: 0, width: 1920, bottom: 150, textAlign: 'center'}}>
+        <span style={{display: 'inline-block', background: 'rgba(11,18,32,.9)', padding: '20px 56px', borderRadius: 16, fontSize: 84}}>知識が、<span style={{color: C.accent}}>人の頭の外</span>に残る</span>
+      </Word>
     </Shell>
   );
 };

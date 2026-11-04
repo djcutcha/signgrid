@@ -13,18 +13,44 @@ export const Fill: React.FC<{children?: React.ReactNode; style?: React.CSSProper
 );
 
 // 場面: 前後 6 フレームの黒、ナレーション
-export const Shell: React.FC<{t: TItem; children: React.ReactNode; bg?: string; fadeIn?: boolean}> = ({t, children, bg = C.bg, fadeIn = true}) => {
+export const Shell: React.FC<{t: TItem; children: React.ReactNode; bg?: string; fadeIn?: boolean; sub?: boolean}> = ({t, children, bg = C.bg, fadeIn = true, sub = true}) => {
   const f = useCurrentFrame();
   const o = Math.min(fadeIn ? clamp01(f / 6) : 1, clamp01((t.frames - f) / 6));
   return (
     <Fill style={{background: '#000', fontFamily: FONT, color: C.text}}>
-      <Fill style={{opacity: o, background: bg}}>{children}</Fill>
+      <Fill style={{opacity: o, background: bg}}>{children}{sub && t.narr && <Subtitle t={t} />}</Fill>
       {t.narr && (
         <Sequence from={Math.round(NARR_OFFSET * FPS)} layout="none">
           <Audio src={staticFile(`assets/${(t.narr as any).dir ?? 'narration'}/${t.narr.file}`)} />
         </Sequence>
       )}
     </Fill>
+  );
+};
+
+// 台詞の字幕: 「。」で区切り、いま読まれている 1 文だけを下に出す(文の長さで時間を配分)
+export const Subtitle: React.FC<{t: TItem}> = ({t}) => {
+  const f = useCurrentFrame();
+  const sec = f / FPS;
+  const parts = (t.text.match(/[^。]+。?/g) ?? [t.text]).map((x) => x.trim()).filter(Boolean);
+  const total = parts.reduce((a, x) => a + x.length, 0);
+  let acc = 0;
+  let cur = '';
+  let a0 = 0;
+  let a1 = 0;
+  for (const x of parts) {
+    const s0 = NARR_OFFSET + (t.dur * acc) / total;
+    acc += x.length;
+    const s1 = NARR_OFFSET + (t.dur * acc) / total;
+    if (sec >= s0 - 0.05) { cur = x; a0 = s0 - 0.05; a1 = s1; }
+  }
+  if (!cur || sec > NARR_OFFSET + t.dur + 0.3) return null;
+  const o = Math.min(clamp01((sec - a0) / 0.2), sec > NARR_OFFSET + t.dur ? clamp01((NARR_OFFSET + t.dur + 0.3 - sec) / 0.3) : 1);
+  void a1;
+  return (
+    <div style={{position: 'absolute', left: 0, width: W, bottom: 30, display: 'flex', justifyContent: 'center', opacity: o}}>
+      <div style={{maxWidth: 1760, textAlign: 'center', fontSize: 40, fontWeight: 600, lineHeight: 1.4, color: '#fff', background: 'rgba(0,0,0,.62)', padding: '10px 30px', borderRadius: 12, textWrap: 'balance' as any}}>{cur}</div>
+    </div>
   );
 };
 
@@ -97,7 +123,7 @@ export const Photo: React.FC<{src: string; frames: number; z0?: number; z1?: num
 
 export type Key = {u: number; cx: number; cy: number; s: number; ring?: [number, number]};
 // 録画を拡大して要所へ寄せる。u= 録画の進み(0〜1)。キー間は ease
-export const ZoomVideo: React.FC<{src: string; clipSec: number; rate: number; keys: Key[]; w?: number; h?: number; vw?: number; vh?: number; start?: number}> = ({src, clipSec, rate, keys, w = W, h = H, vw = W, vh = H, start = 0}) => {
+export const ZoomVideo: React.FC<{src: string; clipSec: number; rate: number; keys: Key[]; w?: number; h?: number; vw?: number; vh?: number; start?: number; skip?: number}> = ({src, clipSec, rate, keys, w = W, h = H, vw = W, vh = H, start = 0, skip = 0}) => {
   const f = useCurrentFrame();
   const tf = Math.max(0, f - start);
   const u = clamp01((tf / FPS) * rate / clipSec);
@@ -109,7 +135,7 @@ export const ZoomVideo: React.FC<{src: string; clipSec: number; rate: number; ke
   const tx = Math.min(0, Math.max(w - vw * s, w / 2 - cx * s));
   const ty = Math.min(0, Math.max(h - vh * s, h / 2 - cy * s));
   const lastFrame = Math.max(1, Math.floor((clipSec - 0.15) * FPS / rate));
-  const vid = <OffthreadVideo src={staticFile(src)} muted playbackRate={rate} style={{width: vw, height: vh, display: 'block'}} />;
+  const vid = <OffthreadVideo src={staticFile(src)} muted playbackRate={rate} startFrom={Math.round(skip * FPS)} style={{width: vw, height: vh, display: 'block'}} />;
   return (
     <div style={{position: 'absolute', left: 0, top: 0, width: w, height: h, overflow: 'hidden'}}>
       <div style={{position: 'absolute', left: 0, top: 0, width: vw, height: vh, transformOrigin: '0 0', transform: `translate(${tx}px, ${ty}px) scale(${s})`}}>
