@@ -2,15 +2,18 @@
 
 デモは data/sample/jobs.json(架空の案件)。実運用は SignJOBZ の点検指示書から同じ形で渡す(後日接続)。
 形: {"jobs": [{"id": "J-001", "site_name": "...", "address": "...", "date": "YYYY-MM-DD", "signs": 4}]}
+見本は "date" の代わりに "day_offset"(今日からの日数。-1 = 昨日)で書き、読み込む時に今日(日本時間)から日付を決める
+(見本の案件が日付の経過で現場の候補から消えないように)。両方あれば "date" を使う。
 """
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 DEFAULT_PATH = Path(__file__).resolve().parents[3] / "data" / "sample" / "jobs.json"
+JST = timezone(timedelta(hours=9))
 MAX_CHOICES = 4  # クイックリプライは「その他」と合わせて 5 個まで
 
 
@@ -23,15 +26,21 @@ class Job:
     signs: int | None = None
 
 
-def load_jobs(path: str | Path | None = None) -> list[Job]:
-    """ファイルが無い・壊れている時は空(現場の選択は「その他」だけになる)。"""
+def load_jobs(path: str | Path | None = None, today: date | None = None) -> list[Job]:
+    """ファイルが無い・壊れている時は空(現場の選択は「その他」だけになる)。day_offset は today(既定は日本時間の今日)から数える。"""
     p = Path(path) if path else DEFAULT_PATH
     try:
         doc = json.loads(p.read_text(encoding="utf-8"))
+        base = today or datetime.now(JST).date()
         out = []
         for j in doc["jobs"]:
-            out.append(Job(str(j["id"]), str(j["site_name"]), str(j["address"]),
-                           datetime.strptime(j["date"], "%Y-%m-%d").date(), j.get("signs")))
+            if "date" in j:
+                d = datetime.strptime(j["date"], "%Y-%m-%d").date()
+            elif isinstance(j["day_offset"], int) and not isinstance(j["day_offset"], bool):
+                d = base + timedelta(days=j["day_offset"])
+            else:
+                raise ValueError(f"day_offset は整数: {j['day_offset']!r}")
+            out.append(Job(str(j["id"]), str(j["site_name"]), str(j["address"]), d, j.get("signs")))
         return out
     except (OSError, ValueError, KeyError, TypeError):
         return []

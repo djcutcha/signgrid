@@ -298,8 +298,8 @@ dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
   .gov-thumbs img{width:56px;height:56px}
   .gov-sel,.gov-device{font-size:13.5px}
   .gov-chips{grid-template-columns:1fr 1fr}
-  .gov-count small{display:none}
-  .gov-map iframe{height:60vh}
+  .gov-count small{font-size:10.5px}
+  .gov-map iframe{height:72vh;min-height:520px}
   /* 候補表: 1行1枚のカード。上段=色チップと状態 / 期限、中段=住所と写真の枚数、下段=台帳との一致候補と距離 */
   .gov-table tr.cand{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;align-items:start}
   .gov-table .c-state{grid-column:1;grid-row:1}

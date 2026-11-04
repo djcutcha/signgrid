@@ -149,7 +149,7 @@ class PcDomUnchangedTest(unittest.TestCase):
         pc = css[:i]
         self.assertNotIn("tr.cand{display", pc)
         self.assertIn(".gov-map iframe{width:100%;height:420px", pc)           # PC の地図の高さはそのまま
-        self.assertRegex(css[i:], r"\.gov-map iframe\{height:60vh\}")
+        self.assertRegex(css[i:], r"\.gov-map iframe\{height:72vh;min-height:520px\}")   # スマホは凡例の 4 色が地図の下に収まる高さ
         self.assertRegex(css[i:], r"\.gov-table tr\.cand\{display:grid")
 
     def test_capture_input_attributes(self):

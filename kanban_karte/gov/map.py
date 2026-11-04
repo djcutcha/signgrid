@@ -114,6 +114,18 @@ aside {{ padding:12px 16px; background:var(--card); border-top:1px solid var(--l
   #map {{ flex:1; height:auto; }}
   aside {{ width:380px; flex:none; overflow:auto; border-top:0; border-left:1px solid var(--line); }}
 }}
+@media (max-width: 899px) {{
+  /* スマホ(画面に埋め込んだ iframe の中): 地図を低めにし、凡例を 2×2 に詰めて 4 色とも見えるようにする */
+  header {{ padding:8px 12px; }}
+  header h1 {{ font-size:15px; }}
+  header p {{ font-size:11.5px; }}
+  #map {{ height:44vh; min-height:240px; }}
+  aside {{ padding:8px 12px; }}
+  .legend {{ display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; }}
+  .legend li {{ grid-template-columns:14px auto 1fr; gap:4px; padding:3px 0; border-bottom:0; }}
+  .legend .lg-n {{ text-align:left; font-size:16px; }}
+  .legend .lg-mean {{ grid-column:1 / -1; font-size:10.5px; line-height:1.35; }}
+}}
 h2 {{ font-size:14px; margin:14px 0 6px; }}
 h2:first-child {{ margin-top:0; }}
 ul {{ list-style:none; margin:0; padding:0; }}
@@ -137,7 +149,7 @@ ul {{ list-style:none; margin:0; padding:0; }}
 <body>
 <header>
   <h1>{esc(title)}</h1>
-  <p>基準日 {today.isoformat()}(期限の判定に使った日) / 候補看板 {n_pos} 基 + 位置なしの写真 {n_nopos} 枚</p>
+  <p>基準日 {today.isoformat()}(期限の判定に使った日) / 看板の候補 {n_pos} 基 / 位置なしの写真 {n_nopos} 枚</p>
 </header>
 <div class="layout">
   <div id="map" role="application" aria-label="巡回調査の地図"></div>
