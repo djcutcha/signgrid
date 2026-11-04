@@ -28,10 +28,11 @@ DEFAULT_DB = Path(os.environ.get("KK_CITIZEN_DB") or REPO_ROOT / "data" / "priva
 RECEIVED, KNOWN, UNKNOWN, INSPECTED = "受付", "把握済み", "未把握", "点検済み"
 STATUSES = (RECEIVED, KNOWN, UNKNOWN, INSPECTED)
 SIGNS = ("錆", "傾き", "剥がれ", "ぐらつき", "その他")      # 「気になる所」のチェック
+STATUS_LABEL = {UNKNOWN: "行政の台帳にありませんでした"}   # 市民に見せる状態の語(行政側は 未把握 のまま。Cutcha 2026-11-04 17:19 裁定)
 STATUS_TEXT = {   # 市民に返す文(無許可の疑いなどの判断は書かない)
     RECEIVED: "受け付けました。位置が無いため、担当の窓口が住所から看板を確かめます。",
     KNOWN: "受け付けました。台帳に載っている看板です。点検の予定を確かめます。",
-    UNKNOWN: "受け付けました。担当の窓口が、どの看板か確かめます。",
+    UNKNOWN: "受け付けました。行政の台帳にありませんでした。あなたの報告で初めて記録されました。担当の窓口が、どの看板か確かめます。",
     INSPECTED: "この看板は、報告の後に点検されました。",
 }
 CODE_ALPHABET = "ACDEFGHJKLMNPQRTUVWXY34679"   # 読み違えやすい 0/O・1/I/L・2/Z・5/S・8/B を外す
@@ -80,7 +81,7 @@ class Report:
 
     def public(self) -> dict:
         """状態の確認で返してよい物だけ(写真・一言・位置の詳細は返さない)。"""
-        return {"code": self.code, "status": self.status, "text": STATUS_TEXT[self.status], "date": self.created_at[:10]}
+        return {"code": self.code, "status": STATUS_LABEL.get(self.status, self.status), "text": STATUS_TEXT[self.status], "date": self.created_at[:10]}
 
     def pin(self) -> dict | None:
         """地図のピン(丸めた位置・状態・日付だけ)。位置が無ければ None。"""
