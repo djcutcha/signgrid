@@ -406,3 +406,19 @@ dialog#lightbox::backdrop{background:rgba(0,0,0,.7)}
 .road-box{border:1px solid var(--line);border-left:4px solid var(--watch);border-radius:8px;padding:8px 10px;margin:10px 0}
 .road-box.fix{border-left-color:var(--fix)} .road-box.good{border-left-color:var(--good)}
 .road-box p{margin:4px 0}
+/* 市民からの報告(/report/、2026-11-04) */
+.report{max-width:560px;margin:0 auto}
+.report .step+.step,.report .rp-done,.report .rp-status{margin-top:12px}
+.rp-lead{margin:0 0 10px;font-size:14.5px}
+.report label.txt{display:flex;flex-direction:column;gap:2px;font-size:12.5px;color:var(--fg2);margin-top:8px}
+.report input[type=text],.report textarea{width:100%;font-size:16px;padding:10px 12px;box-sizing:border-box;font-family:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.rp-checks{display:flex;flex-wrap:wrap;gap:8px}
+.rp-check{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:8px 14px;min-height:44px;box-sizing:border-box;cursor:pointer;font-size:14px}
+.rp-check input{width:18px;height:18px;margin:0}
+.rp-check:has(input:checked){border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}
+.rp-code-show{font-size:30px;font-weight:800;letter-spacing:.12em;text-align:center;padding:10px 0;font-variant-numeric:tabular-nums;font-family:ui-monospace,Menlo,monospace}
+.rp-done .btn{margin-top:8px}
+.rp-done .link{margin-top:10px;display:inline-block}
+.chip.rp-st{background:var(--accent)} .chip.st-未把握{background:#7b1fa2} .chip.st-点検済み{background:#00897b} .chip.st-受付{background:var(--na)}
+.rp-foot{text-align:center;margin-top:14px}
+.report .btn.block.pick{padding:14px}
