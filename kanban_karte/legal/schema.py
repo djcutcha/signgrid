@@ -14,8 +14,11 @@ JSON の形(ファイル全体):
 引用(citation)= {"source": "条例"|"施行規則", "article": "第6条第1項第3号", "quote": "原文の抜粋(100字以内)",
                  "quote_verified": bool(抽出後に機械で付ける)}
 数値は m / ㎡ / 年。原文に無い値は null(推測で埋めない)。
+種類ごとの任意キー(壁面率 wall_ratio_max・出幅・地上高・道路占用 road_occupancy 等)の形は kinds.py の先頭。
 """
 from __future__ import annotations
+
+from . import kinds as K
 
 SCHEMA_VERSION = 1
 STATUS_FIRST_DRAFT = "AI抽出の第1版(検算前)"
@@ -270,6 +273,7 @@ def validate_permit_standards(items) -> list[str]:
             errs.append(f"{p}.self_use_only は true/false")
         for k in ("height_max_m", "ground_clearance_min_m", "protrusion_max_m", "area_max_m2"):
             _num_or_none(errs, p, s, k)
+        K.validate_std_keys(errs, p, s)
         _citations(errs, p, s)
         _conf(errs, p, s)
     return errs
@@ -303,6 +307,7 @@ def validate_rules(rules: dict) -> list[str]:
                     errs.append(f"{p}.zone_labels は ZONE_VOCAB の語の配列")
                 if not isinstance(s.get("kind"), str):
                     errs.append(f"{p}.kind がない")
+                K.validate_std_keys(errs, p, s)   # 任意: 壁面率・出幅・地上高 等(kinds.py)
                 _citations(errs, p, s)
                 _conf(errs, p, s)
         pz = su.get("prohibited_zone_permit")
@@ -356,6 +361,8 @@ def validate_rules(rules: dict) -> list[str]:
         _conf(errs, "inspection", ins)
     if "permit_standards" in rules:  # 任意(東京都 別表第三の再抽出で足す)
         errs += validate_permit_standards(rules["permit_standards"])
+    if "road_occupancy" in rules:  # 任意(道路占用。条例の外の基準。kinds.py)
+        errs += K.validate_road_occupancy(rules["road_occupancy"])
     pz = rules.get("prohibited_zones")
     if not isinstance(pz, dict) or not isinstance(pz.get("summary"), str):
         errs.append("prohibited_zones.summary がない")

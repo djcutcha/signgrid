@@ -32,6 +32,7 @@ from pathlib import Path
 from . import rules_extract as RX
 from . import schema as S
 from . import duties as D
+from . import kinds as K
 from .municipality import AddressResolver, Municipality, coverage_note, ordinance_key
 
 REQUIRED, NOT_REQUIRED, NEEDS_MEASURE = "要", "不要", "要実測"
@@ -79,6 +80,9 @@ class JudgeResult:
     qualified_inspector: str = NEEDS_MEASURE
     report_duty: str = NEEDS_MEASURE
     duties: dict = field(default_factory=dict)
+    kind_category: str | None = None          # wall / projecting / None(種類ごとの判定の対象外)
+    kind_checks: list[dict] = field(default_factory=list)   # 壁面率・上端・出幅・地上高の行(kinds.std_checks)
+    road_occupancy: dict | None = None       # 袖のときの道路占用の注意(kinds.road_occupancy)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -152,9 +156,10 @@ def _is_generic(std: dict) -> bool:
     return any(w in std["kind"] for w in ALL_KIND_WORDS)
 
 
-def _eval_std(std: dict, area, height, gc) -> tuple[str, list[str]]:
-    """基準1件への当てはめ。("within" | "exceeds" | "unknown", 理由)"""
-    fail, unknown, checked = [], [], 0
+def _eval_std(std: dict, area, height, gc, cat: str | None = None, m: dict | None = None) -> tuple[str, list[str]]:
+    """基準1件への当てはめ。("within" | "exceeds" | "unknown", 理由)。cat(wall/projecting)と m があれば、
+    基準の種類ごとのキー(壁面率・出幅・地上高 等。kinds.py)も当てる"""
+    fail, unknown, checked = K.eval_std(std, cat, m or {})
     for key, val, label, mode in (("area_max_m2", area, "表示面積", "max"),
                                   ("height_max_m", height, "高さ", "max"),
                                   ("ground_clearance_min_m", gc, "地上高", "min")):
@@ -200,8 +205,15 @@ def _std_label(std: dict) -> str:
 def judge(address: str | None = None, *, municipality: str | Municipality | None = None, use: str = "self",
           area_m2: float | None = None, height_m: float | None = None, ground_clearance_m: float | None = None,
           place: str | None = None, kind: str | None = None,
-          rules: dict | None = None, data_dir: Path | None = None) -> JudgeResult:
-    """判定する。municipality は 条例キー("越谷市" 等)/Municipality。address だけ渡せば住所から引く。"""
+          rules: dict | None = None, data_dir: Path | None = None,
+          wall_area_m2: float | None = None, eave_height_m: float | None = None, wall_height_m: float | None = None,
+          protrusion_wall_m: float | None = None, protrusion_road_m: float | None = None,
+          over: str | None = None, road_manager: str | None = None) -> JudgeResult:
+    """判定する。municipality は 条例キー("越谷市" 等)/Municipality。address だけ渡せば住所から引く。
+    種類が壁面・突出(袖)のときは、壁面の面積・軒高・壁面の高さ・出幅(壁面から / 道路境界から)・歩道上か車道上か(over)・
+    道路の管理者 も使う(kinds.py。height_m を上端の高さ、ground_clearance_m を下端の地上高として読む)。"""
+    if over not in (None,) + K.OVER_KINDS:
+        raise ValueError(f"over は {K.OVER_KINDS} か None: {over!r}")
     if use not in ("self", "general"):
         raise ValueError("use は self か general")
     m: Municipality | None
@@ -240,6 +252,11 @@ def judge(address: str | None = None, *, municipality: str | Municipality | None
     pclass, plabel = _norm_place(place, R["prohibited_zones"].get("labels", []))
     words = _kind_words(kind)
     confs: list[float] = []
+    cat = K.category(kind)
+    km = {"area": area_m2, "wall_area": wall_area_m2, "top": height_m, "eave": eave_height_m, "wall_height": wall_height_m,
+          "protrusion_wall": protrusion_wall_m, "protrusion_road": protrusion_road_m, "clearance": ground_clearance_m,
+          "over": over, "road_manager": road_manager}
+    res.kind_category = cat
 
     # ----- 許可の要否 -----
     if use == "general":
@@ -274,7 +291,7 @@ def judge(address: str | None = None, *, municipality: str | Municipality | None
             if not cands:
                 res.notes.append("該当する基準が規則に見つからない(種類・区域の指定を確認)")
             else:
-                evals = [(s, *_eval_std(s, area_m2, height_m, ground_clearance_m)) for s in cands]
+                evals = [(s, *_eval_std(s, area_m2, height_m, ground_clearance_m, cat, km)) for s in cands]
                 # 種類を問わない(全種類)基準で数値が無いもの(色彩・光源の禁止事項など)は、数値の基準が他にあれば
                 # 判定から外し、注に残す。種類を限った基準で数値が無いもの(壁面面積の比率など)は 要実測 の材料に残す。
                 generic_cond_only = [e for e in evals if _is_generic(e[0]) and _numeric_count(e[0]) == 0]
@@ -308,6 +325,27 @@ def judge(address: str | None = None, *, municipality: str | Municipality | None
                 res.notes.append("禁止区域では基準を超える自家用広告物は表示できない可能性がある")
             elif pz["required"] == "permit_possible":
                 res.notes.append("禁止区域でも、許可を受ければ表示できる")
+
+    # ----- 種類ごとの項目(壁面率・上端・出幅・地上高)と道路占用の注意 -----
+    if cat is not None:
+        groups = []
+        if use == "self":
+            for s in R["self_use"]["standards"]:
+                if (_std_applies(s, pclass, plabel, R["prohibited_zones"].get("labels", [])) and _kind_match(s["kind"], words)
+                        and not _is_generic(s) and K.has_kind_keys(s)):
+                    groups.append((f"自家用・許可不要の基準 {_std_label(s)}", K.std_checks(s, cat, km)))
+        for ps in R.get("permit_standards") or []:
+            if (ps.get("self_use_only") and use != "self") or not _kind_match(ps["kind"], words) or not K.has_kind_keys(ps):
+                continue
+            groups.append((f"許可の基準 {ps['kind']}" + (f"・{ps['when']}" if ps.get("when") else ""), K.std_checks(ps, cat, km)))
+        res.kind_checks = K.merge_rows(groups)
+        for row in res.kind_checks:
+            for c in row["citations"]:
+                _add_cites(res.citations, f"kind:{row['item']}", {"citations": [c]})
+        if not res.kind_checks:
+            res.notes.append("この条例の規則には、" + ("壁面率・上端の高さ" if cat == K.WALL else "出幅・下端の地上高") +
+                             "の数値がまだ入っていません(条件欄の文だけ)。要実測")
+        res.road_occupancy = K.road_occupancy(R, cat, km)
 
     # ----- 許可期間 -----
     if res.permit_required != NOT_REQUIRED:
