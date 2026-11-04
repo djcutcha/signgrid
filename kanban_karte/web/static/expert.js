@@ -81,6 +81,7 @@
       })(i);
     }
     if (!item.n_photos) box.innerHTML = '<p class="muted">写真を読み込めませんでした(「分からない・飛ばす」で進めます)</p>';
+    renderCredit(item.web);
     var s = item.saved;
     $("ex-reasons").value = s ? s.reasons : ""; $("ex-unknowns").value = s ? s.unknowns : "";
     Array.prototype.forEach.call(document.querySelectorAll("#ex-signs input"), function (i) { i.checked = !!s && s.signs.indexOf(i.value) >= 0; });
@@ -93,6 +94,19 @@
     progress();
     window.scrollTo(0, 0);
     prefetch(S.idx + 1);
+  }
+  function renderCredit(w) {
+    var c = $("ex-credit"); c.innerHTML = c.hidden = "";
+    if (!w) { c.hidden = true; return; }
+    var parts = [];
+    function t(x) { return document.createTextNode(x); }
+    c.appendChild(t("出典: "));
+    if (w.title) {
+      if (/^https?:\/\//.test(w.url || "")) { var a = document.createElement("a"); a.href = w.url; a.target = "_blank"; a.rel = "noopener noreferrer"; a.textContent = w.title; c.appendChild(a); }
+      else c.appendChild(t(w.title));
+    } else if (/^https?:\/\//.test(w.url || "")) { var u = document.createElement("a"); u.href = w.url; u.target = "_blank"; u.rel = "noopener noreferrer"; u.textContent = w.url; c.appendChild(u); }
+    [w.author, w.license, w.document ? w.document + (w.page ? " p." + w.page : "") : ""].forEach(function (x) { if (x) parts.push(x); });
+    if (parts.length) c.appendChild(t(" / " + parts.join(" / ")));
   }
   function prefetch(i) {
     var q = S.queue[i]; if (!q) return;
