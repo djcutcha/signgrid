@@ -111,5 +111,80 @@ class ExpertTest(WebTest):
         self.assertEqual(expert.guess_kind("ほげ"), "")
 
 
+class ExpertWebTest(WebTest):
+    """外の写真(expert_web/index.json): キュー先頭、状態の混ぜ、出典、相対パス保存、export の列。"""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.td2 = tempfile.TemporaryDirectory()
+        root = Path(cls.td2.name)
+        (root / "expert_web").mkdir()
+        rows = []
+        # 危ない側 30 → 中間 20 → 良好 20 の順で並べた台帳(並びのままだと先頭 30 が全部危ない側)
+        for i, cond in enumerate(["危ない側"] * 30 + ["中間"] * 20 + ["良好"] * 20):
+            (root / "expert_web" / f"{i + 1}.jpg").write_bytes(JPEG)
+            rows.append({"file": f"{i + 1}.jpg", "source_type": "gov" if i % 2 else "cc", "title": f"見本{i + 1}", "url": f"https://example.com/{i + 1}",
+                         "document": "資料", "page": "3", "license": "CC BY 4.0", "author": "作者", "fetched": "2026-11-04",
+                         "kind_guess": "壁面" if i == 0 else "", "condition_guess": cond, "note": "x"})
+        rows.append({"file": "missing.jpg", "condition_guess": "不明"})      # 実体なしは載せない
+        (root / "expert_web" / "index.json").write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+        (root / "field_intake" / "photos" / "fs-通常1").mkdir(parents=True)
+        (root / "field_intake" / "photos" / "fs-通常1" / "01.jpg").write_bytes(JPEG)
+        (root / "scans").mkdir()
+        cls.root = root
+        cls.catalog = expert.Catalog(private=root, scans=root / "scans", with_eval=False)
+        cls.store = expert.Store(root / "n.sqlite")
+        cls.app._expert = expert.Expert(cls.store, cls.catalog)
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls.td2.cleanup()
+
+    def test_queue_web_first_and_mixed(self):
+        _, q, _ = self.req("/api/expert/queue")
+        ids = [r[0] for r in q["queue"]]
+        self.assertEqual(q["counts"]["web"], {"signs": 70, "photos": 70})
+        self.assertEqual(len(ids), 71)
+        self.assertTrue(all(i.startswith("web/") for i in ids[:70]))
+        self.assertEqual(ids[70], "field/fs-通常1")
+        cond = lambda i: self.catalog.items[i].web["condition_guess"]
+        head = [cond(i) for i in ids[:50]]
+        self.assertEqual(set(head), {"危ない側", "中間", "良好"})
+        self.assertLessEqual(max(len(list(g)) for _, g in __import__("itertools").groupby(head)), 1)   # 同じ状態が続かない
+        self.assertEqual(len(set(ids[:70])), 70)
+        self.assertEqual(ids[:50], [i.id for i in expert.Catalog(private=self.root, scans=self.root / "scans", with_eval=False).items.values()][:50])  # 種固定
+
+    def test_credit_not_leaking_condition_and_save_relative(self):
+        iid = "web/1"
+        _, it, _ = self.req("/api/expert/item?id=" + quote(iid))
+        self.assertEqual(it["web"]["license"], "CC BY 4.0")
+        self.assertEqual(it["web"]["url"], "https://example.com/1")
+        self.assertNotIn("condition_guess", it["web"])
+        self.assertEqual(it["kind_default"], "壁面")
+        st, r, _ = self.req("/api/expert/save", {"id": iid, "rank": 3, "reasons": "r"})
+        self.assertEqual((st, r["photos"], r["license"], r["source_type"]), (200, ["expert_web/1.jpg"], "CC BY 4.0", "cc"))
+        self.assertEqual(self.req("/api/expert/img?id=web/1&n=0", raw=True)[0], 200)
+
+    def test_export_has_columns(self):
+        self.req("/api/expert/save", {"id": "web/2", "rank": 1})
+        r = expert.export(self.store.path, Path(self.td2.name) / "out")
+        with open(r["csv"], encoding="utf-8-sig", newline="") as f:
+            cr = list(csv.DictReader(f))
+        row = [x for x in cr if x["sign_key"] == "2"][0]
+        self.assertEqual((row["source_type"], row["license"]), ("gov", "CC BY 4.0"))
+        jl = [json.loads(x) for x in Path(r["jsonl"]).read_text(encoding="utf-8").splitlines()]
+        self.assertIn("license", jl[0])
+
+    def test_old_db_gets_columns(self):
+        import sqlite3
+        p = Path(self.td2.name) / "old.sqlite"
+        c = sqlite3.connect(p)
+        c.execute("CREATE TABLE expert_notes (id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT NOT NULL, sign_key TEXT NOT NULL, photos TEXT NOT NULL DEFAULT '[]', score INTEGER, rank INTEGER, reasons TEXT NOT NULL DEFAULT '', unknowns TEXT NOT NULL DEFAULT '', signs TEXT NOT NULL DEFAULT '[]', kind TEXT NOT NULL DEFAULT '', skipped INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(source, sign_key))")
+        c.commit(); c.close()
+        s = expert.Store(p)
+        self.assertEqual(s.save("web", "9", [], {"rank": 2}, {"license": "L"})["license"], "L")
+
+
 if __name__ == "__main__":
     unittest.main()

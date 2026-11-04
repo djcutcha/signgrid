@@ -35,7 +35,8 @@ DEFAULT_DB = Path(os.environ.get("KK_EXPERT_DB") or PRIVATE / "expert_notes.sqli
 RANKS = ("良好", "経過観察", "要改善", "即時対応")
 SIGNS = ("錆", "腐食", "塗装の剥がれ", "パネルの浮き", "傾き", "ボルトの変色", "取付部のすき間", "基礎のひび", "その他")
 KINDS = ("壁面", "袖", "自立", "屋上", "その他")
-SOURCE_LABEL = {"eval": "評価セット", "field": "実データ", "page": "報告書ページ", "scan": "点検指示書スキャン"}
+WEB_FIRST = 50                          # 外の写真(web)は先頭 50 件を状態が混ざるように種固定でシャッフル
+SOURCE_LABEL = {"web": "外の写真", "eval": "評価セット", "field": "実データ", "page": "報告書ページ", "scan": "点検指示書スキャン"}
 EVAL_LIMIT, EVAL_SEED = 34, 1           # docs/EVAL.md の 102 基(ソースごとに 34、seed 1)
 SCAN_QUEUE = 500                        # スキャンは 34,000 件超。キューには種をそろえた順で先頭からこの数だけ載せる
 SCAN_PAGES = 4                          # 1 PDF につき画面に出す最大ページ数
@@ -54,6 +55,8 @@ CREATE TABLE IF NOT EXISTS expert_notes (
   signs       TEXT NOT NULL DEFAULT '[]',   -- JSON: 見えている劣化のサイン
   kind        TEXT NOT NULL DEFAULT '',     -- 壁面/袖/自立/屋上/その他
   skipped     INTEGER NOT NULL DEFAULT 0,   -- 1 = 「分からない・飛ばす」
+  source_type TEXT NOT NULL DEFAULT '',     -- web の出どころ種別(gov/cc/other)。web 以外は空
+  license     TEXT NOT NULL DEFAULT '',     -- web の写真のライセンス表記。web 以外は空
   created_at  TEXT NOT NULL,
   updated_at  TEXT NOT NULL,
   UNIQUE (source, sign_key)
@@ -72,6 +75,10 @@ class Store:
         self._lock = threading.Lock()
         with self._conn() as c:
             c.executescript(SCHEMA)
+            have = {r["name"] for r in c.execute("PRAGMA table_info(expert_notes)")}
+            for col in ("source_type", "license"):       # 旧 DB(列なし)への足し込み
+                if col not in have:
+                    c.execute(f"ALTER TABLE expert_notes ADD COLUMN {col} TEXT NOT NULL DEFAULT ''")
 
     def _conn(self) -> sqlite3.Connection:
         c = sqlite3.connect(self.path, timeout=10)
@@ -93,7 +100,8 @@ class Store:
         with self._conn() as c:
             return [self._row(r) for r in c.execute("SELECT * FROM expert_notes ORDER BY id")]
 
-    def save(self, source: str, sign_key: str, photos: list[str], note: dict) -> dict:
+    def save(self, source: str, sign_key: str, photos: list[str], note: dict, extra: dict | None = None) -> dict:
+        extra = extra or {}
         score, rank = note.get("score"), note.get("rank")
         if score is not None and not (isinstance(score, int) and not isinstance(score, bool) and 0 <= score <= 100):
             raise ValueError("score は 0〜100 の整数")
@@ -109,13 +117,14 @@ class Store:
         t = now()
         with self._lock, self._conn() as c:
             c.execute(
-                """INSERT INTO expert_notes (source, sign_key, photos, score, rank, reasons, unknowns, signs, kind, skipped, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                """INSERT INTO expert_notes (source, sign_key, photos, score, rank, reasons, unknowns, signs, kind, skipped, source_type, license, created_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                    ON CONFLICT(source, sign_key) DO UPDATE SET photos=excluded.photos, score=excluded.score, rank=excluded.rank,
                      reasons=excluded.reasons, unknowns=excluded.unknowns, signs=excluded.signs, kind=excluded.kind,
-                     skipped=excluded.skipped, updated_at=excluded.updated_at""",
+                     skipped=excluded.skipped, source_type=excluded.source_type, license=excluded.license, updated_at=excluded.updated_at""",
                 (source, sign_key, json.dumps(photos, ensure_ascii=False), score, rank, str(note.get("reasons") or "").strip(),
-                 str(note.get("unknowns") or "").strip(), json.dumps(signs, ensure_ascii=False), kind, skipped, t, t))
+                 str(note.get("unknowns") or "").strip(), json.dumps(signs, ensure_ascii=False), kind, skipped,
+                 extra.get("source_type", ""), extra.get("license", ""), t, t))
         return self.get(source, sign_key)
 
 
@@ -130,8 +139,8 @@ def guess_kind(name: str) -> str:
 
 
 class Item:
-    def __init__(self, source: str, key: str, files: list[Path], kind: str = "", pdf: Path | None = None):
-        self.source, self.key, self.files, self.kind, self.pdf = source, key, files, kind, pdf
+    def __init__(self, source: str, key: str, files: list[Path], kind: str = "", pdf: Path | None = None, web: dict | None = None):
+        self.source, self.key, self.files, self.kind, self.pdf, self.web = source, key, files, kind, pdf, web
 
     @property
     def id(self) -> str:
@@ -150,6 +159,7 @@ class Catalog:
         self.counts: dict[str, dict] = {}
         self.warnings: list[str] = []
         self._pdf_names: list[str] = []
+        self._load_web()
         self._load_eval(sources_config) if with_eval else None
         self._load_field()
         self._load_scans()
@@ -157,6 +167,41 @@ class Catalog:
     def _add(self, it: Item) -> None:
         self.items[it.id] = it
         self.order.append(it.id)
+
+    def _load_web(self) -> None:
+        """外の写真: data/private/expert_web/index.json(配列)。キュー先頭に置き、先頭 WEB_FIRST 件は状態が混ざる順にする。"""
+        root = self.private / "expert_web"
+        try:
+            rows = json.loads((root / "index.json").read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            rows = []
+        except (ValueError, OSError):
+            self.warnings.append("expert_web/index.json を読めません")
+            rows = []
+        items = []
+        for r in rows if isinstance(rows, list) else []:
+            f = root / str(r.get("file") or "")
+            if r.get("file") and f.is_file() and f.suffix.lower() in IMG_EXT:
+                web = {k: str(r.get(k) or "") for k in ("source_type", "title", "url", "document", "page", "license", "author", "fetched")}
+                web["condition_guess"] = str(r.get("condition_guess") or "不明")   # 画面には出さない(先入観になる)
+                items.append(Item("web", f.stem, [f], guess_kind(str(r.get("kind_guess") or "")) or (
+                    str(r.get("kind_guess")) if r.get("kind_guess") in KINDS else ""), web=web))
+        by: dict[str, list[Item]] = {}
+        for it in items:
+            by.setdefault(it.web["condition_guess"], []).append(it)
+        rng = random.Random("expert-web-v1")
+        groups = [by[k] for k in ("危ない側", "中間", "良好", "不明") if k in by] + [v for k, v in by.items() if k not in ("危ない側", "中間", "良好", "不明")]
+        for g in groups:
+            rng.shuffle(g)
+        head: list[Item] = []
+        while len(head) < min(WEB_FIRST, len(items)):
+            for g in groups:
+                if g and len(head) < WEB_FIRST:
+                    head.append(g.pop(0))
+        taken = {id(i) for i in head}
+        for it in head + [i for i in items if id(i) not in taken]:
+            self._add(it)
+        self.counts["web"] = {"signs": len(items), "photos": len(items)}
 
     def _load_eval(self, cfg: str | None) -> None:
         try:
@@ -243,7 +288,8 @@ class Expert:
         files = self.catalog.files(it)
         saved = self.store.get(it.source, it.key)
         return {"id": it.id, "source": it.source, "source_label": SOURCE_LABEL[it.source], "key": it.key,
-                "n_photos": len(files), "kind_default": it.kind, "saved": saved}
+                "n_photos": len(files), "kind_default": it.kind, "saved": saved,
+                "web": {k: v for k, v in it.web.items() if k != "condition_guess"} if it.web else None}
 
     def image(self, iid: str, n: int) -> tuple[bytes, str] | None:
         it = self.catalog.items.get(iid)
@@ -260,7 +306,15 @@ class Expert:
         if not it:
             return None
         files = self.catalog.files(it)
-        return self.store.save(it.source, it.key, [str(f) for f in files], body)
+        return self.store.save(it.source, it.key, [self._rel(f) for f in files], body,
+                               {"source_type": it.web["source_type"], "license": it.web["license"]} if it.web else None)
+
+    def _rel(self, f: Path) -> str:
+        """web の写真は private からの相対パス(expert_web/12.jpg)、他は絶対パス。"""
+        try:
+            return str(f.relative_to(self.catalog.private)) if f.is_relative_to(self.catalog.private) and f.parent.name == "expert_web" else str(f)
+        except ValueError:
+            return str(f)
 
 
 def get(app) -> Expert:
@@ -309,7 +363,7 @@ def serve(h, app, method: str, path: str, q: dict, body: dict | None) -> None:
 
 # ---------- CLI ----------
 
-COLS = ["id", "source", "sign_key", "photos", "score", "rank", "reasons", "unknowns", "signs", "kind", "skipped", "created_at", "updated_at"]
+COLS = ["id", "source", "sign_key", "photos", "score", "rank", "reasons", "unknowns", "signs", "kind", "skipped", "source_type", "license", "created_at", "updated_at"]
 
 
 def export(db: str | Path, out: str | Path) -> dict:
