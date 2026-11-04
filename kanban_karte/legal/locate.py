@@ -47,15 +47,16 @@ def make_placer(gis_root=None, geocode_cache=None, reverse_cache=None):
 
 
 def judge_at(address: str | None, *, use: str, area_m2: float | None, height_m: float | None = None,
-             kind: str | None = None, placer=None):
-    """(JudgeResult, Placed | None)。Placed は placer を使って場所を引こうとしたときだけ(住所なし・placer なしは None)。"""
+             kind: str | None = None, placer=None, **extra):
+    """(JudgeResult, Placed | None)。Placed は placer を使って場所を引こうとしたときだけ(住所なし・placer なしは None)。
+    extra(by_kind・壁面の面積・出幅 等)は法規役へそのまま渡す。"""
     muni = AddressResolver().resolve(address) if address else None
     placed = None
     if placer is not None and address:
         with _LOCK:
             placed = placer.place(address, muni)
     place = placed.vocab if placed is not None and placed.status == "zone" else None
-    r = J.judge(address, municipality=muni, use=use, area_m2=area_m2, height_m=height_m, place=place, kind=kind)
+    r = J.judge(address, municipality=muni, use=use, area_m2=area_m2, height_m=height_m, place=place, kind=kind, **extra)
     return r, placed
 
 

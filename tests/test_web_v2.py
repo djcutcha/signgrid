@@ -366,3 +366,96 @@ class OwnerEstimateTest(WebTest):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OwnerKindsTest(WebTest):
+    """種類を先に選ぶ /owner/。種類の一覧・種類ごとの判定(壁面・袖)・推定に種類を渡す。台帳には書かない。"""
+
+    def test_kinds_route(self):
+        st, d, _ = self.req("/api/owner/kinds")
+        self.assertEqual(st, 200)
+        self.assertEqual([k["id"] for k in d["kinds"]], ["wall", "projecting", "freestanding", "rooftop"])
+        self.assertEqual(d["unknown"]["id"], "unknown")
+        self.assertEqual({k["id"] for k in d["kinds"] if k["by_kind"]}, {"wall", "projecting"})   # 壁面と袖だけ
+        for k in d["kinds"]:
+            self.assertTrue(k["shoot"])
+        self.assertEqual(next(k for k in d["kinds"] if k["id"] == "projecting")["taps"], ["wall", "boundary", "ground"])
+
+    def test_wall_judge(self):
+        st, d, _ = self.req("/api/owner/judge", {"address": "埼玉県越谷市越ヶ谷1-1-1", "area_m2": 3, "kind": "wall",
+                                                 "wall_area_m2": 60, "height_m": 3, "eave_height_m": 7})
+        self.assertEqual(st, 200)
+        self.assertEqual((d["kind"], d["kind_category"]), ("wall", "wall"))
+        row = next(r for r in d["kind_checks"] if r["item"] == "wall_ratio")
+        self.assertEqual(row["verdict"], "適合")
+        self.assertTrue(row["citations"])
+        self.assertIsNone(d["road_occupancy"])
+
+    def test_projecting_judge_road(self):
+        st, d, _ = self.req("/api/owner/judge", {"address": "埼玉県さいたま市大宮区桜木町1-1-1", "area_m2": 1, "kind": "projecting",
+                                                 "protrusion_wall_m": 0.9, "protrusion_road_m": 0.6, "ground_clearance_m": 3.2,
+                                                 "over": "sidewalk", "road_manager": "市道"})
+        self.assertEqual(st, 200)
+        self.assertEqual(d["permit_required"], "要")
+        self.assertEqual(d["road_occupancy"]["status"], "要")
+        self.assertIn("道路法 第32条", d["road_occupancy"]["text"])
+        self.assertTrue(d["kind_permit_checks"])
+
+    def test_negative_boundary_and_bad_inputs(self):
+        d = self.req("/api/owner/judge", {"address": "埼玉県さいたま市大宮区桜木町1-1-1", "area_m2": 1, "kind": "projecting",
+                                          "protrusion_wall_m": 0.5, "protrusion_road_m": -0.4})[1]
+        self.assertEqual(d["road_occupancy"]["status"], "不要")
+        base = {"address": "東京都豊島区", "area_m2": 1}
+        for bad in ({"kind": "neon"}, {"kind": "projecting", "over": "air"}, {"kind": "projecting", "road_manager": "私道"},
+                    {"kind": "projecting", "protrusion_road_m": "x"}, {"kind": "wall", "wall_area_m2": -3}):
+            self.assertEqual(self.req("/api/owner/judge", {**base, **bad})[0], 400, bad)
+
+    def test_freestanding_keeps_area_height(self):
+        d = self.req("/api/owner/judge", {"address": "東京都豊島区見本町1-2-3", "area_m2": 3.5, "kind": "freestanding",
+                                          "protrusion_road_m": 5})[1]
+        self.assertEqual(d["kind_checks"], [])   # 自立は種類ごとの項目を出さない(面積・高さの判定のまま)
+        self.assertIsNone(d["road_occupancy"])
+        self.assertEqual(d["permit_required"], "不要")
+
+    def test_range_with_kind(self):
+        d = self.req("/api/owner/judge", {"address": "埼玉県越谷市越ヶ谷1-1-1", "area_m2": 12, "area_low_m2": 6, "area_high_m2": 20,
+                                          "kind": "wall", "wall_area_m2": 60, "place": None})[1]
+        self.assertEqual(d["basis"], "range")
+        row = next(r for r in d["kind_checks"] if r["item"] == "wall_ratio")
+        self.assertEqual(row["verdict"], "要実測")   # 両端で結論が分かれる(6 ㎡ は適合、20 ㎡ は上限 12 ㎡ か 18 ㎡ の境目より上)
+
+    def test_estimate_with_kind(self):
+        from kanban_karte.dim.estimator import DimEstimate
+        seen = []
+
+        class Fake:
+            def estimate(s, photos, name, kind=None):
+                seen.append(kind)
+                return DimEstimate(3000, 1000, (2800, 3200), (900, 1100), [], False, "mid", "", "fake", {},
+                                   photos=[{"photo": 0, "sign_box": [0.3, 0.2, 0.7, 0.3], "references": [],
+                                            "wall_box": [0.05, 0.05, 0.95, 0.95]}],
+                                   wall={"w_mm": 9000, "h_mm": 7000, "w_range": [8000, 10000], "h_range": [6500, 7500],
+                                         "area_m2": 63.0, "area_range": [52.0, 75.0]},
+                                   kind_candidates=[{"kind": "wall", "why": "壁に貼ってある"}], kind=kind)
+        self.app.estimator_factory = Fake
+        try:
+            photo = OwnerEstimateTest.photo_b64()
+            st, d, _ = self.req("/api/owner/estimate", {"address": "埼玉県越谷市越ヶ谷1-1-1", "photos": [photo], "kind": "wall"})
+            self.assertEqual(st, 200)
+            self.assertEqual(d["estimate"]["photos"][0]["wall_box"], [0.05, 0.05, 0.95, 0.95])
+            self.assertEqual(d["estimate"]["wall"]["area_m2"], 63.0)
+            self.assertTrue(any(r["item"] == "wall_ratio" for r in d["judgement"]["kind_checks"]))
+            d = self.req("/api/owner/estimate", {"address": "埼玉県越谷市越ヶ谷1-1-1", "photos": [photo], "kind": "unknown"})[1]
+            self.assertEqual(d["estimate"]["kind_candidates"][0]["kind"], "wall")
+            self.assertEqual(d["judgement"]["kind_checks"], [])
+            self.req("/api/owner/estimate", {"address": "埼玉県越谷市越ヶ谷1-1-1", "photos": [photo]})
+            self.assertEqual(seen, ["wall", "unknown", None])
+            self.assertEqual(self.req("/api/owner/estimate", {"address": "x", "photos": [photo], "kind": "neon"})[0], 400)
+        finally:
+            self.app.estimator_factory = None
+
+    def test_owner_page_has_kind_flow(self):
+        js = (Path(__file__).resolve().parents[1] / "kanban_karte" / "web" / "static" / "owner.js").read_text(encoding="utf-8")
+        for s in ("/api/owner/kinds", "撮影後に判定", "歩道の切れ目", "wall_box", "kind_candidates", "道路占用"):
+            self.assertIn(s, js)
+        self.assertNotIn("向けるだけ", js)

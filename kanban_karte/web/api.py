@@ -394,6 +394,83 @@ def gov_map_html(ledger: Ledger, batch_id: int, today_q: str | None = None) -> b
 
 
 # ---- オーナーの1枚撮り(DB に書かない) ----
+# 種類を先に選ぶ(壁面 / 袖 / 自立 / 屋上 / 分からない)。judge= 法規役に渡す種類の語。by_kind= 種類ごとの項目
+# (壁面率・出幅・地上高)を判定するか(壁面と袖だけ。Cutcha 2026-11-04 16:05)。taps= 写真の上で人が置く線
+OWNER_KINDS = [
+    {"id": "wall", "label": "壁面", "sub": "壁に貼る・取り付ける", "judge": "壁面", "by_kind": True, "taps": [],
+     "shoot": "少し離れて、壁面全体(1 階の足元から軒まで)と看板が両方入るように正面から",
+     "inputs": ["wall_area_m2", "eave_height_m"]},
+    {"id": "projecting", "label": "袖(突出し)", "sub": "壁から直角に突き出す", "judge": "突出", "by_kind": True,
+     "taps": ["wall", "boundary", "ground"],
+     "shoot": "真横(看板の面と直角)から、建物の壁・看板・歩道・歩道の切れ目(道路境界)が 1 枚に入るように",
+     "inputs": ["protrusion_wall_m", "protrusion_road_m", "ground_clearance_m", "over", "wall_height_m", "road_manager"]},
+    {"id": "freestanding", "label": "自立", "sub": "地面に立つ(広告塔・広告板)", "judge": "自立", "by_kind": False,
+     "taps": ["boundary", "road_side"],
+     "shoot": "地面から頭頂まで入る正面と、真横(足元と歩道の切れ目の距離が分かる)",
+     "inputs": []},
+    {"id": "rooftop", "label": "屋上", "sub": "建物の屋上に載る", "judge": "屋上", "by_kind": False, "taps": [],
+     "shoot": "道路の向かい側から、建物全体(地面から看板の頂部まで)を 1 枚に",
+     "inputs": []},
+]
+OWNER_KIND_IDS = {k["id"]: k for k in OWNER_KINDS}
+KIND_UNKNOWN = "unknown"
+ROAD_MANAGERS = ("国道", "都道", "県道", "市道", "区道")
+
+
+def owner_kinds() -> dict:
+    """/owner/ の種類の選択肢と撮り方(画面と API で同じ物を使う)。"""
+    return {"kinds": OWNER_KINDS, "unknown": {"id": KIND_UNKNOWN, "label": "分からない",
+                                               "shoot": "看板全体が入るように撮ってください。写真から種類の候補を出すので、選んでください"},
+            "road_managers": list(ROAD_MANAGERS),
+            "band_pct": 15, "note": "基準の ±15% に入る値は要実測(SignGrid の設計値。条文の数値ではありません)"}
+
+
+def _owner_kind(body: dict, allow_unknown: bool = False) -> dict | None:
+    k = body.get("kind")
+    if k in (None, ""):
+        return None
+    if allow_unknown and k == KIND_UNKNOWN:
+        return {"id": KIND_UNKNOWN}
+    if k not in OWNER_KIND_IDS:
+        raise ApiError(400, f"kind は {', '.join(OWNER_KIND_IDS)}{' / unknown' if allow_unknown else ''} のどれか: {k!r}")
+    return OWNER_KIND_IDS[k]
+
+
+def _owner_signed(body: dict, k: str, lo: float = -100.0, hi: float = 100.0) -> float | None:
+    """負の値も取る数値欄(道路境界からの出幅: 境界の内側に収まれば負)。"""
+    v = body.get(k)
+    if v in (None, ""):
+        return None
+    if isinstance(v, bool):
+        raise ApiError(400, f"{k} は数値: {v!r}")
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        raise ApiError(400, f"{k} は数値: {v!r}")
+    if not lo <= f <= hi:
+        raise ApiError(400, f"{k} は {lo}〜{hi}: {v!r}")
+    return f
+
+
+def _owner_kind_args(body: dict, kind: dict | None) -> dict:
+    """種類ごとの入力(壁面・袖のときだけ)。法規役の引数の形で返す。"""
+    if not kind or not kind.get("by_kind"):
+        return {}
+    over = body.get("over") or None
+    if over not in (None, "sidewalk", "roadway"):
+        raise ApiError(400, f"over は sidewalk / roadway: {over!r}")
+    mgr = body.get("road_manager") or None
+    if mgr not in (None,) + ROAD_MANAGERS:
+        raise ApiError(400, f"road_manager は {', '.join(ROAD_MANAGERS)} のどれか: {mgr!r}")
+    return {"by_kind": True, "wall_area_m2": _owner_num(body, "wall_area_m2"), "eave_height_m": _owner_num(body, "eave_height_m"),
+            "wall_height_m": _owner_num(body, "wall_height_m"), "protrusion_wall_m": _owner_signed(body, "protrusion_wall_m", 0, 100),
+            "protrusion_road_m": _owner_signed(body, "protrusion_road_m"), "ground_clearance_m": _owner_num(body, "ground_clearance_m"),
+            "over": over, "road_manager": mgr}
+
+
+KIND_OUT_KEYS = ("kind_category", "kind_checks", "kind_permit_checks", "road_occupancy")
+
+
 def _owner_num(body: dict, k: str, required: bool = False) -> float | None:
     """オーナー画面の数値欄(面積 ㎡・全高 m)。空は None(required なら 400)、数でない・0 以下・1万以上は 400。"""
     v = body.get(k)
@@ -419,6 +496,11 @@ def owner_judge(body: dict, placer=None) -> dict:
         raise ApiError(400, "住所を入れてください")
     area, height = _owner_num(body, "area_m2", required=True), _owner_num(body, "height_m")
     low, high = _owner_num(body, "area_low_m2"), _owner_num(body, "area_high_m2")
+    kind = _owner_kind(body)
+    kargs = _owner_kind_args(body, kind)
+    kw = {"kind": kind["judge"]} if kind else {}
+    kw.update({k: v for k, v in kargs.items() if v is not None})
+    kout = {"kind": kind["id"] if kind else None}
     if low is not None and high is not None:
         if low > high:
             raise ApiError(400, "area_low_m2 は area_high_m2 以下")
@@ -429,22 +511,24 @@ def owner_judge(body: dict, placer=None) -> dict:
             placed_box.append(placed)
             return r
         try:
-            j = judge_from_areas(low, high, area, address, judge=judge, height_m=height)
+            j = judge_from_areas(low, high, area, address, judge=judge, height_m=height, **kw)
         except Exception as e:
             raise ApiError(500, f"法規の判定ができませんでした: {type(e).__name__}: {e}")
         out = {k: j.get(k) for k in LEGAL_KEYS if k != "permit_required"}
         out.update({"permit_required": j["permit"], "use": "self", "area_m2": area, "height_m": height, "address": address,
                     "basis": "range", "area_low_m2": low, "area_high_m2": high, "low": j["low"], "high": j["high"],
-                    "place": place_dict(placed_box[-1] if placed_box else None, placer)})
+                    "place": place_dict(placed_box[-1] if placed_box else None, placer), **kout})
+        out.update({k: j.get(k) for k in KIND_OUT_KEYS})
         return out
     try:
-        r, placed = judge_at(address, use="self", area_m2=area, height_m=height, placer=placer)
+        r, placed = judge_at(address, use="self", area_m2=area, height_m=height, placer=placer, **kw)
     except Exception as e:
         raise ApiError(500, f"法規の判定ができませんでした: {type(e).__name__}: {e}")
     d = r.to_dict()
     out = {k: d[k] for k in LEGAL_KEYS}
     out.update({"use": "self", "area_m2": area, "height_m": height, "address": address, "basis": "input",
-                "place": place_dict(placed, placer)})
+                "place": place_dict(placed, placer), **kout})
+    out.update({k: d.get(k) for k in KIND_OUT_KEYS})
     return out
 
 
@@ -473,12 +557,15 @@ def owner_estimate(body: dict, estimator_factory=None, placer=None) -> dict:
             raise ApiError(400, "写真が空か大きすぎます")
         photos.append(b)
     name = str(body.get("target_name") or "").strip()[:80] or None
+    kind = _owner_kind(body, allow_unknown=True)
+    est_kind = None if kind is None else kind["id"]
     if estimator_factory is None:
         if not can_draft():
             raise ApiError(503, "寸法の推定には ANTHROPIC_API_KEY が要ります(環境変数か .env)")
         estimator_factory = DimEstimator
     try:
-        est = estimator_factory().estimate(photos, name)
+        # 種類があれば推定役に渡す(壁面= 壁面の枠と寸法、分からない= 種類の候補)。無ければ従来どおりの呼び方
+        est = estimator_factory().estimate(photos, name, **({"kind": est_kind} if est_kind else {}))
     except DimEstimateError as e:
         raise ApiError(502, f"寸法を推定できませんでした: {e}")
     except Exception as e:  # 鍵の誤り・接続など
@@ -490,11 +577,20 @@ def owner_estimate(body: dict, estimator_factory=None, placer=None) -> dict:
         placed_box.append(placed)
         return r
 
+    kw = {}
+    if kind and kind["id"] != KIND_UNKNOWN:
+        kw["kind"] = kind["judge"]
+        if kind["by_kind"]:
+            kw["by_kind"] = True
+            wall = getattr(est, "wall", None)
+            if kind["id"] == "wall" and wall:
+                kw["wall_area_m2"] = wall["area_m2"]   # 写真から概算した壁面の面積(画面で直せる)
     try:
-        j = judge_from_range(est, address, judge=judge, height_m=height)
+        j = judge_from_range(est, address, judge=judge, height_m=height, **kw)
     except Exception as e:
         raise ApiError(500, f"法規の判定ができませんでした: {type(e).__name__}: {e}")
     return {"estimate": est.to_dict(), "judgement": j, "address": address, "height_m": height,
+            "kind": kind["id"] if kind else None,
             "place": place_dict(placed_box[-1] if placed_box else None, placer)}
 
 
