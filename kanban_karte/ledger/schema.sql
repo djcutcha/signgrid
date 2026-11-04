@@ -85,9 +85,10 @@ CREATE TABLE IF NOT EXISTS signs (
     size_source   TEXT CHECK (size_source IN ('measured', 'estimated', 'drawing')),  -- 実測 / 推定(AI)/ 図面(スケッチ)。NULL=未入力か出どころ不明
     size_by       TEXT,                 -- 測った人('line_guide:<userId 末尾4桁>' など)
     size_at       TEXT,                 -- 測った日(YYYY-MM-DD)
+    size_d        INTEGER,              -- 厚み(奥行き)mm。任意
     gl_mm         INTEGER,              -- GL(地面)からの高さ mm。gl_edge が縁
     gl_edge       TEXT CHECK (gl_edge IN ('bottom', 'top')),  -- bottom=看板の下端まで(ガイドは bottom で固定)/ top=上端まで
-    mount         TEXT,                 -- 取付方法(ビス / バンセン / 吊り / 接着 / その他)。分からないは NULL
+    mount         TEXT,                 -- 取付方法(intake/line/measure.py の MOUNTS か、その他で入れた文)。分からないは NULL
     post          TEXT,                 -- 支柱(例 □50)。無しは '無し'
     created       TEXT NOT NULL DEFAULT (datetime('now','localtime')),
     updated       TEXT NOT NULL DEFAULT (datetime('now','localtime'))

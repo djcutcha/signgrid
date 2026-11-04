@@ -92,15 +92,17 @@ def build_guide_deliveries(plan_file: str | Path, content_dir: str | Path, *,
                            user_id: str = "Usimulated0000000000000000000000", run_id: str | None = None) -> Plan:
     """ガイド付き点検の台本(JSON)から、人が押す・送る順の配信を作る(1イベント=1配信。LINE の実際の返事の数と同じ)。
 
-    台本: {"job": "J-001", "signs": [{"name": "① 正面の袖看板", "overview": "photos/a.png",
+    台本: {"job": "J-001", "signs": [{"name": "① 正面の袖看板", "overview": "photos/a.png", "front": ["photos/f.png"], "kind": "proj",
            "parts": [{"photos": ["photos/b.png"], "answers": ["a", "b", "unknown"]}, ...6部位]}]}
+    front が空(か無い)なら「正面から撮れない」を押す。kind は shoot.KINDS のキー(無ければ「その他」)。
     写真は台本のあるフォルダ基準。photos が空の部位は「この部位は無い」を押す(answers は書かない)。
     看板の "measure" は寸法の実測(measure() の docstring。無ければ "skip")。
     Plan.stats に写真の枚数・押す回数・送る文の数。
     """
     from urllib.parse import urlencode
     from . import measure as M
-    from .guide import MAX_MEASURE_PHOTOS, MAX_PART_PHOTOS, PARTS
+    from . import shoot as S
+    from .guide import MAX_DRAWING_PHOTOS, MAX_PART_PHOTOS, PARTS
 
     plan_file = Path(plan_file)
     doc = json.loads(plan_file.read_text(encoding="utf-8"))
@@ -135,26 +137,38 @@ def build_guide_deliveries(plan_file: str | Path, content_dir: str | Path, *,
         push(lambda tok, ts: _event(user_id, tok, {"type": "image", "id": mid, "contentProvider": {"type": "line"}}, ts))
 
     def measure(spec):
-        """寸法の実測。"skip"=最初の問いで飛ばす / "inherit"=台帳に寸法がある看板(問いは出ない)/ dict=測る
-        {"w": "3.6m", "h": "900", "gl": "2500"(無ければ「分からない」), "mount": "ビス", "post": "□50"(無ければ「無し」), "photos": [巻尺の写真]}"""
+        """寸法の実測。"skip"=最初の問いで飛ばす / "inherit"=台帳に寸法がある看板(問いは出ない)/
+        {"drawing": [図面の画像]}=図面で送る / dict=測る
+        {"w": "3.6m", "h": "900", "d": "300"(無ければ「分からない」), "gl": "2500"(無ければ「分からない」),
+         "mount": "アンカーボルト"(一覧に無い文は「その他」で文字入力), "post": "□50"(無ければ「無し」)}"""
         if spec == "inherit":
             return
         if spec == "skip":
             return tap(m="skip")
+        if "drawing" in spec:
+            tap(m="draw")
+            for rel in spec["drawing"][:MAX_DRAWING_PHOTOS]:
+                image(rel)
+            if len(spec["drawing"]) < MAX_DRAWING_PHOTOS:
+                tap(m="drawn")
+            return
         tap(m="go")
-        for k in ("w", "h", "gl"):
+        for k in ("w", "h", "d", "gl"):
             if spec.get(k) is None:
-                tap(m="glx")
+                tap(m="glx" if k == "gl" else "dx")
                 continue
             text(spec[k])
-            if M.parse_length(spec[k], lo=0, allow_zero=(k == "gl")).confirm:
+            r = (M.parse_length(spec[k], lo=0, allow_zero=True) if k == "gl"
+                 else M.parse_length(spec[k], lo=M.DEPTH_MIN_MM, hi=M.DEPTH_MAX_MM) if k == "d" else M.parse_length(spec[k]))
+            if r.confirm:
                 tap(m="conf")  # 単位の無い数字は確認が返る
-        tap(mount=M.MOUNTS.index(spec.get("mount") or M.UNKNOWN))
+        mount = spec.get("mount") or M.UNKNOWN
+        if mount in M.MOUNTS:
+            tap(mount=M.MOUNTS.index(mount))
+        else:
+            tap(mount=M.MOUNTS.index(M.MOUNT_OTHER))
+            text(mount)
         text(spec["post"]) if spec.get("post") else tap(m="nopost")
-        for rel in spec.get("photos", [])[:MAX_MEASURE_PHOTOS]:
-            image(rel)
-        if len(spec.get("photos", [])) < MAX_MEASURE_PHOTOS:
-            tap(m="nopic")
 
     tap(start=1)
     if doc.get("job"):
@@ -162,6 +176,14 @@ def build_guide_deliveries(plan_file: str | Path, content_dir: str | Path, *,
     for si, sg in enumerate(doc["signs"]):
         text(sg["name"])
         image(sg["overview"])
+        fronts = sg.get("front") or []
+        for rel in fronts[:S.MAX_FRONT_PHOTOS]:
+            image(rel)
+        if not fronts:
+            tap(front="skip")
+        elif len(fronts) < S.MAX_FRONT_PHOTOS:
+            tap(front="next")
+        tap(kind=sg.get("kind") or "other")
         measure(sg.get("measure", "skip"))
         for pi, (part, items) in enumerate(PARTS):
             spec = sg["parts"][pi]

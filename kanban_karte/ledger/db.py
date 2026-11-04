@@ -22,7 +22,7 @@ SCHEMA_SQL = Path(__file__).with_name("schema.sql")
 SIGN_STATUSES = ("new", "needs_photos", "draft", "confirmed")
 RULE_STATUSES = ("candidate", "approved", "rejected")
 FIGURE_TAG = "図面"  # pages.tag: 職人の手描きスケッチ・印刷案の頁。看板の写真ではないので、下書き・様式の写真には入れない
-MEASURE_TAG = "実測"  # pages.tag: 巻尺を当てた写真(ガイドの寸法の実測)。寸法の証拠で、下書き・様式の写真には入れない
+MEASURE_TAG = "実測"  # pages.tag: スケールを当てた写真(2026-11-04 までのガイドの寸法の実測。今のガイドは撮らない。古い台帳の表示用)。寸法の証拠で、下書き・様式の写真には入れない
 SIZE_SOURCES = ("measured", "estimated", "drawing")  # signs.size_source: 実測 / 推定(AI)/ 図面(スケッチ)。None=未入力か出どころ不明
 PAGE_KINDS = ("指示書", "完成報告書", "点検表", "写真", "地図", "危険予知", "その他", "不明")
 
@@ -75,6 +75,7 @@ class Sign:
     size_source: str | None = None
     size_by: str | None = None
     size_at: str | None = None     # YYYY-MM-DD
+    size_d: int | None = None      # 厚み(奥行き)mm。任意
     gl_mm: int | None = None
     gl_edge: str | None = None
     mount: str | None = None       # ビス / バンセン / 吊り / 接着 / その他
@@ -153,7 +154,8 @@ class Ledger:
                          ("confidence", "REAL"), ("evidence", "TEXT NOT NULL DEFAULT '{}'"),
                          ("confirmed_at", "TEXT"), ("confirmed_by", "TEXT"), ("height_m", "REAL"),
                          ("draft_by", "TEXT"), ("size_source", "TEXT"), ("size_by", "TEXT"), ("size_at", "TEXT"),
-                         ("gl_mm", "INTEGER"), ("gl_edge", "TEXT"), ("mount", "TEXT"), ("post", "TEXT")):
+                         ("gl_mm", "INTEGER"), ("gl_edge", "TEXT"), ("mount", "TEXT"), ("post", "TEXT"),
+                         ("size_d", "INTEGER")):
             if col not in sign_cols:
                 self.conn.execute(f"ALTER TABLE signs ADD COLUMN {col} {ddl}")
         if "tag" not in {r[1] for r in self.conn.execute("PRAGMA table_info(pages)")}:

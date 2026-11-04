@@ -1,128 +1,140 @@
 {
-  "_note": "ガイド付き点検の試走の台本(simulate --guide)。写真は見本(無地の画像)。答えは架空。①は寸法を測る、②は飛ばす、3枚目は①と同じ名前で台帳の寸法を引き継ぐ(実測の問いが出ない)",
-  "job": "J-001",
-  "signs": [
+ "_note": "ガイド付き点検の試走の台本(simulate --guide)。写真は見本(無地の画像)。答えは架空。①は袖看板で正面を撮り、寸法を測る(厚みあり)。②は壁面で正面は撮れず、寸法は図面で送る。3枚目は①と同じ名前で台帳の寸法を引き継ぐ(実測の問いが出ない)",
+ "job": "J-001",
+ "signs": [
+  {
+   "name": "① 正面の袖看板",
+   "overview": "photos/plain_a.png",
+   "front": [
+    "photos/plain_f.png"
+   ],
+   "kind": "proj",
+   "measure": {
+    "w": "3.6m",
+    "h": "900",
+    "d": "300",
+    "gl": "2500mm",
+    "mount": "アンカーボルト",
+    "post": "□50"
+   },
+   "parts": [
     {
-      "name": "① 正面の袖看板",
-      "overview": "photos/plain_a.png",
-      "parts": [
-        {
-          "photos": [
-            "photos/plain_b.png",
-            "photos/plain_c.png"
-          ],
-          "answers": [
-            "a",
-            "b",
-            "unknown"
-          ]
-        },
-        {
-          "photos": [
-            "photos/plain_d.png"
-          ],
-          "answers": [
-            "a",
-            "a"
-          ]
-        },
-        {
-          "photos": [
-            "photos/plain_e.png"
-          ],
-          "answers": [
-            "c",
-            "unknown",
-            "a"
-          ]
-        },
-        {
-          "photos": [
-            "photos/plain_f.png",
-            "photos/plain_b.png",
-            "photos/plain_c.png"
-          ],
-          "answers": [
-            "a",
-            "a",
-            "b",
-            "na"
-          ]
-        },
-        {
-          "photos": []
-        },
-        {
-          "photos": [
-            "photos/plain_d.png"
-          ],
-          "answers": [
-            "a",
-            "unknown",
-            "na"
-          ]
-        }
-      ],
-      "measure": {
-        "w": "3.6m",
-        "h": "900",
-        "gl": "2500mm",
-        "mount": "ビス",
-        "post": "□50",
-        "photos": [
-          "photos/plain_tape.png"
-        ]
-      }
+     "photos": [
+      "photos/plain_b.png",
+      "photos/plain_c.png"
+     ],
+     "answers": [
+      "a",
+      "b",
+      "unknown"
+     ]
     },
     {
-      "name": "② 側面の看板",
-      "overview": "photos/plain_d.png",
-      "measure": "skip",
-      "parts": [
-        {
-          "photos": []
-        },
-        {
-          "photos": []
-        },
-        {
-          "photos": []
-        },
-        {
-          "photos": []
-        },
-        {
-          "photos": []
-        },
-        {
-          "photos": []
-        }
-      ]
+     "photos": [
+      "photos/plain_d.png"
+     ],
+     "answers": [
+      "a",
+      "a"
+     ]
     },
     {
-      "name": "① 正面の袖看板",
-      "overview": "photos/plain_e.png",
-      "measure": "inherit",
-      "parts": [
-        {
-          "photos": []
-        },
-        {
-          "photos": []
-        },
-        {
-          "photos": []
-        },
-        {
-          "photos": []
-        },
-        {
-          "photos": []
-        },
-        {
-          "photos": []
-        }
-      ]
+     "photos": [
+      "photos/plain_e.png"
+     ],
+     "answers": [
+      "c",
+      "unknown",
+      "a"
+     ]
+    },
+    {
+     "photos": [
+      "photos/plain_f.png",
+      "photos/plain_b.png",
+      "photos/plain_c.png"
+     ],
+     "answers": [
+      "a",
+      "a",
+      "b",
+      "na"
+     ]
+    },
+    {
+     "photos": []
+    },
+    {
+     "photos": [
+      "photos/plain_d.png"
+     ],
+     "answers": [
+      "a",
+      "unknown",
+      "na"
+     ]
     }
-  ]
+   ]
+  },
+  {
+   "name": "② 側面の看板",
+   "overview": "photos/plain_d.png",
+   "front": [],
+   "kind": "wall",
+   "measure": {
+    "drawing": [
+     "photos/plain_e.png"
+    ]
+   },
+   "parts": [
+    {
+     "photos": []
+    },
+    {
+     "photos": []
+    },
+    {
+     "photos": []
+    },
+    {
+     "photos": []
+    },
+    {
+     "photos": []
+    },
+    {
+     "photos": []
+    }
+   ]
+  },
+  {
+   "name": "① 正面の袖看板",
+   "overview": "photos/plain_e.png",
+   "front": [
+    "photos/plain_f.png"
+   ],
+   "kind": "proj",
+   "measure": "inherit",
+   "parts": [
+    {
+     "photos": []
+    },
+    {
+     "photos": []
+    },
+    {
+     "photos": []
+    },
+    {
+     "photos": []
+    },
+    {
+     "photos": []
+    },
+    {
+     "photos": []
+    }
+   ]
+  }
+ ]
 }

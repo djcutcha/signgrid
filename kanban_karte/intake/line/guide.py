@@ -7,8 +7,11 @@
   site      今日の現場(位置か現場が分かっていれば飛ばす)
   sign      看板の名前か番号(テキスト1通)
   overview  全景を1枚(必須)
+  front     表示面を正面から(面が複数あれば各面、4枚まで。撮れなければ「正面から撮れない」)
+  kind      看板の種類(ポール / 自立・野立て / 壁面 / 突出(袖)/ 屋上 / その他)。部位の問いに撮る場所を添える(shoot.py)
   measure   寸法の実測(台帳にその看板の寸法が無い時だけ。初回。最初の問いで「飛ばす」で通せる)
-            幅 → 高さ → GL(看板の下端まで)→ 取付方法 → 支柱 → 巻尺の写真(0〜2枚)
+            [測る / 図面で送る / 飛ばす]。測る= 幅 → 高さ → 厚み(任意)→ GL(看板の下端まで)→ 取付方法 → 支柱
+            図面で送る= 図面の写真・画像を 1〜3枚(数字の問いは出さない。寸法は図面から事務所で入れる)
   photo     部位の写真 1〜3枚(0枚なら「この部位は無い」)。3枚で自動的に次へ
   ask       その部位の項目を1項目ずつ a 良好 / b 経過観察 / c 要改善 / 分からない / 対象外
   done      この看板は終わり → 次の看板 / 終了
@@ -25,17 +28,18 @@ from pathlib import Path
 from typing import Callable, Protocol
 from urllib.parse import urlencode
 
-from ...ledger.db import MEASURE_TAG
+from ...ledger.db import FIGURE_TAG
 from ...ledger.items import _ITEMS
 from . import measure as M
+from . import shoot as S
 from .session import safe_name
 
 START_TEXT = "点検開始"
 CMD_BACK, CMD_SKIP, CMD_QUIT = "戻る", "飛ばす", "やめる"
 COMMANDS = (CMD_BACK, CMD_SKIP, CMD_QUIT)
 MAX_PART_PHOTOS = 3
-MAX_MEASURE_PHOTOS = 2
-MEASURE_SUBS = ("ask", "w", "h", "gl", "mount", "post", "photo")  # 実測工程の中の順
+MAX_DRAWING_PHOTOS = 3
+MEASURE_SUBS = ("ask", "w", "h", "d", "gl", "mount", "post")  # 実測工程の中の順(mount_text は mount の続き、drawing は ask の分かれ)
 CONFIRM_WORDS = ("はい", "ok", "OK", "合ってます", "合っています")
 SEEN_MAX = 20
 
@@ -77,7 +81,9 @@ class GuideState:
     signs_done: int = 0
     started: str = ""
     seen: list[str] = field(default_factory=list)          # 処理済みのテキストID(再送で名前を二重に受けない)
-    # 寸法の実測(step=measure)。m の値は mm(w / h / gl)、mount、post。gl が無い=分からない
+    kind: str | None = None            # 看板の種類(shoot.KINDS のキー)。front_skipped は正面を撮れなかった
+    front_skipped: bool = False
+    # 寸法の実測(step=measure)。m の値は mm(w / h / d / gl)、mount、post。gl・d が無い=分からない。drawing=図面で送った
     m_sub: str = "ask"
     m: dict = field(default_factory=dict)
     m_photos: int = 0
@@ -93,6 +99,7 @@ class Sink(Protocol):
     def answer(self, user_id: str, st: GuideState, key: str, ans: str) -> None: ...
     def known_size(self, user_id: str, st: GuideState) -> dict | None: ...
     def measure(self, user_id: str, st: GuideState) -> None: ...
+    def sign_kind(self, user_id: str, st: GuideState) -> None: ...
 
 
 class NullSink:
@@ -101,6 +108,7 @@ class NullSink:
     def answer(self, user_id, st, key, ans): pass
     def known_size(self, user_id, st): return None
     def measure(self, user_id, st): pass
+    def sign_kind(self, user_id, st): pass
 
 
 def qr(label: str, **data) -> dict:
@@ -154,18 +162,28 @@ class Guide:
             return Say("看板の名前か番号を送ってください(例: ① 正面の袖看板)")
         if st.step == "overview":
             return Say("全景を1枚撮ってください")
+        if st.step == "front":
+            if st.photos == 0:
+                return Say("表示面を正面から撮ってください(文字や絵が読めるように。面が複数あれば各面)",
+                           [qr("正面から撮れない", front="skip")])
+            return Say(f"正面 {st.photos}枚\n別の面があれば続けて撮るか、「次へ」を押してください", [qr("次へ", front="next")])
+        if st.step == "kind":
+            return Say("看板の種類を選んでください", [qr(label, kind=k) for k, label, _ in S.KINDS])
         if st.step == "measure":
             return self._measure_prompt(st)
         if st.step == "photo":
             part = PARTS[st.part][0]
             if st.photos == 0:
-                return Say(f"{part}を撮ってください(近くで1〜3枚)", [qr("この部位は無い", nopart=1, p=st.part)])
+                hint = S.shoot_hint(part, st.kind, front_taken=not st.front_skipped)
+                return Say(f"{part}を撮ってください(近くで1〜3枚)" + (f"\n{hint}" if hint else ""),
+                           [qr("この部位は無い", nopart=1, p=st.part)])
             return Say(f"{part} {st.photos}枚\n続けて撮るか、「次へ」を押してください", [qr("次へ", next=1, p=st.part)])
         if st.step == "ask":
             part, items = PARTS[st.part]
             key, text = items[st.item]
             quick = [qr(label, ans=a, item=key) for a, label in ANSWER_LABEL.items()]
-            return Say(f"{part} {st.item + 1}/{len(items)}\n{text}", quick)
+            hint = S.ASK_HINT.get(key)
+            return Say(f"{part} {st.item + 1}/{len(items)}\n{text}" + (f"({hint})" if hint else ""), quick)  # 返事は3行まで
         return Say(self._done_text(st), [qr("次の看板", more=1), qr("終了", end=1)])
 
     @staticmethod
@@ -185,23 +203,26 @@ class Guide:
         if st.m_pending:
             return Say(st.m_pending["text"], [qr("はい", m="conf"), qr("入れ直す", m="redo")])
         if sub == "ask":
-            return Say("この看板の寸法を測りますか(初回の点検では、測って台帳に残します)",
-                       [qr("測る", m="go"), qr("飛ばす", m="skip")])
+            return Say("この看板の寸法を測りますか(初回の点検では、測って台帳に残します。図面があれば図面で送れます)",
+                       [qr("測る", m="go"), qr("図面で送る", m="draw"), qr("飛ばす", m="skip")])
+        if sub == "drawing":
+            if st.m_photos == 0:
+                return Say(f"図面の写真か画像を送ってください(1〜{MAX_DRAWING_PHOTOS}枚)", [qr("数字で入れる", m="go")])
+            return Say(f"図面 {st.m_photos}枚\n続けて送るか、「次へ」を押してください", [qr("次へ", m="drawn")])
         if sub == "w":
             return Say("幅(mm)を送ってください(例: 3600。3.6m のように単位を付けても受けます)")
         if sub == "h":
             return Say("高さ(mm)を送ってください(例: 900)")
+        if sub == "d":
+            return Say("厚み(奥行き、mm)を送ってください(例: 300)。分からなければ「分からない」", [qr("分からない", m="dx")])
         if sub == "gl":
             return Say("GL(地面)から看板の下端までの高さ(mm)を送ってください(例: 2500)。分からなければ「分からない」",
                        [qr("分からない", m="glx")])
         if sub == "mount":
             return Say("取付方法を選んでください", [qr(label, mount=i) for i, label in enumerate(M.MOUNTS)])
-        if sub == "post":
-            return Say("支柱があれば送ってください(例: □50)。無ければ「無し」",
-                       [qr("無し", m="nopost")])
-        if st.m_photos == 0:
-            return Say("巻尺を当てた写真を撮ってください(1〜2枚)", [qr("写真は無い", m="nopic")])
-        return Say(f"巻尺の写真 {st.m_photos}枚\n続けて撮るか、「次へ」を押してください", [qr("次へ", m="nopic")])
+        if sub == "mount_text":
+            return Say(f"取付方法を文字で送ってください({M.MOUNT_TEXT_MAX}字まで)")
+        return Say("支柱があれば送ってください(例: □50)。無ければ「無し」", [qr("無し", m="nopost")])
 
     @staticmethod
     def _with(prefix: str, say: Say) -> Say:
@@ -255,6 +276,10 @@ class Guide:
             kind, say = self._measure_text(user_id, st, t)
             self.save(user_id, st)
             return kind, say
+        if st.step == "kind" and t in S.KIND_LABEL.values():
+            say = self._set_kind(user_id, st, next(k for k, v in S.KIND_LABEL.items() if v == t))
+            self.save(user_id, st)
+            return "kind", say
         self.save(user_id, st)
         return "memo", self._with("メモを受け取りました", self.prompt(st))
 
@@ -268,6 +293,14 @@ class Guide:
         else:  # 飛ばす
             if st.step in ("site", "sign", "overview"):
                 return self._with("ここは飛ばせません", self.prompt(st))
+            if st.step == "front":
+                self._front_done(st, skipped=True)
+                self.save(user_id, st)
+                return self.prompt(st)
+            if st.step == "kind":
+                say = self._set_kind(user_id, st, None)
+                self.save(user_id, st)
+                return say
             if st.step == "done":
                 return self.prompt(st)
             if st.step == "measure":
@@ -289,19 +322,27 @@ class Guide:
                 st.step = "photo"
         elif st.step == "measure":
             st.m_pending = None
-            i = MEASURE_SUBS.index(st.m_sub)
-            if i == 0:
-                st.step = "overview"
+            if st.m_sub == "drawing":
+                st.m_sub = "ask"
+            elif st.m_sub == "mount_text":
+                st.m_sub = "mount"
+            elif st.m_sub == "ask":
+                st.step = "kind"
             else:
-                st.m_sub = MEASURE_SUBS[i - 1]
+                st.m_sub = MEASURE_SUBS[MEASURE_SUBS.index(st.m_sub) - 1]
         elif st.step == "photo":
             if st.part == 0 and st.measure_shown:
-                st.step, st.m_sub, st.m_pending = "measure", ("photo" if st.m.get("w") else "ask"), None
+                st.step, st.m_pending = "measure", None
+                st.m_sub = "post" if st.m.get("w") else ("drawing" if st.m.get("drawing") else "ask")
             elif st.part == 0:
-                st.step = "overview"
+                st.step = "kind"
             else:
                 st.step, st.part = "ask", st.part - 1
                 st.item = len(PARTS[st.part][1]) - 1
+        elif st.step == "kind":
+            st.step, st.photos = "front", 0
+        elif st.step == "front":
+            st.step = "overview"
         elif st.step == "overview":
             st.step = "sign"
         elif st.step == "sign":
@@ -339,7 +380,7 @@ class Guide:
         """実測工程の次の問いへ。最後(写真)の次は部位へ。台帳には今ある分を書く。"""
         st.m_pending = None
         self.sink.measure(user_id, st)
-        i = MEASURE_SUBS.index(st.m_sub) + 1
+        i = MEASURE_SUBS.index("mount" if st.m_sub == "mount_text" else st.m_sub) + 1
         if i < len(MEASURE_SUBS):
             st.m_sub = MEASURE_SUBS[i]
         else:
@@ -350,11 +391,23 @@ class Guide:
 
     def _measure_skip(self, user_id: str, st: GuideState) -> str:
         """「飛ばす」。最初の問いと幅・高さ(まだ揃っていない時)は実測そのものを飛ばす。それ以外はその1問だけ。"""
+        if st.m_sub == "drawing":
+            return self._drawing_done(st)
         if st.m_sub == "ask" or (st.m_sub in ("w", "h") and not (st.m.get("w") and st.m.get("h"))):
             self._measure_abandon(st)
             return "寸法の実測は飛ばしました"
+        if st.m_sub == "d":
+            st.m.pop("d", None)
         self._measure_advance(user_id, st)
         return ""
+
+    def _drawing_done(self, st: GuideState) -> str:
+        """図面で送った(か、図面を送らずに飛ばした)。数字の問いは出さずに部位へ。"""
+        self._measure_abandon(st)
+        if st.m_photos:
+            st.m["drawing"] = st.m_photos
+            return f"図面 {st.m_photos}枚を受け取りました。寸法は図面から事務所で入れます"
+        return "寸法の実測は飛ばしました"
 
     def _measure_set(self, user_id: str, st: GuideState, mm: int) -> None:
         st.m[st.m_sub] = mm
@@ -365,12 +418,13 @@ class Guide:
         if st.m_pending and t in CONFIRM_WORDS:
             self._measure_set(user_id, st, st.m_pending["mm"])
             return "measure", self.prompt(st)
-        if sub in ("w", "h", "gl"):
-            if sub == "gl" and t == M.UNKNOWN:
-                st.m.pop("gl", None)
+        if sub in ("w", "h", "d", "gl"):
+            if sub in ("gl", "d") and t == M.UNKNOWN:
+                st.m.pop(sub, None)
                 self._measure_advance(user_id, st)
                 return "measure", self.prompt(st)
-            r = M.parse_length(t, lo=0, hi=M.GL_MAX_MM, allow_zero=True) if sub == "gl" else M.parse_length(t)
+            r = (M.parse_length(t, lo=0, hi=M.GL_MAX_MM, allow_zero=True) if sub == "gl"
+                 else M.parse_length(t, lo=M.DEPTH_MIN_MM, hi=M.DEPTH_MAX_MM) if sub == "d" else M.parse_length(t))
             if r.error:
                 return "measure", self._with(r.error, self.prompt(st))
             if r.confirm:
@@ -379,7 +433,11 @@ class Guide:
             self._measure_set(user_id, st, r.mm)
             return "measure", self.prompt(st)
         if sub == "mount" and t in M.MOUNTS:
-            st.m["mount"] = None if t == M.UNKNOWN else t
+            return "measure", self._set_mount(user_id, st, t)
+        if sub == "mount_text":
+            if not t or len(t) > M.MOUNT_TEXT_MAX:
+                return "measure", self._with(f"{M.MOUNT_TEXT_MAX}字以内で送ってください", self.prompt(st))
+            st.m["mount"] = t
             self._measure_advance(user_id, st)
             return "measure", self.prompt(st)
         if sub == "post":
@@ -404,11 +462,17 @@ class Guide:
             self.save(user_id, st)
             return self.prompt(st)
         if "mount" in q and sub == "mount" and q["mount"].isdigit() and int(q["mount"]) < len(M.MOUNTS):
-            label = M.MOUNTS[int(q["mount"])]
-            st.m["mount"] = None if label == M.UNKNOWN else label
-            self._measure_advance(user_id, st)
-        elif sub == "ask" and act == "go":
+            say = self._set_mount(user_id, st, M.MOUNTS[int(q["mount"])])
+            self.save(user_id, st)
+            return say
+        elif sub in ("ask", "drawing") and act == "go":
             st.m_sub = "w"
+        elif sub == "ask" and act == "draw":
+            st.m_sub, st.m_photos = "drawing", 0
+        elif sub == "drawing" and act == "drawn":
+            prefix = self._drawing_done(st)
+            self.save(user_id, st)
+            return self._with(prefix, self.prompt(st))
         elif sub == "ask" and act == "skip":
             self._measure_abandon(st)
             self.save(user_id, st)
@@ -416,12 +480,37 @@ class Guide:
         elif sub == "gl" and act == "glx":
             st.m.pop("gl", None)
             self._measure_advance(user_id, st)
+        elif sub == "d" and act == "dx":
+            st.m.pop("d", None)
+            self._measure_advance(user_id, st)
         elif sub == "post" and act == "nopost":
             st.m["post"] = M.NONE_POST
             self._measure_advance(user_id, st)
-        elif sub == "photo" and act == "nopic":
-            self._measure_advance(user_id, st)
         self.save(user_id, st)
+        return self.prompt(st)
+
+    def _set_mount(self, user_id: str, st: GuideState, label: str) -> Say:
+        if label == M.MOUNT_OTHER:
+            st.m_sub = "mount_text"
+            return self.prompt(st)
+        st.m["mount"] = None if label == M.UNKNOWN else label
+        self._measure_advance(user_id, st)
+        return self.prompt(st)
+
+    # ---- 正面と種類 ----
+    def _front_done(self, st: GuideState, skipped: bool = False) -> None:
+        st.front_skipped = skipped
+        st.step, st.photos = "kind", 0
+
+    def _set_kind(self, user_id: str, st: GuideState, kind: str | None) -> Say:
+        """種類を決めて(飛ばした時は None)、寸法の実測(初回)か部位の写真へ。"""
+        st.kind = kind
+        self.sink.sign_kind(user_id, st)
+        st.part, st.photos = 0, 0
+        if st.size_known:
+            st.step = "photo"
+        else:
+            st.step, st.m_sub, st.m_pending, st.measure_shown = "measure", "ask", None, True
         return self.prompt(st)
 
     def photo(self, user_id: str, bundle_id: int, page_no: int, path, now) -> Say:
@@ -431,20 +520,26 @@ class Guide:
             raise LookupError("ガイドが進行していない")
         if st.step == "overview":
             self.sink.photo(user_id, st, "overview", path, bundle_id, page_no)
-            st.part, st.photos = 0, 0
-            if st.size_known:
-                st.step = "photo"
-            else:
-                st.step, st.m_sub, st.m_pending, st.measure_shown = "measure", "ask", None, True
+            st.step, st.photos = "front", 0
             self.save(user_id, st)
             return self._with("全景を受け取りました", self.prompt(st))
-        if st.step == "measure" and st.m_sub == "photo" and not st.m_pending:
-            self.sink.photo(user_id, st, MEASURE_TAG, path, bundle_id, page_no)
-            st.m_photos += 1
-            if st.m_photos >= MAX_MEASURE_PHOTOS:
-                self._measure_advance(user_id, st)
+        if st.step == "front":
+            self.sink.photo(user_id, st, S.FRONT_TAG, path, bundle_id, page_no)
+            st.photos += 1
+            if st.photos >= S.MAX_FRONT_PHOTOS:
+                n = st.photos
+                self._front_done(st)
                 self.save(user_id, st)
-                return self._with(f"巻尺の写真 {MAX_MEASURE_PHOTOS}枚", self.prompt(st))
+                return self._with(f"正面 {n}枚", self.prompt(st))
+            self.save(user_id, st)
+            return self.prompt(st)
+        if st.step == "measure" and st.m_sub == "drawing" and not st.m_pending:
+            self.sink.photo(user_id, st, FIGURE_TAG, path, bundle_id, page_no)
+            st.m_photos += 1
+            if st.m_photos >= MAX_DRAWING_PHOTOS:
+                prefix = self._drawing_done(st)
+                self.save(user_id, st)
+                return self._with(prefix, self.prompt(st))
             self.save(user_id, st)
             return self.prompt(st)
         if st.step in ("photo", "ask"):
@@ -473,6 +568,18 @@ class Guide:
             st = GuideState(step="sign", site_id=site, signs_done=st.signs_done + 1, started=st.started)
             self.save(user_id, st)
             return self.prompt(st)
+        if "front" in q:
+            if st.step != "front" or (q["front"] == "skip") != (st.photos == 0):
+                return self.prompt(st)
+            self._front_done(st, skipped=q["front"] == "skip")
+            self.save(user_id, st)
+            return self.prompt(st)
+        if "kind" in q:
+            if st.step != "kind" or q["kind"] not in S.KIND_KEYS:
+                return self.prompt(st)
+            say = self._set_kind(user_id, st, q["kind"])
+            self.save(user_id, st)
+            return say
         if "m" in q or "mount" in q:
             return self._measure_postback(user_id, st, q)
         if "ans" in q:

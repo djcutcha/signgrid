@@ -6,8 +6,10 @@
   items        a→良好 / b→経過観察 / c→要改善。「分からない」「対象外」は入れない。
   evidence     項目ごとに現場の回答を残す: {"guide": a|b|c|unknown|na, "photos": [その部位の写真番号], "text": ...}。
                pipeline/draft.py の only_missing は、unknown と未回答の項目だけを写真から下書きする(na は触らない)。
-  寸法(実測) signs.size_w / size_h / gl_mm / gl_edge / mount / post と、出どころ size_source='measured'・size_by・size_at。
-               全高 height_m = GL + 高さ。巻尺の写真は pages.tag='実測'(看板の写真の末尾。下書きの入力には入れない)。
+  寸法(実測) signs.size_w / size_h / size_d(厚み)/ gl_mm / gl_edge / mount / post と、出どころ size_source='measured'・size_by・size_at。
+               全高 height_m = GL + 高さ。「図面で送る」の図面は pages.tag='図面'(看板の写真の末尾。下書きの入力には入れない)。
+  種類       signs.type(ポール / 自立 / 壁面 / 突出 / 屋上 / その他)。台帳に既にあれば上書きしない。
+  正面       表示面を正面から撮った写真は pages.tag='正面'。表示部の項目の根拠の写真に数える(全景は基礎部・上部構造に数える)。
                同じ現場・同じ名前の看板に寸法が既にあれば、実測の問いを出さずに引き継ぐ(known_size)。
   corrections  a/b/c の答えは by='line_guide' で1行(有資格者の訂正と区別できる)。
 """
@@ -16,12 +18,15 @@ from __future__ import annotations
 from datetime import datetime
 
 from ...ledger import Ledger, Sign
-from ...ledger.db import MEASURE_TAG
+from ...ledger.db import FIGURE_TAG, MEASURE_TAG
 from .guide import ANSWER_LABEL, ANSWER_RESULT, GuideState
 from .measure import GL_EDGE
+from .shoot import FRONT_TAG, KIND_TYPE
 from .session import safe_name
 
 BY = "line_guide"
+# 部位の根拠の写真に、その部位の tag の写真のほかに数える tag
+PART_EXTRA_TAGS = {"表示部": (FRONT_TAG,), "基礎部・上部構造": ("overview",)}
 
 
 def draft_by(user_id: str) -> str:
@@ -64,7 +69,7 @@ class LedgerSink:
         self.ledger.set_page_kind(bundle_id, page_no, "写真", "ガイド付き点検で撮影")
         s = self._sign(st)
         rel = self.ledger.rel_path(path)
-        if tag == MEASURE_TAG:
+        if tag in (MEASURE_TAG, FIGURE_TAG):
             s.photos.append(rel)
         else:  # 写真の番号(根拠の「写真3」)がずれないよう、実測・図面の写真は末尾にまとめる
             hidden = self.ledger.measure_paths() | self.ledger.figure_paths()
@@ -83,7 +88,8 @@ class LedgerSink:
         """看板の写真(1 始まり)のうち、その部位の tag の写真。"""
         tags = {self.ledger.rel_path(r["image_path"]): r["tag"] for r in self.ledger.conn.execute(
             "SELECT image_path, tag FROM pages WHERE image_path IS NOT NULL")}
-        return [i + 1 for i, p in enumerate(s.photos) if tags.get(p) == part]
+        want = {part, *PART_EXTRA_TAGS.get(part, ())}
+        return [i + 1 for i, p in enumerate(s.photos) if tags.get(p) in want]
 
     def answer(self, user_id: str, st: GuideState, key: str, ans: str) -> None:
         s = self._sign(st)
@@ -112,7 +118,7 @@ class LedgerSink:
         if not prev:
             return None
         p = max(prev, key=lambda x: x.size_at or "")
-        for col in ("size_w", "size_h", "size_source", "size_by", "size_at", "gl_mm", "gl_edge", "mount", "post", "height_m"):
+        for col in ("size_w", "size_h", "size_d", "size_source", "size_by", "size_at", "gl_mm", "gl_edge", "mount", "post", "height_m"):
             setattr(s, col, getattr(p, col))
         self.ledger.upsert_sign(s)
         return {"source": p.size_source, "at": p.size_at, "by": p.size_by}
@@ -129,5 +135,15 @@ class LedgerSink:
                 s.height_m = round((s.gl_mm + s.size_h) / 1000, 2)
             else:
                 s.gl_mm = s.gl_edge = None
+            s.size_d = int(m["d"]) if m.get("d") else None
             s.mount, s.post = m.get("mount"), m.get("post")
         self.ledger.upsert_sign(s)
+
+    def sign_kind(self, user_id: str, st: GuideState) -> None:
+        """看板の種類を signs.type に入れる(台帳に既にあれば上書きしない。飛ばした時は何もしない)。"""
+        if not st.kind:
+            return
+        s = self._sign(st)
+        if not s.type:
+            s.type = KIND_TYPE[st.kind]
+            self.ledger.upsert_sign(s)
