@@ -59,7 +59,7 @@ def plot(rows: list[tuple[str, dict]], xs: list[int], out: str | Path) -> None:
         if any(f.name == name for f in font_manager.fontManager.ttflist):
             plt.rcParams["font.family"] = name
             break
-    fig, ax = plt.subplots(figsize=(7.2, 4.2), dpi=150)
+    fig, ax = plt.subplots(figsize=(8.4, 4.2), dpi=150)
     series = (("見逃し率(低いほど良い)", "miss_rate", "#c0392b"), ("完全一致", "exact_rate", "#2c6fbb"),
               ("±1", "within1_rate", "#7f8c8d"), ("誤警報率", "false_alarm_rate", "#e67e22"))
     for name, key, color in series:
@@ -78,7 +78,7 @@ def plot(rows: list[tuple[str, dict]], xs: list[int], out: str | Path) -> None:
     ax.grid(alpha=.3)
     n = rows[0][1]["n"] if rows else 0
     ax.set_title(f"物差し {n} 基(手本に使わない側)での前後")
-    ax.legend(loc="center right", fontsize=9, frameon=False)
+    ax.legend(loc="center left", bbox_to_anchor=(1.01, 0.5), fontsize=9, frameon=False)
     fig.tight_layout()
     Path(out).parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out)
