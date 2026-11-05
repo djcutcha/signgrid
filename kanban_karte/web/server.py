@@ -16,6 +16,7 @@ import os
 import re
 import sys
 import tempfile
+from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -77,13 +78,16 @@ class App:
         return p
 
 
+JST = timezone(timedelta(hours=9))
+
+
 def make_handler(app: App):
     class Handler(BaseHTTPRequestHandler):
         server_version = "kanban-karte"
 
         def log_message(self, fmt, *args):
             if app.verbose:
-                sys.stderr.write("%s %s\n" % (self.command, self.path))
+                sys.stderr.write("%s %s %s\n" % (datetime.now(JST).strftime("%Y-%m-%d %H:%M:%S"), self.command, self.path))
 
         # ---- 応答 ----
         def _send(self, status: int, body: bytes, ctype: str, headers: dict | None = None) -> None:

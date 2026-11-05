@@ -8,15 +8,18 @@
   sign      看板の名前か番号(テキスト1通)
   overview  全景を1枚(必須)
   front     表示面を正面から(面が複数あれば各面、4枚まで。撮れなければ「正面から撮れない」)
+  lighting  照明(内照式 / 外照式 / 無し / 分からない)。実測の工程では取付方法の次。実測を通らない時はこの1問だけ。「無し」なら照明装置の部位は対象外にして問わない
   kind      看板の種類(ポール / 自立・野立て / 壁面 / 突出(袖)/ 屋上 / その他)。部位の問いに撮る場所を添える(shoot.py)
   measure   寸法の実測(台帳にその看板の寸法が無い時だけ。初回。最初の問いで「飛ばす」で通せる)
             [測る / 図面で送る / 飛ばす]。測る= 幅 → 高さ → 厚み(任意)→ GL(看板の下端まで)→ 取付方法 → 支柱
             図面で送る= 図面の写真・画像を 1〜3枚(数字の問いは出さない。寸法は図面から事務所で入れる)
   photo     部位の写真 1〜3枚(0枚なら「この部位は無い」)。3枚で自動的に次へ
-  ask       その部位の項目を1項目ずつ a 良好 / b 経過観察 / c 要改善 / 分からない / 対象外
+  ask       その部位の項目を1項目ずつ a 良好 / b 経過観察 / c 要改善 / AI 判定 / 対象外
   done      この看板は終わり → 次の看板 / 終了
 部位の順と項目の原文は ledger/items.py のまま(6部位 × 3項目前後、計18項目)。
 途中の自由な文は「戻る」「飛ばす」「やめる」だけ命令。ほかはメモ(messages.jsonl)に残す。
+どの問いにもクイックリプライの最後に「戻る」を付ける(現場の選択だけは戻る先が無い)。写真の工程で戻ると直前の写真の tag を外す(ファイルは消さない)。
+終了(end=1)は「まとめ」を返す(summary_text)。長ければ 5000 字ごとに切って 1 回の返信に複数通で返す。
 
 台帳への書き込みは sink(guide_ledger.LedgerSink)の仕事で、ここは進行と文面だけを持つ。
 """
@@ -33,20 +36,24 @@ from ...ledger.items import _ITEMS
 from . import measure as M
 from . import shoot as S
 from .session import safe_name
+from .shoot import FRONT_TAG
 
 START_TEXT = "点検開始"
 CMD_BACK, CMD_SKIP, CMD_QUIT = "戻る", "飛ばす", "やめる"
 COMMANDS = (CMD_BACK, CMD_SKIP, CMD_QUIT)
 MAX_PART_PHOTOS = 3
 MAX_DRAWING_PHOTOS = 3
-MEASURE_SUBS = ("ask", "w", "h", "d", "gl", "mount", "post")  # 実測工程の中の順(mount_text は mount の続き、drawing は ask の分かれ)
+MEASURE_SUBS = ("ask", "w", "h", "d", "gl", "mount", "light", "post")  # 実測工程の中の順(mount_text は mount の続き、drawing は ask の分かれ)
 CONFIRM_WORDS = ("はい", "ok", "OK", "合ってます", "合っています")
 SEEN_MAX = 20
+TEXT_MAX = 5000         # LINE のテキスト 1 通の上限(字)
+REPLY_MAX_MESSAGES = 5  # 1 回の返信に載せられる通数
 
 # 回答の記号 → 台帳の区分。unknown / na は items に入れない(出どころは evidence に残る)
 ANSWER_RESULT = {"a": "良好", "b": "経過観察", "c": "要改善"}
-ANSWER_LABEL = {"a": "a 良好", "b": "b 経過観察", "c": "c 要改善", "unknown": "分からない", "na": "対象外"}
+ANSWER_LABEL = {"a": "a 良好", "b": "b 経過観察", "c": "c 要改善", "unknown": "AI 判定", "na": "対象外"}
 ANSWERS = tuple(ANSWER_LABEL)
+LIGHT_PART = S.LIGHTING_PART
 
 
 def _parts() -> list[tuple[str, list[tuple[str, str]]]]:
@@ -66,6 +73,7 @@ class Say:
     """LINE に返す1通。quick は quickReply.items。"""
     text: str
     quick: list[dict] | None = None
+    more: list[str] | None = None  # 2 通目以降(長いまとめ。同じ返信に続けて載せる)
 
 
 @dataclass
@@ -88,6 +96,9 @@ class GuideState:
     m: dict = field(default_factory=dict)
     m_photos: int = 0
     m_pending: dict | None = None      # 単位が曖昧な数字の確認待ち {"f": "w", "mm": 3600}
+    m_page: int = 0                    # 取付方法のページ(0 / 1)
+    lighting: str | None = None        # 照明(measure.LIGHTING_KEYS)。None=まだ聞いていない
+    sign_ids: list[str] = field(default_factory=list)  # この進行で扱った看板(まとめ・確定の対象)
     measure_shown: bool = False        # この看板で実測工程を出したか(戻るの行き先)
     size_known: dict | None = None     # 台帳に寸法がある看板: {"source", "at", "by"}。実測工程は出さず、最後に1行知らせる
 
@@ -100,6 +111,36 @@ class Sink(Protocol):
     def known_size(self, user_id: str, st: GuideState) -> dict | None: ...
     def measure(self, user_id: str, st: GuideState) -> None: ...
     def sign_kind(self, user_id: str, st: GuideState) -> None: ...
+    def lighting(self, user_id: str, st: GuideState) -> None: ...
+    def unphoto(self, user_id: str, st: GuideState, tag: str) -> bool: ...
+    def photo_count(self, user_id: str, st: GuideState, tag: str) -> int: ...
+    def finish(self, user_id: str, st: GuideState) -> "Summary | None": ...
+
+
+@dataclass
+class SignRow:
+    """まとめの 1 看板分(site_total の行にも使う)。"""
+    name: str
+    type: str | None = None
+    size_w: int | None = None
+    size_h: int | None = None
+    size_d: int | None = None
+    gl_mm: int | None = None
+    photos: int = 0
+    bad: int = 0       # 要改善
+    watch: int = 0     # 経過観察
+    good: int = 0      # 良好
+    unknown: int = 0   # AI 判定(現場が答えず、写真から下書きする項目)
+
+
+@dataclass
+class Summary:
+    site_name: str | None
+    rows: list[SignRow]
+    site_total: SignRow | None = None   # その現場の今日の看板すべての合計
+    site_signs: int = 0
+    ai_items: int = 0                   # この進行の看板の AI 判定の項目の数
+    auto_draft: bool = False            # 写真からの下書きを自動で走らせたか(LINE_GUIDE_AUTO_DRAFT=1 かつ鍵あり)
 
 
 class NullSink:
@@ -109,11 +150,78 @@ class NullSink:
     def known_size(self, user_id, st): return None
     def measure(self, user_id, st): pass
     def sign_kind(self, user_id, st): pass
+    def lighting(self, user_id, st): pass
+    def unphoto(self, user_id, st, tag): return False
+    def photo_count(self, user_id, st, tag): return 0
+    def finish(self, user_id, st): return None
 
 
 def qr(label: str, **data) -> dict:
     return {"type": "action", "action": {"type": "postback", "label": label, "displayText": label,
                                          "data": urlencode({"act": "guide", **data})}}
+
+
+def _pos(st: GuideState) -> str:
+    """今の問いの位置。「戻る」のボタンに持たせ、古いボタンで余計に戻らないようにする。"""
+    return f"{st.step}.{st.m_sub if st.step == 'measure' else ''}.{st.part}.{st.item}"
+
+
+def _with_back(st: GuideState, say: Say) -> Say:
+    """どの問いにも最後に「戻る」を付ける(現場の選択は戻る先が無いので付けない)。"""
+    if st.step == "site":
+        return say
+    return Say(say.text, (say.quick or []) + [qr(CMD_BACK, back=1, at=_pos(st))], say.more)
+
+
+def split_text(text: str, limit: int = TEXT_MAX) -> list[str]:
+    """LINE のテキスト 1 通の上限(5000 字)で切る。改行の所で切り、1 行が上限を超える時だけ字数で切る。"""
+    out: list[str] = []
+    cur = ""
+    for line in text.split("\n"):
+        while len(line) > limit:
+            if cur:
+                out.append(cur)
+                cur = ""
+            out.append(line[:limit])
+            line = line[limit:]
+        if cur and len(cur) + 1 + len(line) > limit:
+            out.append(cur)
+            cur = line
+        else:
+            cur = f"{cur}\n{line}" if cur else line
+    out.append(cur)
+    return out
+
+
+def _dims(r: SignRow) -> str:
+    if not (r.size_w and r.size_h):
+        return "寸法 未入力"
+    d = f"W{r.size_w}×H{r.size_h}" + (f"×D{r.size_d}" if r.size_d else "") + " mm"
+    return d + (f"、GL {r.gl_mm} mm" if r.gl_mm is not None else "")
+
+
+def _counts(r: SignRow) -> str:
+    return f"要改善 {r.bad} / 経過観察 {r.watch} / 良好 {r.good} / AI 判定 {r.unknown}"
+
+
+def summary_text(sm: Summary) -> Say:
+    """終了のまとめ。URL は入れない(スマホから台帳に届かない)。長ければ 5000 字で切った続きを more に持つ。"""
+    lines = [f"点検のまとめ{f'({sm.site_name})' if sm.site_name else ''}"]
+    for r in sm.rows:
+        lines += ["", f"■ {r.name}", f"{r.type or '種類 未選択'} / {_dims(r)} / 写真 {r.photos} 枚", _counts(r)]
+    lines.append("")
+    if sm.ai_items:
+        lines.append(f"AI 判定 {sm.ai_items} 項目は写真から下書き中(数分)。結果は PC の台帳で" if sm.auto_draft
+                     else "AI 判定の項目は PC で下書きします")
+    lines += ["下書きとして台帳に保存しました。確認と確定は PC の台帳で行います",
+              "カルテと様式は PC の台帳で確認・訂正できます", "次の看板はメニューの「ガイド付き点検」から"]
+    if sm.site_total is not None:
+        lines.append(f"この現場の今日の合計: 看板 {sm.site_signs} 基 / {_counts(sm.site_total)}")
+    lines.append("お疲れさまでした")
+    parts = split_text("\n".join(lines))
+    if len(parts) > REPLY_MAX_MESSAGES:  # 1 回の返信は 5 通まで。超えた分は台帳で
+        parts = parts[:REPLY_MAX_MESSAGES - 1] + ["(続きは PC の台帳で確認できます)\nお疲れさまでした"]
+    return Say(parts[0], None, parts[1:] or None)
 
 
 def site_choices(jobs, other: dict) -> list[dict]:
@@ -155,7 +263,10 @@ class Guide:
 
     # ---- 文面 ----
     def prompt(self, st: GuideState) -> Say:
-        """今のステップの問い(やり直し・戻る・メモの後の再掲に使う)。"""
+        """今のステップの問い(やり直し・戻る・メモの後の再掲に使う)。どの問いにも「戻る」が付く。"""
+        return _with_back(st, self._prompt(st))
+
+    def _prompt(self, st: GuideState) -> Say:
         if st.step == "site":
             return Say("今日の現場はどれですか", self.site_choices())
         if st.step == "sign":
@@ -171,10 +282,12 @@ class Guide:
             return Say("看板の種類を選んでください", [qr(label, kind=k) for k, label, _ in S.KINDS])
         if st.step == "measure":
             return self._measure_prompt(st)
+        if st.step == "lighting":
+            return self._lighting_prompt()
         if st.step == "photo":
             part = PARTS[st.part][0]
             if st.photos == 0:
-                hint = S.shoot_hint(part, st.kind, front_taken=not st.front_skipped)
+                hint = S.shoot_hint(part, st.kind, front_taken=not st.front_skipped, lighting=st.lighting)
                 return Say(f"{part}を撮ってください(近くで1〜3枚)" + (f"\n{hint}" if hint else ""),
                            [qr("この部位は無い", nopart=1, p=st.part)])
             return Say(f"{part} {st.photos}枚\n続けて撮るか、「次へ」を押してください", [qr("次へ", next=1, p=st.part)])
@@ -218,11 +331,21 @@ class Guide:
         if sub == "gl":
             return Say("GL(地面)から看板の下端までの高さ(mm)を送ってください(例: 2500)。分からなければ「分からない」",
                        [qr("分からない", m="glx")])
+        if sub == "light":
+            return self._lighting_prompt()
         if sub == "mount":
-            return Say("取付方法を選んでください", [qr(label, mount=i) for i, label in enumerate(M.MOUNTS)])
+            # 13 択+「戻る」は上限(13)を超えるので 2 ページ。ボタンの番号は MOUNTS 全体での番号のまま
+            lo, hi = (0, M.MOUNT_PAGE) if st.m_page == 0 else (M.MOUNT_PAGE, len(M.MOUNTS))
+            quick = [qr(M.MOUNTS[i], mount=i) for i in range(lo, hi)]
+            quick.append(qr("次のページ(その他・分からない)", m="mpage") if st.m_page == 0 else qr("前のページ", m="mprev"))
+            return Say("取付方法を選んでください" + ("(続き)" if st.m_page else ""), quick)
         if sub == "mount_text":
             return Say(f"取付方法を文字で送ってください({M.MOUNT_TEXT_MAX}字まで)")
         return Say("支柱があれば送ってください(例: □50)。無ければ「無し」", [qr("無し", m="nopost")])
+
+    @staticmethod
+    def _lighting_prompt() -> Say:
+        return Say("照明はありますか", [qr(label, light=k) for k, label, _ in M.LIGHTINGS])
 
     @staticmethod
     def _with(prefix: str, say: Say) -> Say:
@@ -269,6 +392,8 @@ class Guide:
             st.name = t
             st.step = "overview"
             self.sink.sign_named(user_id, st)
+            if st.sign_id and st.sign_id not in st.sign_ids:
+                st.sign_ids.append(st.sign_id)
             st.size_known = self.sink.known_size(user_id, st)
             self.save(user_id, st)
             return "name", self.prompt(st)
@@ -276,6 +401,10 @@ class Guide:
             kind, say = self._measure_text(user_id, st, t)
             self.save(user_id, st)
             return kind, say
+        if st.step == "lighting" and t in M.LIGHTING_LABEL.values():
+            say = self._set_lighting(user_id, st, next(k for k, v in M.LIGHTING_LABEL.items() if v == t))
+            self.save(user_id, st)
+            return "lighting", say
         if st.step == "kind" and t in S.KIND_LABEL.values():
             say = self._set_kind(user_id, st, next(k for k, v in S.KIND_LABEL.items() if v == t))
             self.save(user_id, st)
@@ -288,11 +417,15 @@ class Guide:
             self.clear(user_id)
             return Say("ガイドをやめました。ここまでの分は台帳に残っています")
         if cmd == CMD_BACK:
-            if not self._back(st):
+            if not self._back(user_id, st):
                 return self._with("これより前はありません", self.prompt(st))
         else:  # 飛ばす
             if st.step in ("site", "sign", "overview"):
                 return self._with("ここは飛ばせません", self.prompt(st))
+            if st.step == "lighting":  # 飛ばした照明は「分からない」と同じ
+                say = self._set_lighting(user_id, st, "unknown")
+                self.save(user_id, st)
+                return say
             if st.step == "front":
                 self._front_done(st, skipped=True)
                 self.save(user_id, st)
@@ -311,7 +444,18 @@ class Guide:
         self.save(user_id, st)
         return self.prompt(st)
 
-    def _back(self, st: GuideState) -> bool:
+    def _prev_part(self, st: GuideState) -> None:
+        """前の部位の最後の項目へ。照明が「無し」の看板は、対象外にした照明装置を飛び越える。"""
+        st.step, st.part = "ask", st.part - 1
+        if PARTS[st.part][0] == LIGHT_PART and st.lighting == "none" and st.part > 0:
+            st.part -= 1
+        st.item = len(PARTS[st.part][1]) - 1
+
+    def _untag(self, user_id: str, st: GuideState, tag: str) -> None:
+        """戻って撮り直せるよう、直前の写真の tag を外す(ファイルは消さない)。"""
+        self.sink.unphoto(user_id, st, tag)
+
+    def _back(self, user_id: str, st: GuideState) -> bool:
         if st.step == "done":
             st.step, st.part = "ask", len(PARTS) - 1
             st.item = len(PARTS[st.part][1]) - 1
@@ -320,29 +464,51 @@ class Guide:
                 st.item -= 1
             else:
                 st.step = "photo"
+                st.photos = self.sink.photo_count(user_id, st, PARTS[st.part][0]) or st.photos
         elif st.step == "measure":
-            st.m_pending = None
-            if st.m_sub == "drawing":
+            if st.m_pending:
+                st.m_pending = None
+            elif st.m_sub == "drawing" and st.m_photos > 0:
+                self._untag(user_id, st, FIGURE_TAG)
+                st.m_photos -= 1
+            elif st.m_sub == "drawing":
                 st.m_sub = "ask"
             elif st.m_sub == "mount_text":
                 st.m_sub = "mount"
+            elif st.m_sub == "mount" and st.m_page:
+                st.m_page = 0
             elif st.m_sub == "ask":
                 st.step = "kind"
             else:
                 st.m_sub = MEASURE_SUBS[MEASURE_SUBS.index(st.m_sub) - 1]
-        elif st.step == "photo":
-            if st.part == 0 and st.measure_shown:
+                st.m_page = 0
+        elif st.step == "lighting":
+            if st.measure_shown:
                 st.step, st.m_pending = "measure", None
-                st.m_sub = "post" if st.m.get("w") else ("drawing" if st.m.get("drawing") else "ask")
-            elif st.part == 0:
-                st.step = "kind"
+                st.m_sub = "drawing" if st.m.get("drawing") else "ask"
             else:
-                st.step, st.part = "ask", st.part - 1
-                st.item = len(PARTS[st.part][1]) - 1
+                st.step = "kind"
+        elif st.step == "photo":
+            if st.photos > 0:
+                self._untag(user_id, st, PARTS[st.part][0])
+                st.photos -= 1
+            elif st.part == 0 and st.m.get("w"):
+                st.step, st.m_pending, st.m_sub = "measure", None, "post"
+            elif st.part == 0:
+                st.step = "lighting"
+            else:
+                self._prev_part(st)
         elif st.step == "kind":
-            st.step, st.photos = "front", 0
+            st.step = "front"
+            st.photos = self.sink.photo_count(user_id, st, FRONT_TAG) or 0
+            st.front_skipped = False
         elif st.step == "front":
-            st.step = "overview"
+            if st.photos > 0:
+                self._untag(user_id, st, FRONT_TAG)
+                st.photos -= 1
+            else:
+                self._untag(user_id, st, "overview")
+                st.step = "overview"
         elif st.step == "overview":
             st.step = "sign"
         elif st.step == "sign":
@@ -354,7 +520,7 @@ class Guide:
     def _skip(self, user_id: str, st: GuideState) -> None:
         if st.step == "photo":  # 写真なしで項目へ進む
             st.step, st.item = "ask", 0
-        else:  # ask: 飛ばした項目は「分からない」と同じ(あとで写真から下書き)
+        else:  # ask: 飛ばした項目は「AI 判定」と同じ(あとで写真から下書き)
             self._answer(user_id, st, "unknown")
 
     def _answer(self, user_id: str, st: GuideState, ans: str) -> None:
@@ -365,12 +531,17 @@ class Guide:
         if st.item + 1 < len(items):
             st.item += 1
         else:
-            self._next_part(st)
+            self._next_part(user_id, st)
 
-    def _next_part(self, st: GuideState) -> None:
+    def _next_part(self, user_id: str, st: GuideState) -> None:
         st.part += 1
         st.item = 0
         st.photos = 0
+        while st.part < len(PARTS) and PARTS[st.part][0] == LIGHT_PART and st.lighting == "none":
+            for key, _ in PARTS[st.part][1]:  # 照明が無い看板: 照明装置は対象外にして問わない
+                st.answers[key] = "na"
+                self.sink.answer(user_id, st, key, "na")
+            st.part += 1
         st.step = "photo" if st.part < len(PARTS) else "done"
         if st.step == "done":
             st.part = len(PARTS) - 1
@@ -382,12 +553,13 @@ class Guide:
         self.sink.measure(user_id, st)
         i = MEASURE_SUBS.index("mount" if st.m_sub == "mount_text" else st.m_sub) + 1
         if i < len(MEASURE_SUBS):
-            st.m_sub = MEASURE_SUBS[i]
+            st.m_sub, st.m_page = MEASURE_SUBS[i], 0
         else:
             st.step, st.part, st.photos = "photo", 0, 0
 
     def _measure_abandon(self, st: GuideState) -> None:
-        st.step, st.part, st.photos, st.m_pending = "photo", 0, 0, None
+        """実測を通らずに先へ。照明の 1 問だけ聞いて部位の写真へ。"""
+        st.step, st.part, st.photos, st.m_pending = "lighting", 0, 0, None
 
     def _measure_skip(self, user_id: str, st: GuideState) -> str:
         """「飛ばす」。最初の問いと幅・高さ(まだ揃っていない時)は実測そのものを飛ばす。それ以外はその1問だけ。"""
@@ -398,6 +570,9 @@ class Guide:
             return "寸法の実測は飛ばしました"
         if st.m_sub == "d":
             st.m.pop("d", None)
+        if st.m_sub == "light":  # 飛ばした照明は「分からない」と同じ
+            self._set_lighting(user_id, st, "unknown")
+            return ""
         self._measure_advance(user_id, st)
         return ""
 
@@ -432,6 +607,8 @@ class Guide:
                 return "measure", self.prompt(st)
             self._measure_set(user_id, st, r.mm)
             return "measure", self.prompt(st)
+        if sub == "light" and t in M.LIGHTING_LABEL.values():
+            return "measure", self._set_lighting(user_id, st, next(k for k, v in M.LIGHTING_LABEL.items() if v == t))
         if sub == "mount" and t in M.MOUNTS:
             return "measure", self._set_mount(user_id, st, t)
         if sub == "mount_text":
@@ -459,6 +636,10 @@ class Guide:
                 self._measure_set(user_id, st, st.m_pending["mm"])
             elif act == "redo":
                 st.m_pending = None
+            self.save(user_id, st)
+            return self.prompt(st)
+        if sub == "mount" and act in ("mpage", "mprev"):
+            st.m_page = 1 if act == "mpage" else 0
             self.save(user_id, st)
             return self.prompt(st)
         if "mount" in q and sub == "mount" and q["mount"].isdigit() and int(q["mount"]) < len(M.MOUNTS):
@@ -489,6 +670,16 @@ class Guide:
         self.save(user_id, st)
         return self.prompt(st)
 
+    def _set_lighting(self, user_id: str, st: GuideState, key: str) -> Say:
+        """照明を決めて、実測の中なら次の問い(支柱)へ、実測を通らない時は部位の写真へ。"""
+        st.lighting = key
+        self.sink.lighting(user_id, st)
+        if st.step == "measure":
+            self._measure_advance(user_id, st)
+        else:
+            st.step, st.part, st.photos = "photo", 0, 0
+        return self.prompt(st)
+
     def _set_mount(self, user_id: str, st: GuideState, label: str) -> Say:
         if label == M.MOUNT_OTHER:
             st.m_sub = "mount_text"
@@ -508,7 +699,7 @@ class Guide:
         self.sink.sign_kind(user_id, st)
         st.part, st.photos = 0, 0
         if st.size_known:
-            st.step = "photo"
+            st.step = "lighting"
         else:
             st.step, st.m_sub, st.m_pending, st.measure_shown = "measure", "ask", None, True
         return self.prompt(st)
@@ -559,13 +750,26 @@ class Guide:
         if st is None:
             return Say("ガイドは始まっていません。メニューの「ガイド付き点検」から始めてください")
         if "end" in q:
+            sm = self.sink.finish(user_id, st)
             self.clear(user_id)
-            return Say("終了しました")
+            return summary_text(sm) if sm is not None else Say("終了しました")
+        if "back" in q:
+            if q.get("at") != _pos(st):  # 古いボタン。余計に戻らず今の問いを出し直す
+                return self.prompt(st)
+            return self._command(user_id, st, CMD_BACK)
+        if "light" in q:
+            if (st.step == "measure" and st.m_sub != "light") or st.step not in ("lighting", "measure") \
+                    or st.m_pending or q["light"] not in M.LIGHTING_KEYS:
+                return self.prompt(st)
+            say = self._set_lighting(user_id, st, q["light"])
+            self.save(user_id, st)
+            return say
         if "more" in q:
             if st.step != "done":
                 return self.prompt(st)
             site = st.site_id
-            st = GuideState(step="sign", site_id=site, signs_done=st.signs_done + 1, started=st.started)
+            st = GuideState(step="sign", site_id=site, signs_done=st.signs_done + 1, started=st.started,
+                            sign_ids=st.sign_ids)
             self.save(user_id, st)
             return self.prompt(st)
         if "front" in q:
@@ -598,7 +802,7 @@ class Guide:
                 for key, _ in PARTS[st.part][1]:
                     st.answers[key] = "na"
                     self.sink.answer(user_id, st, key, "na")
-                self._next_part(st)
+                self._next_part(user_id, st)
             elif st.photos:
                 st.step, st.item = "ask", 0
             else:

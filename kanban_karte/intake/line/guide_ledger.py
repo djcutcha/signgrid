@@ -12,15 +12,22 @@
   正面       表示面を正面から撮った写真は pages.tag='正面'。表示部の項目の根拠の写真に数える(全景は基礎部・上部構造に数える)。
                同じ現場・同じ名前の看板に寸法が既にあれば、実測の問いを出さずに引き継ぐ(known_size)。
   corrections  a/b/c の答えは by='line_guide' で1行(有資格者の訂正と区別できる)。
+  照明       signs.lighting(内照式 / 外照式 / 無し。分からないは NULL)。「無し」の看板は照明装置の項目を guide=na で入れる(items には入れない)。
+  戻る       写真の工程で戻ると、直前の写真の pages.tag を外す(unphoto。ファイルと signs.photos はそのまま)。
+  終了       finish: まとめの材料を台帳から集める。現場の作業はすべて下書きのまま(確定は PC の台帳)。
+               「AI 判定」(unknown)の項目がある看板の束は、auto_draft が True なら draft_bundles に積む
+               (LineApp が応答のあと別スレッドで web.api.draft_bundle を呼ぶ。only_missing は draft_bundle が決める)。
 """
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Callable
 
 from ...ledger import Ledger, Sign
 from ...ledger.db import FIGURE_TAG, MEASURE_TAG
-from .guide import ANSWER_LABEL, ANSWER_RESULT, GuideState
-from .measure import GL_EDGE
+from ...ledger.items import ITEM_KEYS
+from .guide import ANSWER_LABEL, ANSWER_RESULT, GuideState, SignRow, Summary
+from .measure import GL_EDGE, LIGHTING_VALUE
 from .shoot import FRONT_TAG, KIND_TYPE
 from .session import safe_name
 
@@ -36,9 +43,11 @@ def draft_by(user_id: str) -> str:
 class LedgerSink:
     """ledger は LineApp が配信ごとに差し替える。"""
 
-    def __init__(self, ledger: Ledger | None = None, now=None):
+    def __init__(self, ledger: Ledger | None = None, now=None, auto_draft: Callable[[], bool] | None = None):
         self.ledger = ledger
         self.now = now or datetime.now
+        self.auto_draft = auto_draft or (lambda: False)  # 終了時に AI 判定の項目を写真から自動で下書きするか(LINE_GUIDE_AUTO_DRAFT=1 かつ鍵あり)
+        self.draft_bundles: list[int] = []  # 終了で積んだ、自動で下書きする束(LineApp が取り出して走らせる)
 
     def _sign(self, st: GuideState) -> Sign:
         s = self.ledger.get_sign(st.sign_id) if st.sign_id else None
@@ -138,6 +147,66 @@ class LedgerSink:
             s.size_d = int(m["d"]) if m.get("d") else None
             s.mount, s.post = m.get("mount"), m.get("post")
         self.ledger.upsert_sign(s)
+
+    def lighting(self, user_id: str, st: GuideState) -> None:
+        s = self._sign(st)
+        s.lighting = LIGHTING_VALUE.get(st.lighting)
+        self.ledger.upsert_sign(s)
+
+    def _tagged(self, s: Sign, tag: str) -> list[tuple[str, int, int]]:
+        """看板の写真(並び順)のうち tag の頁: [(相対パス, bundle_id, page_no)]。"""
+        rows = {self.ledger.rel_path(r["image_path"]): (r["bundle_id"], r["page_no"]) for r in self.ledger.conn.execute(
+            "SELECT bundle_id, page_no, image_path FROM pages WHERE tag=? AND image_path IS NOT NULL", (tag,))}
+        return [(p, *rows[p]) for p in s.photos if p in rows]
+
+    def unphoto(self, user_id: str, st: GuideState, tag: str) -> bool:
+        """直前に撮った tag の写真の tag を外す(戻る)。ファイルと signs.photos はそのまま。"""
+        found = self._tagged(self._sign(st), tag)
+        if not found:
+            return False
+        _, bundle_id, page_no = found[-1]
+        self.ledger.set_page_tag(bundle_id, page_no, None)
+        return True
+
+    def photo_count(self, user_id: str, st: GuideState, tag: str) -> int:
+        return len(self._tagged(self._sign(st), tag))
+
+    # ---- 終了 ----
+    @staticmethod
+    def _row(s: Sign, photos: int) -> SignRow:
+        vals = list(s.items.values())
+        unknown = sum(1 for k in ITEM_KEYS if (s.evidence.get(k) or {}).get("guide") == "unknown")
+        return SignRow(name=s.name or s.id, type=s.type, size_w=s.size_w, size_h=s.size_h, size_d=s.size_d,
+                       gl_mm=s.gl_mm, photos=photos, bad=vals.count("要改善"), watch=vals.count("経過観察"),
+                       good=vals.count("良好"), unknown=unknown)
+
+    def _visible_photos(self, s: Sign) -> int:
+        hidden = self.ledger.measure_paths() | self.ledger.figure_paths()  # 実測・図面は看板の写真に数えない
+        return sum(1 for p in s.photos if p not in hidden)
+
+    def finish(self, user_id: str, st: GuideState) -> Summary:
+        """終了のまとめの材料。AI 判定の項目があり、自動の下書きが有効なら、その看板の束を draft_bundles に積む。"""
+        signs = [s for s in (self.ledger.get_sign(i) for i in dict.fromkeys(st.sign_ids)) if s is not None]
+        ai_items = sum(self._row(s, 0).unknown for s in signs)
+        auto = bool(ai_items) and self.auto_draft()
+        if auto:
+            for b in dict.fromkeys(s.source_bundle for s in signs if self._row(s, 0).unknown and s.source_bundle is not None):
+                if b not in self.draft_bundles:
+                    self.draft_bundles.append(b)
+        site = self.ledger.get_site(st.site_id) if st.site_id else None
+        rows = [self._row(self.ledger.get_sign(s.id), self._visible_photos(s)) for s in signs]
+        total, n = None, 0
+        if st.site_id:
+            today = f"{self.now():%Y-%m-%d}"
+            ids = [r["id"] for r in self.ledger.conn.execute(
+                "SELECT id FROM signs WHERE site_id=? AND substr(created,1,10)=?", (st.site_id, today))]
+            day = [self.ledger.get_sign(i) for i in dict.fromkeys([*ids, *(x.id for x in signs)])]
+            n = len(day)
+            tr = [self._row(s, 0) for s in day]
+            total = SignRow(name="合計", bad=sum(r.bad for r in tr), watch=sum(r.watch for r in tr),
+                            good=sum(r.good for r in tr), unknown=sum(r.unknown for r in tr))
+        return Summary(site_name=site.name if site else None, rows=rows, site_total=total, site_signs=n,
+                       ai_items=ai_items, auto_draft=auto)
 
     def sign_kind(self, user_id: str, st: GuideState) -> None:
         """看板の種類を signs.type に入れる(台帳に既にあれば上書きしない。飛ばした時は何もしない)。"""

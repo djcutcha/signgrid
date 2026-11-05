@@ -54,8 +54,8 @@ class HttpLineClient:
         return call(self.token, CONTENT_URL.format(id=message_id), what=f"content {message_id}")
 
     def reply(self, reply_token: str, text: str, quick_replies: list[dict] | None = None,
-              button: tuple[str, str] | None = None) -> None:
-        """text を1通返す。quick_replies は quickReply.items、button は (ラベル, URI) で URI ボタン付きにする。"""
+              button: tuple[str, str] | None = None, more: list[str] | None = None) -> None:
+        """text を1通返す(more があれば続けて載せる。1 回の返信は 5 通まで)。quick_replies は quickReply.items、button は (ラベル, URI) で URI ボタン付きにする。"""
         if button is not None:
             label, uri = button
             msg = {"type": "template", "altText": text,
@@ -65,5 +65,9 @@ class HttpLineClient:
             msg = {"type": "text", "text": text}
             if quick_replies:
                 msg["quickReply"] = {"items": quick_replies}
-        body = {"replyToken": reply_token, "messages": [msg]}
+        msgs = [msg] + [{"type": "text", "text": t} for t in (more or [])]
+        if quick_replies and more:  # クイックリプライは最後の通に付ける
+            msgs[0].pop("quickReply", None)
+            msgs[-1]["quickReply"] = {"items": quick_replies}
+        body = {"replyToken": reply_token, "messages": msgs[:5]}
         call(self.token, REPLY_URL, json.dumps(body, ensure_ascii=False).encode("utf-8"), what="reply")
