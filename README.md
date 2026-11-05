@@ -28,6 +28,8 @@ Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期�
 
 台帳と API は3入口で共通。行政の画面から点検会社のカルテへは入れない(別の組織)。
 
+**街の人の入口 `/report/`(試作、7 節)**: ログイン不要で、見かけた看板の写真と位置(無ければ住所)と一言を送る。受付番号で状態だけが見られる。判定は見せない。
+
 ### ① 点検会社(`/`)
 
 **職人: LINE のガイド付き点検の結果を、カルテのバッジ「現場の回答」で確認**
@@ -121,12 +123,88 @@ Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期�
 
 - **看板製作会社の有資格者と事務**: 客先の点検(紙の点検票とスマホ写真)を、看板1基=1行の台帳とカルテに載せる。有資格者は AI の下書きを確認して確定・署名し、事務は台帳と様式出力(東京都 第2号様式・客先A型)を使う。
 - **次回の点検**: 前回測った寸法と、確定した判定が台帳に残り、次回のカルテから参照できる。職人は LINE で写真を送るか、ガイドに沿って撮る。
-- **行政向け**: まず巡回の「撮る→送る」から。職員が撮った写真が位置で看板ごとに束ねられ、台帳との突き合わせと地図に出る。
+- **行政向け(提案する試作)**: 巡回の「撮る→送る」と地図。職員が撮った写真が位置で看板ごとに束ねられ、この仕組みの台帳との突き合わせと地図に出る。行政の許可情報とはつながっていない(許可の情報は行政の中だけで管理される物。行政向けの画面は行政の端末で動かす前提)。この試作を持って行政への提案を始めている(7 節)。
 - **看板の持ち主**: QR で開き、許可の要否と義務を条文つきで調べ、点検を依頼する。
-- **未実装・将来**: 行政側の本物の許可台帳(許可番号・期限・申請者)との連携は未実装。今は自社の施工台帳で代用している(`docs/GOV.md` の限界)。他の自治体の条例は未対応。
+- **未実装・将来**: 行政の許可情報(許可番号・期限・申請者)はこの仕組みに入れない(行政の中だけで管理される物)。`/gov/` の突き合わせは、自社の施工台帳と街の人の報告に対して行う(`docs/GOV.md` の限界)。他の自治体の条例は未対応。
 - 見本データで動き、鍵が無くても画面は開く(AI の下書きと寸法の推定だけ鍵が要る)。使い方は Quick start。
 
-## 7. Claude の使い方
+## 7. この先の形: 街の人が見つけ、プロが確かめる
+
+SignGrid の主役は 1〜6 節の **点検会社の道具**(有資格者が確定する台帳とカルテ)。その外側に、**街の人が見かけた看板を送れる入口** を置く試作を作った。呼び名はまだ決めていない(商標を確かめてから付ける)。
+
+**見つけるのは街の人、確かめるのは有資格者。** 街の人には判定を見せない。送られた看板は、この仕組みの台帳(点検の記録+街の人の報告)と突き合わせ、まだ記録のない看板なら有資格者が確かめに行く。
+
+### 7.1 なぜ街の人か: 看板は落ちる、そして多くは行政の目の外にある
+
+**公的資料で裏の取れた落下事故**(すべて 2026-11-04 に原典を確認)
+
+| 年月日 | 場所 | 何が起きたか | 被害 | 出典 |
+|---|---|---|---|---|
+| 1997-06-20 | 東京都渋谷区 センター街入口 | 旧アーケード看板(約 4 トン)が台風の強風で倒壊。所有者は点検の案内を受けていたが放置 | 死亡 1 | 屋外広告物適正化推進委員会「オーナーさんのための看板の安全管理ガイドブック」2024-06 |
+| 2007-06 | 東京都新宿区 | 雑居ビル 1 階の飲食店の看板(1.5m×5m)が落下 | 重傷 1(骨盤骨折)・軽傷 1 | 同ガイドブック / 京都市「広告板等の落下物対策について」 |
+| 2015-02-15 | 札幌市中央区 | 高さ約 15m の突出看板の一部が歩道の女性に直撃。取付部の腐食+強風。30 年間、目視のみの点検 | 重体 1 | 国土交通省「広告板落下事故の概要」/ 総務省 北海道管区行政評価局 実態調査(2017-11) |
+| 2017-04-10 | 北海道帯広市 | 許可を受けていた地上看板(設置 44 年)の表示面が市道に落下 | なし(許可があっても落ちる例) | 総務省 同調査 |
+| 2018-10-29 | 北海道内 | 店舗外壁の金属看板(2.4m×1.2m)が落下。固定の釘が腐食 | 重傷 1 | 国土交通省 建築物等事故・災害対策部会 資料 |
+| 2024-07-24 | 埼玉県川口市 | 雑居ビル 2 階の飲食店の看板が強風で落下。許可の要らない看板で、錆が目立っていた | 重傷 1 | 川口市 / 埼玉県議会 2025-03-04 答弁 |
+
+正直な線: 確認できた死亡は 1997 年の渋谷が最後。国土交通省の建築物事故の「看板」区分(2010-12〜2022-11)は 15 件・被害者 10 人・死亡 0。2000 年以降は「重体・重傷」と書く。
+
+**行政の目の外にある、という数字**(一次ソース)
+
+- 国土交通省に報告のあった看板の落下事故 89 件(2021-04〜2024-12)のうち、**許可の要らない自家用 43 件+無許可 30 件 = 73 件(約 8 割)が行政の把握の外**(沼田ほか、日本建築学会計画系論文集 第 91 巻 第 845 号、2026-07。母データの国への報告書は非公開)。
+- 北海道の 6 自治体の落下等事故 25 件(2014 年度以降)= 許可不要 12・無許可 9・許可あり 4(総務省 北海道管区行政評価局、2017-11)。
+- 許可が要る看板でも申請されていない: 福岡市 表示面 10㎡以上 12,154 件のうち無許可 7,798 件(約 65%、福岡市「参考資料3 無許可広告物是正のこれまでの取組み状況について」)/ 横須賀市 郊外の沿線で申請が要る 634 件のうち未申請 519 件(82%、横須賀市 景観審議会 平成 29 年度資料)。
+- 点検の義務は条例にある(埼玉県は許可不要の看板も 3 年ごと。`docs/LEGAL.md`)。ただし行政への報告は許可の申請・更新の時だけで、**許可の要らない看板を外から確かめる人はいない**。「野放し」とは言わない。
+
+8 割の 89 件(落ちた看板)と 6〜8 割(申請されていない看板の実態調査)は、別の調べ方の数字なので混ぜない。
+
+### 7.2 先行事例: 街の人の通報は続いている。看板専用は見つからなかった
+
+| 事例 | 開始 | 規模(公式の数字) | 通報した人に返るもの |
+|---|---|---|---|
+| FixMyStreet(英国、mySociety) | 2007-03 | 2017-07 に累計 100 万件目 | 自治体が報告ページに対応を書き込む。報告は全公開、メールは非公開、匿名可 |
+| ちばレポ(千葉市)→ My City Report | 2014-09 正式 | 2015-04 に投稿 1,095 件・登録 2,887 人 / My City Report は 1 県 10 市 | 受付済・対応中・対応済 が通知で届く |
+| Safecast(日本発・国際) | 2011 | 2023-02 に測定 2 億点(CC0 で公開) | 自分が測った値が公開の地図に載る |
+| NYC311(ニューヨーク市) | — | 2017 年 3,994 万件(アプリ経由 35 万件) | 看板では「許可に従っていない広告看板」の通報窓口がある |
+| 北海道「屋外広告セーフティホットライン」 | 2015-04-01 | 2017-01 時点 28 件 | 業界団体(北広連)が住民の連絡を受けて現地を確かめ、北海道へ渡す。受付は FAX とメール |
+
+- **看板の安全に絞った、街の人のスマホ通報の仕組みは、今回の検索(日本・米国・英国・ドイツ語圏の公式ページ)では見つからなかった。** 存在しないとは言わない(仏・西・中・韓とアプリストアは未検索)。一番近い前例は北海道のホットライン。
+- 汎用の窓口が看板の危険を拾った実例はある(ブリストル市の FixMyStreet で、歩道に垂れ下がった看板の通報が同日に手配・翌日に「Fixed」、2026-01-21)。
+- FixMyStreet の仕組みを使った各国のサイトのうち **12 サイトは終了**している。通報を集めても、受けて直す側がいないと続かない。
+
+先行事例から読める **続く条件** は 5 つ: ①結果が返る ②本人の得がある ③受けて直す側がいる ④何を公開するかの線がはっきりしている ⑤入口を絞って質を保つ。
+
+### 7.3 通報する人の得: お金は付けない、結果を返す
+
+世界の例で通報者に得があるものは 3 種類あった: お金(NYC のアイドリング通報= 罰金の 25%、韓国 安全新聞庫= 四半期の優秀者に商品券、茨城県 不法投棄= 1 事案 1 万円)/ 地域通貨・ポイント(まちのコイン= 換金不可)/ ゲーム性・自分の記録(Waze のポイント、Safecast の地図)。
+
+| 決め | 理由(先行事例) |
+|---|---|
+| 現金の報奨は付けない | NYC では通報が少数の常連に集まり、処理が滞り、報酬を下げる条例案が出た(報道と条例案の記録)。看板では店の営業にも響く |
+| 報いは「結果が返る」こと | 受付番号で状態が見られる(「この看板は、報告の後に点検されました」)。ちばレポ・FixMyStreet と同じ型 |
+| その場の得 | 写真から許可の要否の目安を自分で調べられる(`/owner/` へ写真を引き継ぐ)。分からなければ「要実測」と出る |
+| ポイントを付けるなら | 件数でなく、有資格者が確かめて妥当だった報告だけ(未実装・検討) |
+| 看板の持ち主の得 | 劣化を早く見つければ補修が小さく済む(和歌山県の資料)。点検の記録で保険が有利になるとは言わない(公式には確認できなかった) |
+
+### 7.4 今ある試作と、まだ無いもの
+
+**今ある(`/report/`、見本データで動く)**
+
+- ログイン不要。写真(カメラ)+位置(ブラウザ。無ければ住所)+気になる所+一言(200 字まで)。名前・連絡先は聞かない。
+- 受付番号を返し、`/report/status` で状態と受付日だけが見られる。返す文は「この仕組みの台帳にはまだ無い看板でした。あなたの報告で初めて記録されました。有資格者が、どの看板か確かめます。」など。危ない・無許可の疑いといった判断は街の人に見せない。
+- 写真は公開しない。保存時に長辺 1600px に縮め、EXIF(撮影位置を含む)を消す。地図に出す位置は小数 3 桁に丸める。
+- `/gov/`(行政に提案する試作)に「市民からの報告」の層(画面の表記のまま): 丸めた位置・状態・受付日だけ。30m 以内の台帳の看板と突き合わせ、記録あり / まだ記録なし / 報告後に点検済み を分ける。
+- 送信の上限(1 つの接続元から 1 時間 20 件、写真 8MB まで、JPEG / PNG / WebP)。
+
+**まだ無い(提出版では作らない)**
+
+- 行政の許可情報との突き合わせ。**許可の申請・許可の情報は行政の中だけで管理される物なので、この仕組みには入れない。** 行政向けの画面(`/gov/`)は行政の端末で動かす前提。この試作を持って、行政への提案を始めている(2026-11-05。市名は市の確認が取れてから書く)。
+- 受けて直す側の運用(誰が、何日以内に確かめるか)。先行事例の条件 ③ はまだ満たしていない。
+- 取り下げ、職員の手による状態の変更、同じ看板の報告のまとめ、住所 → 位置の変換、保存期間の決め。
+- 上限の記録はサーバのメモリ上だけ。受付番号を知っていれば誰でも状態が見える(状態と受付日だけ)。
+- 呼び名(商標を確かめてから)。
+
+## 8. Claude の使い方
 
 | 工程 | モデル |
 |---|---|
@@ -140,7 +218,7 @@ Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期�
 - 評価は定数・正解を渡す判定役と並べ、毎回記録表に1行足す(`docs/EVAL.md`。Fable 5.1 の 102 基の測定も記録)。
 - 作業文(企画・絵コンテ・作業表)は期間前に作り、リポジトリの外に置く(運営 FAQ Q4)。コミット履歴は 2026-11-02 12:30 から公開のまま。
 
-## 8. Quick start
+## 9. Quick start
 
 Python 3.12 以上。
 
@@ -163,7 +241,7 @@ python3 -m unittest                                   # テスト(827 件)
 - 台帳は SQLite(既定 `data/private/ledger.sqlite`、`--db` で変更)。
 - LINE 本番: `docs/LINE.md`(`LINE_CHANNEL_SECRET` と `LINE_CHANNEL_ACCESS_TOKEN`)。
 
-## 9. リポジトリ構成
+## 10. リポジトリ構成
 
 `kanban_karte/`
 
@@ -201,7 +279,7 @@ python3 -m unittest                                   # テスト(827 件)
 | `WEB.md` | 画面と API |
 | `WORKFLOW.md` | 知識が育つ工程の一周 |
 
-## 10. 持ち込みデータ
+## 11. 持ち込みデータ
 
 **再利用の条件**: コードは公開リポジトリとして公開する(閲覧専用ライセンス、`LICENSE`)。自社の点検記録(829 基の正解)・客先の写真・点検票・ロゴはリポジトリに含めず、再利用できない。見本データ(`data/sample/`)は動作確認用。条例原文と国土交通省の GIS は、下の表の出典と取得時期のとおり。ライセンスは 11 節。
 
@@ -215,7 +293,7 @@ python3 -m unittest                                   # テスト(827 件)
 | 客先の 2026年 1店舗(LINE 写真 + 点検票スキャン) | 2026-08-31 点検 | 非公開。参照のみ、リポジトリに入れない。再利用不可 |
 | 見本データ(`data/sample/`) | — | 動作確認用。すべて架空(店名・住所・日付・判定。写真は無地) |
 
-## 11. 期間中に作った物 / 非公開データ / ライセンス
+## 12. 期間中に作った物 / 非公開データ / ライセンス
 
 - 期間前のコードは持ち込んでいない。コードと文書はすべて 2026-11-02 12:30 JST 以降に作った。
 - 顧客名・社員名・単価・検算済みの規則・写真・点検票・台帳は入れない。置き場は `data/private/`(未追跡)で、評価データへの参照は `data/private/sources.toml`(未追跡)だけ。
@@ -229,6 +307,7 @@ SignGrid ("karte" = a per-sign record) puts the inspection and legal checks that
 - **Knowledge grows by a process**: AI draft, inspector correction, one follow-up question, rule candidate, approval (only approved rules affect later drafts), conflict detection. A measured effect of 6 approved rules on the draft was none (`docs/PIPELINE.md`).
 - **Inspection**: 18 items x 3 grades drafted by Opus 5.5. On our own 829 inspected signs (private, ground truth only), exact match 66.5%, misses 76.7% of signs needing action, 4.9% false alarms. On a real 2026 store (47 signs): 70.2% exact, 5/9 misses, 1/38 false alarms; a full lap took about 9 minutes.
 - **Law**: rules extracted by AI from the original text of 4 ordinances (Tokyo, Saitama, Koshigaya, Saitama City), joined with zoning GIS and height, and four separate duties (maintain, inspect, qualified person, report). Measuring a sign on site cuts "needs measuring" results. Reference values only; check against current law.
-- **After the hackathon**: qualified inspectors and office staff at signboard makers load customer inspections into the ledger and karte, and carry sizes and judgments to the next visit; government starts from shoot-and-send. Integration with a real permit ledger is not implemented (future).
+- **After the hackathon**: qualified inspectors and office staff at signboard makers load customer inspections into the ledger and karte, and carry sizes and judgments to the next visit; government starts from shoot-and-send. Permit records stay inside the government and are not held by this system; we have begun proposing the prototype to a local government.
 - **Data**: our own inspection records (ground truth), customer photos, forms and logos are not in this repository and may not be reused; `data/sample/` is fictional, for demos. Code is public under a view-only license (see `LICENSE`): viewing, cloning and running locally for evaluation only; no redistribution, modified distribution, integration, hosting, business use or AI training. **How built**: Claude Code as the main line, headless `claude -p` sub-agents in parallel git worktrees; commit history is public from the start.
-- Quick start: section 8. License: view-only, see `LICENSE`.
+- **What comes next (section 7)**: a prototype entrance `/report/` lets anyone send a photo and location of a sign they worry about (no login, no name, photos never published, location rounded). Citizens find; qualified inspectors confirm. Basis: 89 reported sign-fall accidents in Japan (2021-04 to 2024-12), 73 of them outside government records (AIJ paper, 2026-07); long-running citizen reporting such as FixMyStreet (2007-) and Chiba-repo (2014-); no sign-specific citizen reporting found in our search. No cash rewards; the reward is seeing the result.
+- Quick start: section 9. License: view-only, see `LICENSE`.
