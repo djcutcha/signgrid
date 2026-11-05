@@ -92,10 +92,15 @@ class Geocoder:
     def lookup(self, lat: float, lng: float) -> tuple[bool, Place | None]:
         """(答えを得たか, 自治体)。(True, None) は「答えは来たが日本の市区町村ではない(海上・国外)」。
         (False, None) は通信エラー等で答えが得られなかった(キャッシュしない・やり直せる)。"""
+        got, place, _town = self.lookup_detail(lat, lng)
+        return got, place
+
+    def lookup_detail(self, lat: float, lng: float) -> tuple[bool, Place | None, str | None]:
+        """lookup に、町名(応答の lv01Nm。例 越ヶ谷。無ければ None)を足したもの。同じキャッシュ・同じ間隔制限を使う。"""
         k = self.key(lat, lng)
         if k in self._cache:
             v = self._cache[k]
-            return True, (place_from_code(v["muniCd"]) if v else None)
+            return True, (place_from_code(v["muniCd"]) if v else None), (v.get("lv01Nm") if v else None)
         if self._last_call is not None:
             wait = self.min_interval - (self._clock() - self._last_call)
             if wait > 0:
@@ -105,12 +110,12 @@ class Geocoder:
         try:
             data = self._fetch(lat, lng)
         except (urllib.error.URLError, OSError, ValueError, TimeoutError):
-            return False, None
+            return False, None, None
         res = (data or {}).get("results") or {}
         cd = res.get("muniCd")
         self._cache[k] = {"muniCd": str(cd).zfill(5), "lv01Nm": res.get("lv01Nm")} if cd else None
         self._save()
-        return True, (place_from_code(cd) if cd else None)
+        return True, (place_from_code(cd) if cd else None), (res.get("lv01Nm") if cd else None)
 
 
 def geocode_candidates(conn: sqlite3.Connection, geocoder: Geocoder, *, only_pending: bool = True) -> tuple[int, int]:

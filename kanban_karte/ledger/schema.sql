@@ -10,6 +10,10 @@ CREATE TABLE IF NOT EXISTS sites (
     lat           REAL,
     lng           REAL,
     municipality  TEXT,                 -- 住所から引いた自治体名(legal/ の Municipality 判定)
+    orderer_type  TEXT,                 -- 発注元: 直 / 代理店(db.py ORDERER_TYPES。ALTER 済みの古い台帳は db.py が足す)
+    chain_brand   TEXT,                 -- チェーン名(ブランド)
+    contact_person TEXT,                -- 先方の担当者
+    contact       TEXT,                 -- 連絡先(電話・メールの自由記述)
     created       TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 

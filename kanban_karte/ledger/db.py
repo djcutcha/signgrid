@@ -24,6 +24,7 @@ RULE_STATUSES = ("candidate", "approved", "rejected")
 FIGURE_TAG = "図面"  # pages.tag: 職人の手描きスケッチ・印刷案の頁。看板の写真ではないので、下書き・様式の写真には入れない
 MEASURE_TAG = "実測"  # pages.tag: スケールを当てた写真(2026-11-04 までのガイドの寸法の実測。今のガイドは撮らない。古い台帳の表示用)。寸法の証拠で、下書き・様式の写真には入れない
 SIZE_SOURCES = ("measured", "estimated", "drawing")  # signs.size_source: 実測 / 推定(AI)/ 図面(スケッチ)。None=未入力か出どころ不明
+ORDERER_TYPES = ("直", "代理店")  # sites.orderer_type: 発注元。直接の客先か、広告代理店経由か。None=未入力
 PAGE_KINDS = ("指示書", "完成報告書", "点検表", "写真", "地図", "危険予知", "その他", "不明")
 
 
@@ -35,6 +36,14 @@ class Site:
     lat: float | None = None
     lng: float | None = None
     municipality: str | None = None
+    # 現場の属性(画面の「現場の情報」。upsert_site は None で既存の値を消さない。消すのは set_site_attrs)
+    orderer_type: str | None = None    # 発注元: 直 / 代理店
+    chain_brand: str | None = None     # チェーン名(ブランド)
+    contact_person: str | None = None  # 先方の担当者
+    contact: str | None = None         # 連絡先(電話・メールの自由記述)
+
+
+SITE_ATTRS = ("orderer_type", "chain_brand", "contact_person", "contact")
 
 
 @dataclass
@@ -114,8 +123,17 @@ class Ledger:
         self.conn = sqlite3.connect(str(path), timeout=30)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA foreign_keys = ON")
-        self.data_dir = Path(data_dir) if data_dir is not None else None
+        self.data_dir = data_dir
         self.ensure_schema()
+
+    @property
+    def data_dir(self) -> Path | None:
+        return self._data_dir
+
+    @data_dir.setter
+    def data_dir(self, v: str | Path | None) -> None:
+        """相対パスで渡されても絶対パスにして持つ(起動時のカレントに依らず、絶対パスの写真と突き合わせられるように)。"""
+        self._data_dir = Path(v).resolve() if v is not None else None
 
     def resolve_path(self, p: str | Path) -> Path:
         """台帳に入っている画像のパスを、開けるパスにする。相対パスは data_dir 基準(取り込みが書く形)、
@@ -124,13 +142,15 @@ class Ledger:
         return p if p.is_absolute() or self.data_dir is None else self.data_dir / p
 
     def rel_path(self, p: str | Path) -> str:
-        """data_dir の下にある画像のパスを、台帳に入れる相対パス(/ 区切り)にする。下になければそのまま。"""
+        """data_dir の下にある画像のパスを、台帳に入れる相対パス(/ 区切り)にする。下になければそのまま。
+        data_dir は絶対パス。p は絶対パスのまま、だめなら resolve して(相対・シンボリックリンク経由)比べる。"""
         p = Path(p)
         if self.data_dir is not None:
-            try:
-                return p.relative_to(self.data_dir).as_posix()
-            except ValueError:
-                pass
+            for q in (p, p.resolve()) if p.is_absolute() else (p.resolve(),):
+                try:
+                    return q.relative_to(self.data_dir).as_posix()
+                except ValueError:
+                    pass
         return str(p)
 
     def close(self) -> None:
@@ -150,6 +170,11 @@ class Ledger:
         self.conn.executescript(SCHEMA_SQL.read_text(encoding="utf-8"))
         if "site_id" not in {r[1] for r in self.conn.execute("PRAGMA table_info(bundles)")}:
             self.conn.execute("ALTER TABLE bundles ADD COLUMN site_id TEXT REFERENCES sites(id)")
+        # 現場の属性(発注元・チェーン名・担当者・連絡先)。古い台帳に足す。新しい台帳は schema.sql の CREATE が持つ
+        site_cols = {r[1] for r in self.conn.execute("PRAGMA table_info(sites)")}
+        for col in SITE_ATTRS:
+            if col not in site_cols:
+                self.conn.execute(f"ALTER TABLE sites ADD COLUMN {col} TEXT")
         # v2: signs に下書き・確定の列(古い台帳に足す。新しい台帳は schema.sql の CREATE が持つ)
         sign_cols = {r[1] for r in self.conn.execute("PRAGMA table_info(signs)")}
         for col, ddl in (("status", "TEXT NOT NULL DEFAULT 'new'"), ("draft_rank", "INTEGER"),
@@ -188,16 +213,35 @@ class Ledger:
 
     # ---- 現場 ----
     def upsert_site(self, s: Site) -> None:
+        """現場を足す・直す。属性(発注元など)は None なら既存の値を残す(LINE の束が現場を作り直しても消えない)。"""
         self.conn.execute(
-            "INSERT INTO sites(id, name, address, lat, lng, municipality) VALUES (?,?,?,?,?,?) "
+            "INSERT INTO sites(id, name, address, lat, lng, municipality, orderer_type, chain_brand, contact_person, contact) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?) "
             "ON CONFLICT(id) DO UPDATE SET name=excluded.name, address=excluded.address, lat=excluded.lat, "
-            "lng=excluded.lng, municipality=excluded.municipality",
-            (s.id, s.name, s.address, s.lat, s.lng, s.municipality))
+            "lng=excluded.lng, municipality=excluded.municipality, "
+            "orderer_type=COALESCE(excluded.orderer_type, sites.orderer_type), "
+            "chain_brand=COALESCE(excluded.chain_brand, sites.chain_brand), "
+            "contact_person=COALESCE(excluded.contact_person, sites.contact_person), "
+            "contact=COALESCE(excluded.contact, sites.contact)",
+            (s.id, s.name, s.address, s.lat, s.lng, s.municipality,
+             s.orderer_type, s.chain_brand, s.contact_person, s.contact))
         self.conn.commit()
+
+    def set_site_attrs(self, site_id: str, attrs: dict) -> None:
+        """現場の属性を書く(None で消せる)。attrs のキーは SITE_ATTRS のうち書き換える物だけ。発注元は ORDERER_TYPES か None。"""
+        bad = set(attrs) - set(SITE_ATTRS)
+        if bad:
+            raise ValueError(f"現場の属性ではありません: {sorted(bad)}")
+        if attrs.get("orderer_type") not in (None, *ORDERER_TYPES):
+            raise ValueError(f"orderer_type は {ORDERER_TYPES} か None: {attrs['orderer_type']!r}")
+        if attrs:
+            self.conn.execute(f"UPDATE sites SET {', '.join(f'{k}=?' for k in attrs)} WHERE id=?", [*attrs.values(), site_id])
+            self.conn.commit()
 
     def get_site(self, site_id: str) -> Site | None:
         r = self.conn.execute("SELECT * FROM sites WHERE id=?", (site_id,)).fetchone()
-        return Site(r["id"], r["name"], r["address"], r["lat"], r["lng"], r["municipality"]) if r else None
+        return Site(r["id"], r["name"], r["address"], r["lat"], r["lng"], r["municipality"],
+                    *(r[c] for c in SITE_ATTRS)) if r else None
 
     # ---- 看板 ----
     def upsert_sign(self, s: Sign) -> None:

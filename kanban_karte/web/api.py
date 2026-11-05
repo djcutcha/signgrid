@@ -14,7 +14,7 @@ import tempfile
 from datetime import date
 from pathlib import Path
 
-from ..ledger.db import Ledger, Sign
+from ..ledger.db import ORDERER_TYPES, Ledger, Sign
 from ..ledger.items import _ITEMS, ITEM_KEYS, RESULTS
 from ..gov.map import COLOR_NAME, COLORS, COLOR_MEANING, summarize, write_map
 from ..gov.upload import UploadError, upload as gov_upload_photos
@@ -26,6 +26,8 @@ from ..output.client_a_form import write_client_a
 from ..output.tokyo_form import write_tokyo_form
 from ..pipeline import draft as draft_mod
 from ..pipeline import clarify as clarify_mod
+from ..pipeline import field_draft as field_draft_mod
+from ..pipeline import intake_run
 from ..pipeline import review as review_mod
 
 OUTPUTS = {"tokyo": ("東京都 第2号様式", write_tokyo_form), "client-a": ("客先A型", write_client_a)}
@@ -237,15 +239,59 @@ def set_height(ledger: Ledger, sign_id: str, body: dict, placer=None) -> dict:
 
 
 # ---- 現場・束・規則 ----
+def site_json(ledger: Ledger, site, last_active: str | None = None) -> dict:
+    signs = ledger.list_signs(site_id=site.id)
+    return {"id": site.id, "name": site.name, "address": site.address, "municipality": site.municipality,
+            "orderer_type": site.orderer_type, "chain_brand": site.chain_brand,
+            "contact_person": site.contact_person, "contact": site.contact,
+            "last_active": last_active,
+            "sign_count": len(signs), "draft_count": sum(s.status == "draft" for s in signs),
+            "confirmed_count": sum(s.status == "confirmed" for s in signs)}
+
+
 def sites(ledger: Ledger) -> list[dict]:
-    out = []
-    for r in ledger.conn.execute("SELECT id FROM sites ORDER BY name, id"):
-        site = ledger.get_site(r["id"])
-        signs = ledger.list_signs(site_id=site.id)
-        out.append({"id": site.id, "name": site.name, "address": site.address, "municipality": site.municipality,
-                    "sign_count": len(signs), "draft_count": sum(s.status == "draft" for s in signs),
-                    "confirmed_count": sum(s.status == "confirmed" for s in signs)})
-    return out
+    """現場の一覧。先頭が画面の既定の現場: 看板のある現場を、いちばん最近動いた順(看板の更新・束の受付のうち最新。どちらも無い現場は作成時刻)に。
+    看板のまだ無い現場(LINE の受信だけ等)は後ろに回す。"""
+    rows = ledger.conn.execute(
+        "SELECT s.id, COALESCE(NULLIF(MAX(IFNULL((SELECT MAX(updated) FROM signs WHERE site_id=s.id), ''), "
+        "IFNULL((SELECT MAX(created) FROM bundles WHERE site_id=s.id), '')), ''), s.created) AS last_active, "
+        "EXISTS(SELECT 1 FROM signs WHERE site_id=s.id) AS has_signs FROM sites s").fetchall()
+    rows.sort(key=lambda r: r["id"])                                    # 安定ソートを重ねる: id → 新しい順 → 看板あり先
+    rows.sort(key=lambda r: r["last_active"] or "", reverse=True)
+    rows.sort(key=lambda r: not r["has_signs"])
+    return [site_json(ledger, ledger.get_site(r["id"]), r["last_active"]) for r in rows]
+
+
+SITE_PATCH_KEYS = ("orderer_type", "chain_brand", "contact_person", "contact")
+ORDERER_ALIASES = {"direct": "直", "agency": "代理店"}
+SITE_TEXT_MAX = 200
+
+
+def patch_site(ledger: Ledger, site_id: str, body: dict) -> dict:
+    """現場の属性(発注元・チェーン名・担当者・連絡先)を直す。送ったキーだけ書き換える(null か空文字で消す)。直した現場を返す。"""
+    site = ledger.get_site(site_id)
+    if site is None:
+        raise ApiError(404, f"現場 {site_id} が台帳にありません")
+    unknown = set(body) - set(SITE_PATCH_KEYS)
+    if unknown:
+        raise ApiError(400, f"直せるのは {', '.join(SITE_PATCH_KEYS)} だけ: {', '.join(sorted(unknown))}")
+    attrs = {}
+    for k in SITE_PATCH_KEYS:
+        if k not in body:
+            continue
+        v = body[k]
+        if v is not None and not isinstance(v, str):
+            raise ApiError(400, f"{k} は文字列か null: {v!r}")
+        v = (v or "").strip() or None
+        if v is not None and len(v) > SITE_TEXT_MAX:
+            raise ApiError(400, f"{k} は {SITE_TEXT_MAX} 文字まで")
+        if k == "orderer_type" and v is not None:
+            v = ORDERER_ALIASES.get(v, v)
+            if v not in ORDERER_TYPES:
+                raise ApiError(400, f"orderer_type は {' / '.join(ORDERER_TYPES)}(または direct / agency)か null: {body[k]!r}")
+        attrs[k] = v
+    ledger.set_site_attrs(site_id, attrs)
+    return next(s for s in sites(ledger) if s["id"] == site_id)
 
 
 def signs(ledger: Ledger, site_id: str | None) -> list[dict]:
@@ -284,6 +330,30 @@ def draft_bundle(ledger: Ledger, bundle_id: int, judge_factory=None) -> dict:
     return {"only_missing": only_missing,
             "results": [{"sign_id": r.sign_id, "status": r.status, "rank": r.rank, "undecided": r.undecided,
                          "error": r.error} for r in results]}
+
+
+def intake_upload(ledger: Ledger, body: dict, jobs, data_dir: Path) -> dict:
+    """画面の取り込み: 写真(複数)・点検表の PDF 1本・紙1枚の写真 → 束を作り、裏で 仕分け → 看板の枠 → 下書き を走らせる。
+    body = {files: [{name, data(base64)}], site_id?}。同じ内容は取り込み直さず既存の束を返す(終わっていない・失敗した束だけ続きをやり直す)。"""
+    site_id = body.get("site_id")
+    if site_id is not None and not isinstance(site_id, str):
+        raise ApiError(400, "site_id は現場の id(文字列)")
+    try:
+        up = intake_run.store_upload(ledger, intake_run.parse_files(body), data_dir, site_id)
+    except intake_run.IntakeError as e:
+        raise ApiError(e.status, e.message)
+    b = ledger.get_bundle(up.bundle_id)
+    if not up.existed or (b["status"] in ("new", "error") and not jobs.running(up.bundle_id)):
+        jobs.start(up.bundle_id)
+    p = intake_run.progress(ledger, up.bundle_id, jobs)
+    return {"bundle_id": up.bundle_id, "status": p["status"], "existed": up.existed, "kind": up.kind, "files": up.n_files}
+
+
+def intake_progress(ledger: Ledger, bundle_id: int, jobs) -> dict:
+    p = intake_run.progress(ledger, bundle_id, jobs)
+    if p is None:
+        raise ApiError(404, f"束 {bundle_id} が台帳にありません")
+    return p
 
 
 def rules(ledger: Ledger) -> list[dict]:
@@ -593,6 +663,63 @@ def owner_estimate(body: dict, estimator_factory=None, placer=None) -> dict:
     return {"estimate": est.to_dict(), "judgement": j, "address": address, "height_m": height,
             "kind": kind["id"] if kind else None,
             "place": place_dict(placed_box[-1] if placed_box else None, placer)}
+
+
+# ---- 現場のウィザード(スマホ。台帳に書かない) ----
+def field_draft(body: dict, drafter_factory=None) -> dict:
+    """部位1つ(part)の写真 1〜2 枚(base64)→ その部位の項目だけの下書き(区分+根拠1文)と、使った量・費用。
+    台帳は開かない。写真は下書きのために API へ送るだけで保存しない。"""
+    part = body.get("part")
+    if part not in field_draft_mod.PARTS:
+        raise ApiError(400, f"part は {' / '.join(field_draft_mod.PARTS)} のどれか: {part!r}")
+    raw = body.get("photos")
+    if not isinstance(raw, list) or not 1 <= len(raw) <= field_draft_mod.MAX_PHOTOS or not all(isinstance(x, str) for x in raw):
+        raise ApiError(400, f"photos は base64 の文字列を 1〜{field_draft_mod.MAX_PHOTOS} 枚")
+    photos = []
+    for x in raw:
+        try:
+            b = base64.b64decode(x.split(",", 1)[-1], validate=True)
+        except ValueError:
+            raise ApiError(400, "photos が base64 ではありません")
+        if not b or len(b) > MAX_PHOTO_BYTES:
+            raise ApiError(400, "写真が空か大きすぎます")
+        photos.append(b)
+    name = str(body.get("target_name") or "").strip()[:80] or None
+    if drafter_factory is None:
+        if not can_draft():
+            raise ApiError(503, "部位の下書きには ANTHROPIC_API_KEY が要ります(環境変数か .env)")
+        drafter_factory = field_draft_mod.FieldDrafter
+    try:
+        return drafter_factory().draft(part, photos, name)
+    except field_draft_mod.FieldDraftError as e:
+        raise ApiError(e.status, e.message)
+    except Exception as e:   # 鍵の誤り・接続など
+        raise ApiError(502, f"下書きを作れませんでした: {type(e).__name__}")
+
+
+def field_parts() -> list[dict]:
+    """部位の選択肢(様式の点検箇所と、その項目)。"""
+    return [{"part": g, "items": [{"key": f"{g}-{n}", "no": n, "text": t} for gg, n, t in _ITEMS if gg == g]}
+            for g in field_draft_mod.PARTS]
+
+
+def field_locate(lat_q: str | None, lng_q: str | None, geocoder) -> dict:
+    """端末の位置 → 町名までの住所と自治体(国土地理院の逆ジオコーダ。/gov/ の投入と同じ gov.geocode.Geocoder・同じキャッシュ)。
+    番地までは出ない(町名まで)。答えが得られない時は 502、日本の市区町村でない所は 404。"""
+    try:
+        lat, lng = float(lat_q), float(lng_q)
+    except (TypeError, ValueError):
+        raise ApiError(400, "lat と lng(数値)を付けてください")
+    if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+        raise ApiError(400, "lat は -90〜90、lng は -180〜180")
+    got, place, town = geocoder.lookup_detail(lat, lng)
+    if not got:
+        raise ApiError(502, "住所を引けませんでした(通信エラー)。住所は手で入れてください")
+    if place is None:
+        raise ApiError(404, "日本の市区町村として引けませんでした。住所は手で入れてください")
+    city = place.city.replace(" ", "")
+    return {"lat": lat, "lng": lng, "address": f"{place.pref}{city}{town or ''}", "town": town,
+            "municipality": city, "prefecture": place.pref, "muni_cd": place.muni_cd, "in_scope": place.in_scope}
 
 
 # ---- 様式の出力 ----

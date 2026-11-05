@@ -25,6 +25,7 @@ from urllib.parse import quote, unquote, urlsplit, parse_qs
 from ..gov.geocode import Geocoder
 from ..ledger.db import Ledger
 from ..legal.locate import SamplePlacer, make_placer
+from ..pipeline.intake_run import IntakeJobs
 from . import api, citizen, expert
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -32,6 +33,7 @@ STATIC = Path(__file__).with_name("static")
 SAMPLE_JSON = REPO_ROOT / "data" / "sample" / "ledger.json"
 MAX_BODY = 30_000_000
 MAX_UPLOAD_BODY = 60_000_000    # 行政のスマホ投入は 1回 30枚(縮小済みでも 1枚 0.5〜1MB)
+MAX_INTAKE_BODY = 150_000_000   # 画面の取り込み(写真フォルダ・PDF。base64 で 4/3 倍)
 MEDIA_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",
                ".gif": "image/gif"}
 
@@ -41,6 +43,8 @@ SIGN_HEIGHT = re.compile(r"^/api/signs/([^/]+)/height$")
 RULE_ANSWER = re.compile(r"^/api/rules/(\d+)/answer$")
 RULE_ACT = re.compile(r"^/api/rules/(\d+)/(approve|reject)$")
 BUNDLE_DRAFT = re.compile(r"^/api/bundles/(\d+)/draft$")
+INTAKE_PROGRESS = re.compile(r"^/api/intake/(\d+)/progress$")
+SITE_PATCH = re.compile(r"^/api/sites/([^/]+)$")
 OUTPUT = re.compile(r"^/api/sites/([^/]+)/output/([a-z-]+)\.xlsx$")
 
 
@@ -48,15 +52,21 @@ class App:
     """サーバの設定。リクエストごとに台帳を開く(SQLite の接続はスレッドを渡さない)。"""
 
     def __init__(self, db: str | Path, data_dir: str | Path, sample: bool = False, judge_factory=None,
-                 estimator_factory=None, placer=None, clarifier=None, geocoder=None, gov_store=None):
-        self.db, self.data_dir, self.sample, self.judge_factory = Path(db), Path(data_dir), sample, judge_factory
+                 estimator_factory=None, placer=None, clarifier=None, geocoder=None, gov_store=None,
+                 intake_parts=None, field_drafter_factory=None):
+        # data_dir は絶対パスで持つ(--data-dir が相対でも、台帳の絶対パスの写真と突き合わせられる。Ledger も同じ)
+        self.db, self.data_dir, self.sample, self.judge_factory = Path(db), Path(data_dir).resolve(), sample, judge_factory
         self.estimator_factory = estimator_factory
+        self.field_drafter_factory = field_drafter_factory   # 部位の下書き役。None なら鍵があれば Sonnet(テストは偽物)
         self.clarifier = clarifier  # 聞き返し役。None なら見本・鍵なしは固定文、鍵があれば Sonnet(リクエストごとに作る)
         # 用途地域を引く部品。起動時に1回だけ作って共有する。見本データは通信も GIS 読み込みもしない(固定の商業地域)
         self.placer = SamplePlacer() if sample and placer is None else placer
         # 行政のスマホ投入: 逆ジオコーダと写真の置き場。見本は同梱の geocache だけで引く(通信しない)
         self.gov_store = Path(gov_store) if gov_store else self.db.parent / "gov_uploads"
         self.geocoder = geocoder if geocoder is not None else self._default_geocoder()
+        # 画面の取り込み(/api/intake/)の裏の実行。intake_parts(log) -> (仕分け役, 束ね役) はテストで差し替える
+        self.intake_jobs = IntakeJobs(self.ledger, self.data_dir, intake_parts,
+                                      draft=lambda lg, bid: api.draft_bundle(lg, bid, self.judge_factory))
         self.verbose = False
 
     def _default_geocoder(self) -> Geocoder:
@@ -144,6 +154,10 @@ def make_handler(app: App):
                     return self._error(404, "見つかりません")
                 if path == "/api/owner/kinds":  # 種類の選択肢と撮り方(台帳を開かない)
                     return self._json(api.owner_kinds())
+                if path == "/api/field/parts":  # 部位の選択肢(台帳を開かない)
+                    return self._json(api.field_parts())
+                if path == "/api/field/locate":  # 位置 → 町名までの住所と自治体(台帳を開かない)
+                    return self._json(api.field_locate((q.get("lat") or [None])[0], (q.get("lng") or [None])[0], app.geocoder))
                 with app.ledger() as ledger:
                     if path == "/api/meta":
                         return self._json(api.meta(app.sample))
@@ -167,6 +181,9 @@ def make_handler(app: App):
                         return self._json(api.gov_candidates(ledger, batch, today))
                     if path == "/api/rules":
                         return self._json(api.rules(ledger))
+                    m = INTAKE_PROGRESS.match(path)
+                    if m:
+                        return self._json(api.intake_progress(ledger, int(m[1]), app.intake_jobs))
                     m = SIGN.match(path)
                     if m:
                         return self._json(api.sign_detail(ledger, m[1], app.placer))
@@ -183,13 +200,17 @@ def make_handler(app: App):
         def do_PUT(self):
             self.do_POST()
 
+        def do_PATCH(self):
+            self.do_POST()
+
         def do_POST(self):
             path = unquote(urlsplit(self.path).path)
             if (self.headers.get("Content-Type") or "").split(";")[0].strip() != "application/json":
                 return self._error(415, "Content-Type は application/json")
             try:
                 n = int(self.headers.get("Content-Length") or 0)
-                if n > (MAX_UPLOAD_BODY if path == "/api/gov/upload" else MAX_BODY):
+                limit = MAX_INTAKE_BODY if path == "/api/intake/upload" else MAX_UPLOAD_BODY if path == "/api/gov/upload" else MAX_BODY
+                if n > limit:
                     return self._error(413, "本文が大きすぎます")
                 body = json.loads(self.rfile.read(n) or b"{}")
                 if not isinstance(body, dict):
@@ -201,13 +222,22 @@ def make_handler(app: App):
                     return expert.serve(self, app, "POST", path, {}, body)
                 if citizen.wants(path):
                     return citizen.serve(self, app, "POST", path, {}, body)
-                if (self.command == "PUT") != bool(SIGN_HEIGHT.match(path)):    # PUT は全高だけ。全高は PUT だけ
+                if (self.command == "PATCH") != bool(SITE_PATCH.match(path)):    # PATCH は現場の属性だけ。現場の属性は PATCH だけ
+                    return self._error(405, "この経路は " + ("PATCH" if SITE_PATCH.match(path) else "POST か PUT") + " で送ってください")
+                if self.command != "PATCH" and (self.command == "PUT") != bool(SIGN_HEIGHT.match(path)):    # PUT は全高だけ。全高は PUT だけ
                     return self._error(405, "この経路は " + ("PUT" if SIGN_HEIGHT.match(path) else "POST") + " で送ってください")
                 if path == "/api/owner/judge":  # 台帳を開かない・書かない
                     return self._json(api.owner_judge(body, app.placer))
                 if path == "/api/owner/estimate":  # 台帳を開かない・書かない。写真は保存しない
                     return self._json(api.owner_estimate(body, app.estimator_factory, app.placer))
+                if path == "/api/field/draft":  # 台帳を開かない・書かない。写真は保存しない
+                    return self._json(api.field_draft(body, app.field_drafter_factory))
                 with app.ledger() as ledger:
+                    m = SITE_PATCH.match(path)
+                    if m:
+                        return self._json(api.patch_site(ledger, m[1], body))
+                    if path == "/api/intake/upload":
+                        return self._json(api.intake_upload(ledger, body, app.intake_jobs, app.data_dir))
                     if path == "/api/gov/upload":
                         return self._json(api.gov_upload(ledger, body, app.gov_store, app.geocoder))
                     m = SIGN_HEIGHT.match(path)
