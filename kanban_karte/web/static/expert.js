@@ -167,7 +167,8 @@
       if (m.warnings && m.warnings.length) { var w = $("ex-warn"); w.hidden = false; w.textContent = m.warnings.join(" / "); }
       buildStatic();
       var first = 0;
-      for (var i = 0; i < S.queue.length; i++) { if (S.queue[i][1] === 0) { first = i; break; } }
+      var want = (new URLSearchParams(location.search).get("src") || "") + "/";   // ?src=eval で紙スキャンの未入力の先頭から
+      for (var i = 0; i < S.queue.length; i++) { if (S.queue[i][1] === 0 && (want === "/" || S.queue[i][0].indexOf(want) === 0)) { first = i; break; } }
       if (!S.queue.length) { $("ex-progress").textContent = "写真がありません"; return; }
       go(first);
     }).catch(function (e) { $("ex-progress").textContent = "読み込めません: " + e.message; });
