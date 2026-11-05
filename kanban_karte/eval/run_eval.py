@@ -167,7 +167,7 @@ def verify_summary(pairs, verifier) -> dict:
 
 def run(judge, judge_name: str, source: str, limit: int | None, split: str, seed: int,
         config_path: str | None, spread: bool = False, exclude_shown: bool = False, verifier=None,
-        override: str | None = None) -> dict:
+        override: str | None = None, keep=None) -> dict:
     sources = dataset.AGGREGATE_SOURCES if source == "all" else (source,)
     items = dataset.load_all(config_path, sources)
     counts = dataset.summarize(items)
@@ -183,6 +183,8 @@ def run(judge, judge_name: str, source: str, limit: int | None, split: str, seed
     override_stats = {"matched": {}, "unmatched": {}}
     for s, pool, ex_truth, ex_photo in _pools(_override(items, override), sources, split, limit, seed,
                                               spread, shown):
+        if keep:   # 抽出(limit・seed)は変えずに、その後で絞る(物差しの側だけ、など)
+            pool = [i for i in pool if keep(i)]
         override_stats["matched"][s] = len(pool)
         override_stats["unmatched"][s] = ex_photo
         preds = judge.judge_many(pool)
@@ -211,6 +213,8 @@ def run(judge, judge_name: str, source: str, limit: int | None, split: str, seed
                 rec["raw"] = pr.raw
             elif isinstance(pr.raw, dict) and pr.raw.get("reasons"):
                 rec["reasons"] = pr.raw["reasons"]
+            if isinstance(pr.raw, dict) and pr.raw.get("expert_refs"):
+                rec["expert_refs"] = pr.raw["expert_refs"]
             if isinstance(pr.raw, dict) and pr.raw.get("item_notes"):
                 rec["item_notes"] = pr.raw["item_notes"]
                 rec["needs_onsite"] = pr.raw.get("needs_onsite", 0)
@@ -247,6 +251,7 @@ def judge_config(judge, sources) -> dict:
             "example_notes": getattr(judge, "example_notes", {}) if n else {},
             "max_long_edge": getattr(judge, "max_long_edge", None), "guard": bool(getattr(judge, "guard", False)),
             "rubric": bool(getattr(judge, "rubric", False)), "rules": list(getattr(judge, "rules", [])),
+            "expert_notes": [n["sign_key"] for n in getattr(judge, "expert_notes", [])],
             "examples_used": {s: [e.sign_id for e in judge.examples_for(s)] for s in sources} if n else {},
             # 実際に使えた構成(要求した構成から、該当する例示用の看板が無いランクを省いたもの)
             "example_mix_used": {s: sorted(e.rank_true for e in judge.examples_for(s)) for s in sources} if n else {}}
@@ -458,6 +463,12 @@ def main(argv=None) -> int:
                    help="評価基準(a〜d と部位ごとの判定ポイント)の要点をシステムプロンプトに入れる")
     g.add_argument("--rules-from-db", default=None, metavar="LEDGER",
                    help="台帳(SQLite)の rules 表の最新20件を「有資格者の規則」として例示の後ろに入れる(既定オフ)")
+    e = ap.add_argument_group("有資格者の言葉づけ(expert_notes.py)")
+    e.add_argument("--expert-db", default=None, metavar="SQLITE", help="expert_notes.sqlite。手本の側の言葉づけを看板ごとに最大 3 件見せる")
+    e.add_argument("--expert-max", type=int, default=None, metavar="N", help="手本に使う件数の上限(入力順。学習曲線の 0/10/25/50)")
+    e.add_argument("--expert-drafts", default=None, metavar="JSON", help="判定する看板の所見の候補を拾う過去の結果 JSON(手本の選び方に使う)")
+    e.add_argument("--expert-rule", action="store_true", help="unknowns の規則の候補(要実測)を規則として入れる")
+    e.add_argument("--measure-half", action="store_true", help="物差しの側(sign_key の数字の合計が奇数)の看板だけ判定する")
     g.add_argument("--dry-run", action="store_true", help="API を呼ばず、送る看板数・写真枚数・推定トークンだけ出す")
     a = ap.parse_args(argv)
 
@@ -499,6 +510,15 @@ def main(argv=None) -> int:
                 ap.error(f"台帳がありません: {a.rules_from_db}")
             with Ledger(a.rules_from_db) as lg:
                 opts["rules"] = lg.recent_rules(RULES_MAX)
+        if a.expert_rule:
+            from .expert_notes import UNKNOWNS_RULE
+            opts["rules"] = list(opts.get("rules") or []) + [UNKNOWNS_RULE]
+        if a.expert_db:
+            from . import expert_notes as en
+            if not Path(a.expert_db).exists():
+                ap.error(f"言葉づけの DB がありません: {a.expert_db}")
+            opts["expert_notes"] = en.examples(en.load(a.expert_db), a.expert_max)
+            opts["expert_signs"] = en.target_signs(a.expert_drafts)
     elif a.judge == "replay":
         if not a.replay or not Path(a.replay).exists():
             ap.error("--judge replay には存在する --replay が要ります")
@@ -532,9 +552,13 @@ def main(argv=None) -> int:
         print(dry_run_text(dry_run(judge, a.source, a.limit, a.split, a.seed, a.sources_config, a.photo_override)))
         return 0
 
+    keep = None
+    if a.measure_half:
+        from .expert_notes import role
+        keep = lambda i: role(i.sign_id) == "measure"
     try:
         r = run(judge, a.judge, a.source, a.limit, a.split, a.seed, a.sources_config,
-                a.spread_sites, a.exclude_shown, verifier, a.photo_override)
+                a.spread_sites, a.exclude_shown, verifier, a.photo_override, keep)
     except RuntimeError as e:  # 鍵が無いなど
         print(f"エラー: {e}", file=sys.stderr)
         return 2
