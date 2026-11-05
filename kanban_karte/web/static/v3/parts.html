@@ -1,0 +1,133 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SignGrid v3 共通部品の一覧</title><link rel="stylesheet" href="ui.css"></head>
+<body>
+<main class="page">
+  <div class="page-head"><div><h1>共通部品の一覧</h1><p class="lead">v3/ui.css にある共通部品を、状態ごとに並べたページです。</p></div></div>
+
+  <section class="parts-sec">
+    <h2>ボタンの無効状態</h2>
+    <p class="cap"><code>.btn[disabled]</code> <code>.btn[aria-disabled=true]</code> <code>.btn.is-off</code>(押せない。薄く表示)</p>
+    <div class="row">
+      <button class="btn">ふつう</button>
+      <button class="btn primary">ふつう(主)</button>
+      <button class="btn" disabled>disabled</button>
+      <a class="btn primary lg" aria-disabled="true" href="#">aria-disabled(次へ)</a>
+      <button class="btn primary is-off">is-off</button>
+    </div>
+  </section>
+
+  <section class="parts-sec">
+    <h2>一言の通知(toast)</h2>
+    <p class="cap"><code>.toast.on</code>。画面では下に固定。ここでは <code>.is-static</code> で流れの中に出しています</p>
+    <div class="toast on is-static" role="status">見本なので PDF は出しません</div>
+  </section>
+
+  <section class="parts-sec">
+    <h2>選べるカード</h2>
+    <p class="cap"><code>.selcard</code>(大)の ふつう / 選択中 / うす表示 / 無効</p>
+    <div class="grid g2">
+      <button type="button" class="selcard" aria-pressed="false"><h3>ふつう</h3><p class="muted">押すと選択中になります</p></button>
+      <button type="button" class="selcard" aria-pressed="true"><h3>選択中</h3><p class="muted">aria-pressed="true"</p></button>
+      <button type="button" class="selcard dim" aria-pressed="false"><h3>うす表示</h3><p class="muted">.dim</p></button>
+      <button type="button" class="selcard" aria-pressed="false" disabled><h3>無効</h3><p class="muted">disabled(押せない)</p></button>
+    </div>
+    <p class="cap"><code>.selcard.tile</code>(絵を上に置く。F1 の種類選び。<code>.selgrid</code> で 2 列)</p>
+    <div class="selgrid">
+      <button type="button" class="selcard tile" aria-pressed="false">
+        <svg class="ico" viewBox="0 0 96 72" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><rect x="12" y="14" width="72" height="30" rx="4"/><path d="M48 44v18M32 62h32"/></svg>
+        <span class="pl">袖看板</span><span class="ps">壁から出ているもの</span></button>
+      <button type="button" class="selcard tile" aria-pressed="true">
+        <svg class="ico" viewBox="0 0 96 72" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><rect x="22" y="8" width="52" height="40" rx="4"/><path d="M48 48v16M34 64h28"/></svg>
+        <span class="pl">立て看板</span><span class="ps">選択中</span></button>
+      <button type="button" class="selcard tile span" aria-pressed="false">
+        <span class="pl">その他</span><span class="ps">どれでもないとき</span></button>
+    </div>
+    <p class="cap"><code>label.selcard</code> + input(選んだ人。中の input:checked で選択中)</p>
+    <div class="grid g2">
+      <label class="selcard"><span><input type="radio" name="who" checked><b>見本 太郎</b></span><span class="small muted">屋外広告士</span></label>
+      <label class="selcard"><span><input type="radio" name="who"><b>試験 花子</b></span><span class="small muted">点検技能講習 修了者</span></label>
+    </div>
+  </section>
+
+  <section class="parts-sec">
+    <h2>流れるログ</h2>
+    <p class="cap"><code>.flowlog</code>(AI が今やっていること。最後の行を強調)</p>
+    <div class="flowlog" aria-label="AI が今やっていること">
+      <div><span class="by">読み取り</span>写真 001 を開きました</div>
+      <div><span class="by">読み取り</span>写真 002 を開きました</div>
+      <div><span class="by">仕分け</span>写真 001 は「全景」と判断しました</div>
+      <div><span class="by">仕分け</span>写真 002 は「正面」と判断しました</div>
+      <div><span class="by">照合</span>前回の看板 A-1 と同じ位置です</div>
+      <div><span class="by">照合</span>前回の看板 A-2 と同じ位置です</div>
+      <div><span class="by">不明点</span>写真 014 は看板名が読めませんでした</div>
+      <div><span class="by">読み取り</span>写真 015 を開いています</div>
+    </div>
+  </section>
+
+  <section class="parts-sec">
+    <h2>木</h2>
+    <p class="cap"><code>.tree</code>(details を 3 段以上入れ子。選択中は <code>.is-sel</code>。スマホでは「木を開く」の見出しで畳む)</p>
+    <nav class="tree" aria-label="台帳の木">
+      <details class="tw-d" open><summary class="tw">木を開く</summary><div>
+        <details open><summary><span class="kind">発注元</span>見本フーズ株式会社</summary>
+          <details open><summary><span class="kind">ブランド</span>みどり食堂</summary>
+            <details open><summary class="is-sel"><span class="kind">店舗</span>杉並店</summary>
+              <button class="leaf is-sel" type="button"><span class="kind">看板</span>袖看板 1-1</button>
+              <button class="leaf" type="button"><span class="kind">看板</span>壁面看板 1-2</button>
+              <button class="leaf" type="button"><span class="kind">看板</span>立て看板 2-3</button>
+              <div class="more">ほか 66 基</div>
+            </details>
+            <details><summary><span class="kind">店舗</span>練馬店</summary>
+              <button class="leaf" type="button"><span class="kind">看板</span>袖看板 1-1</button>
+            </details>
+          </details>
+        </details>
+      </div></details>
+    </nav>
+  </section>
+
+  <section class="parts-sec">
+    <h2>区分シート</h2>
+    <p class="cap"><code>.sheet-back</code> / <code>.sheet</code> + <code>.selcard.row</code>。画面では下から出ます(ここは <code>.is-static</code>)</p>
+    <div class="sheet-back is-static">
+      <div class="sheet" role="dialog" aria-labelledby="sheetT">
+        <div class="grab"></div>
+        <p class="small muted">表示部の汚れ</p>
+        <h3 id="sheetT">表面に汚れや退色はありますか</h3>
+        <button type="button" class="selcard row" aria-pressed="true"><span class="res r1">良好</span><span class="aside">AI 下書き</span></button>
+        <button type="button" class="selcard row" aria-pressed="false"><span class="res r2">経過観察</span></button>
+        <button type="button" class="selcard row" aria-pressed="false"><span class="res r3">要改善</span></button>
+        <button type="button" class="selcard row" aria-pressed="false"><span class="res r4">即時対応</span></button>
+        <button type="button" class="btn block ghost" style="margin-top:8px">閉じる</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="parts-sec">
+    <h2>点線枠と拡大鏡</h2>
+    <p class="cap"><code>.frame-stage.done</code>: <code>.frame-fill</code>(白縁と薄い塗り)<code>.frame-dash</code>(動く点線)<code>.frame-ring</code>(四隅。<code>.is-sel</code> で選択)<code>.dimtag</code> <code>.lens</code></p>
+    <div class="frame-stage done" style="max-width:430px">
+      <svg class="main" viewBox="120 60 480 360" role="img" aria-label="正面の写真(絵)と、AI が置いた看板の枠">
+        <g id="world">
+          <g><rect class="bgfill" x="-2000" y="-2000" width="5000" height="5000"/><rect class="subfill" x="130" y="250" width="460" height="160"/><rect class="subfill" x="400" y="215" width="60" height="195"/></g>
+          <g class="overlay">
+            <polygon class="frame-fill" points="300,190 540,190 540,250 300,250"/>
+            <polygon class="frame-dash" points="300,190 540,190 540,250 300,250"/>
+            <circle class="frame-ring" cx="300" cy="190" r="9"/><circle class="frame-ring" cx="540" cy="190" r="9"/>
+            <circle class="frame-ring is-sel" cx="540" cy="250" r="9"/><circle class="frame-ring" cx="300" cy="250" r="9"/>
+          </g>
+        </g>
+      </svg>
+      <span class="dimtag" style="left:46%;top:21%">W 3,600 mm</span><span class="dimtag" style="right:6%;top:56%">H 900 mm</span>
+      <div class="lens left" aria-hidden="true">
+        <svg viewBox="0 0 100 100"><rect class="bgfill" x="0" y="0" width="100" height="100"/><rect class="subfill" x="0" y="55" width="100" height="45"/><polygon class="frame-fill" points="-20,10 60,10 60,45 -20,45" transform="translate(40 4)"/><polygon class="frame-dash" points="-20,10 60,10 60,45 -20,45" transform="translate(40 4)"/></svg>
+        <i class="cross h"></i><i class="cross v"></i><span class="lab">3 倍</span>
+      </div>
+    </div>
+    <p class="cap">推定中(<code>.frame-stage</code> に <code>.done</code> なし: <code>.scan</code> と <code>.spin</code>)</p>
+    <div class="frame-stage" style="max-width:430px;aspect-ratio:4/3">
+      <div class="scan"><span class="pill"><i class="spin"></i>推定中…</span></div>
+    </div>
+  </section>
+</main>
+</body></html>
