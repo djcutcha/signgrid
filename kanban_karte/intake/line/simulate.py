@@ -31,10 +31,12 @@ class DirContentClient:
             return p.read_bytes()
         raise FileNotFoundError(f"模擬の画像が無い: {message_id}")
 
-    def reply(self, reply_token: str, text: str, quick_replies=None, button=None) -> None:
+    def reply(self, reply_token: str, text: str, quick_replies=None, button=None, more=None) -> None:
         self.replies.append((reply_token, text))
         if self.echo:
             print(f"[返信 {reply_token}] {text}", flush=True)
+            for t in more or []:
+                print(f"[続き] {t}", flush=True)
             if quick_replies:
                 print("  [" + " / ".join(i["action"]["label"] for i in quick_replies) + "]", flush=True)
 
@@ -97,6 +99,7 @@ def build_guide_deliveries(plan_file: str | Path, content_dir: str | Path, *,
     front が空(か無い)なら「正面から撮れない」を押す。kind は shoot.KINDS のキー(無ければ「その他」)。
     写真は台本のあるフォルダ基準。photos が空の部位は「この部位は無い」を押す(answers は書かない)。
     看板の "measure" は寸法の実測(measure() の docstring。無ければ "skip")。
+    看板の "lighting" は照明(inner / outer / none / unknown。無ければ unknown)。none の看板は照明装置の部位を台本から飛ばす(ガイドが対象外にする)。
     Plan.stats に写真の枚数・押す回数・送る文の数。
     """
     from urllib.parse import urlencode
@@ -136,22 +139,23 @@ def build_guide_deliveries(plan_file: str | Path, content_dir: str | Path, *,
         out.stats["photos"] += 1
         push(lambda tok, ts: _event(user_id, tok, {"type": "image", "id": mid, "contentProvider": {"type": "line"}}, ts))
 
-    def measure(spec):
+    def measure(spec, light):
         """寸法の実測。"skip"=最初の問いで飛ばす / "inherit"=台帳に寸法がある看板(問いは出ない)/
         {"drawing": [図面の画像]}=図面で送る / dict=測る
         {"w": "3.6m", "h": "900", "d": "300"(無ければ「分からない」), "gl": "2500"(無ければ「分からない」),
          "mount": "アンカーボルト"(一覧に無い文は「その他」で文字入力), "post": "□50"(無ければ「無し」)}"""
         if spec == "inherit":
-            return
+            return tap(light=light)
         if spec == "skip":
-            return tap(m="skip")
+            tap(m="skip")
+            return tap(light=light)
         if "drawing" in spec:
             tap(m="draw")
             for rel in spec["drawing"][:MAX_DRAWING_PHOTOS]:
                 image(rel)
             if len(spec["drawing"]) < MAX_DRAWING_PHOTOS:
                 tap(m="drawn")
-            return
+            return tap(light=light)  # 実測を通らない看板は照明の 1 問だけ
         tap(m="go")
         for k in ("w", "h", "d", "gl"):
             if spec.get(k) is None:
@@ -163,11 +167,13 @@ def build_guide_deliveries(plan_file: str | Path, content_dir: str | Path, *,
             if r.confirm:
                 tap(m="conf")  # 単位の無い数字は確認が返る
         mount = spec.get("mount") or M.UNKNOWN
-        if mount in M.MOUNTS:
-            tap(mount=M.MOUNTS.index(mount))
-        else:
-            tap(mount=M.MOUNTS.index(M.MOUNT_OTHER))
+        i = M.MOUNTS.index(mount) if mount in M.MOUNTS else M.MOUNTS.index(M.MOUNT_OTHER)
+        if i >= M.MOUNT_PAGE:
+            tap(m="mpage")  # 取付方法の 2 ページ目
+        tap(mount=i)
+        if mount not in M.MOUNTS:
             text(mount)
+        tap(light=light)  # 取付方法の次
         text(spec["post"]) if spec.get("post") else tap(m="nopost")
 
     tap(start=1)
@@ -184,8 +190,11 @@ def build_guide_deliveries(plan_file: str | Path, content_dir: str | Path, *,
         elif len(fronts) < S.MAX_FRONT_PHOTOS:
             tap(front="next")
         tap(kind=sg.get("kind") or "other")
-        measure(sg.get("measure", "skip"))
+        light = sg.get("lighting") or "unknown"
+        measure(sg.get("measure", "skip"), light)
         for pi, (part, items) in enumerate(PARTS):
+            if light == "none" and part == S.LIGHTING_PART:
+                continue
             spec = sg["parts"][pi]
             photos = spec.get("photos", [])
             if not photos:

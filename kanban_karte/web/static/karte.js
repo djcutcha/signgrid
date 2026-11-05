@@ -78,7 +78,7 @@
         it.value ? KK.resultChip(it.value) : it.guide === "na" ? KK.resultChip("対象外") : el("span", { class: "chip q", text: "判断できず(要実測)" }),
         it.value && it.yellow ? el("span", { class: "chip q", text: "要実測" }) : null,
         it.corrected ? el("span", { class: "tag", text: "訂正済み" }) : null,
-        it.guide ? el("span", { class: "tag guide", text: it.guide === "unknown" ? "現場: 分からない" : it.guide === "na" ? "現場: 対象外" : "現場の回答(ガイド)" }) : null));
+        it.guide ? el("span", { class: "tag guide", text: it.guide === "unknown" ? "現場: AI 判定" : it.guide === "na" ? "現場: 対象外" : "現場の回答(ガイド)" }) : null));
     const kids = [head, evidenceLine(d, it.evidence)];
     if (open) kids.push(editor(d, it, state, rerender));
     return el("div", { class: "item" + (it.yellow ? " yellow" : "") + (open ? " open" : ""), dataset: { key: it.key } }, kids);

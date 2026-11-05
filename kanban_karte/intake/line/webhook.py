@@ -12,6 +12,7 @@ import hashlib
 import hmac
 import json
 import logging
+import os
 import threading
 from urllib.parse import parse_qs
 from dataclasses import dataclass, field
@@ -33,6 +34,14 @@ from .session import JST, SessionStore, safe_name
 log = logging.getLogger("kanban_karte.line")
 MAX_BODY = 2 * 1024 * 1024
 WEBHOOK_PATH = "/line/webhook"
+
+
+def auto_draft_enabled() -> bool:
+    """環境変数 LINE_GUIDE_AUTO_DRAFT=1(既定は OFF)で、下書きの鍵(web.api.can_draft)もある時だけ自動で下書きする。"""
+    if os.environ.get("LINE_GUIDE_AUTO_DRAFT") != "1":
+        return False
+    from ...web import api
+    return api.can_draft()
 
 
 def sign(secret: str, body: bytes) -> str:
@@ -67,10 +76,18 @@ class Delivery:
     errors: list[str] = field(default_factory=list)
 
 
+def _say_extra(say: Say) -> dict:
+    extra: dict = {"quick_replies": say.quick}
+    if say.more:
+        extra["more"] = say.more  # 長いまとめの 2 通目以降(同じ返信に続けて載せる)
+    return extra
+
+
 class LineApp:
     def __init__(self, secret: str, client: LineClient, ledger_factory: Callable[[], Ledger],
                  inbox: str | Path, now: Callable[[], datetime] | None = None,
-                 jobs: Callable[[], list[Job]] | None = None, address_search: AddressSearch | None = None):
+                 jobs: Callable[[], list[Job]] | None = None, address_search: AddressSearch | None = None,
+                 auto_draft: Callable[[int], None] | None = None):
         self.secret = secret
         self.client = client
         self.ledger_factory = ledger_factory
@@ -79,8 +96,22 @@ class LineApp:
         self.jobs = jobs or load_jobs  # 今日の案件。実運用は SignJOBZ の点検指示書に差し替える
         self.address_search = address_search  # None なら座標は引かない
         self._lock = threading.Lock()  # 束の判定と台帳書き込みは1本ずつ
-        self.guide_sink = LedgerSink(now=self.now)  # ガイド付き点検の答えを台帳へ(台帳は配信ごとに差し替える)
+        self.auto_draft = auto_draft or self._draft_in_background  # 束 → 写真からの下書き。テストで差し替える
+        self.guide_sink = LedgerSink(now=self.now, auto_draft=auto_draft_enabled)  # ガイド付き点検の答えを台帳へ(台帳は配信ごとに差し替える)
         self.guide = Guide(self.inbox, self.guide_sink, site_choices=self._guide_site_choices)
+
+    def _draft_in_background(self, bundle_id: int) -> None:
+        """ガイド終了で AI 判定の項目がある束を、webhook の応答を止めずに下書きする(Web の「下書きを作る」と同じ web.api.draft_bundle)。
+        結果は台帳に入るだけで、LINE へは通知しない。"""
+        threading.Thread(target=self._draft_bundle, args=(bundle_id,), name=f"line-draft-{bundle_id}", daemon=True).start()
+
+    def _draft_bundle(self, bundle_id: int) -> None:
+        from ...web import api
+        try:
+            with self.ledger_factory() as ledger:
+                api.draft_bundle(ledger, bundle_id)
+        except Exception:
+            log.exception("auto draft failed: bundle %s", bundle_id)
 
     def _guide_site_choices(self) -> list[dict]:
         return guide_site_choices(self._today_jobs(), reply_text.site_choices([], None)[-1])
@@ -114,6 +145,9 @@ class LineApp:
                 except Exception as e:  # 1件の失敗で配信全体(LINE の再送)を巻き込まない
                     log.exception("event failed")
                     out.errors.append(f"{type(e).__name__}: {e}")
+        for bundle_id in self.guide_sink.draft_bundles:  # 台帳を閉じたあと(書き込みが済んでから)走らせる
+            self.auto_draft(bundle_id)
+        self.guide_sink.draft_bundles.clear()
         for token, text in follows:
             self._reply(token, text, out)
         for t in tally.values():
@@ -123,7 +157,7 @@ class LineApp:
                 text = t.guide_say.text
                 if t.failed:
                     text = f"{t.failed} 枚は取得できませんでした。もう一度送ってください\n{text}"
-                self._reply(t.reply_token, text, out, bundle_id=t.bundle_id, quick_replies=t.guide_say.quick)
+                self._reply(t.reply_token, text, out, bundle_id=t.bundle_id, **_say_extra(t.guide_say))
                 continue
             text = reply_text.receipt(t.state_photos, has_position_only=t.position_only, notes=t.notes,
                                       failed=t.failed)
@@ -272,7 +306,7 @@ class LineApp:
         else:
             say = self.guide.postback(user_id, q)
         if say is not None:
-            self._reply(token, say.text, out, quick_replies=say.quick)
+            self._reply(token, say.text, out, **_say_extra(say))
 
     @staticmethod
     def _owns(store: SessionStore, user_id: str, bundle_id: int) -> bool:

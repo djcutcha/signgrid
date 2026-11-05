@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS signs (
     gl_edge       TEXT CHECK (gl_edge IN ('bottom', 'top')),  -- bottom=看板の下端まで(ガイドは bottom で固定)/ top=上端まで
     mount         TEXT,                 -- 取付方法(intake/line/measure.py の MOUNTS か、その他で入れた文)。分からないは NULL
     post          TEXT,                 -- 支柱(例 □50)。無しは '無し'
+    lighting      TEXT,                 -- 照明: 内照式 / 外照式 / 無し(ガイド付き点検で聞く)。分からないは NULL
     created       TEXT NOT NULL DEFAULT (datetime('now','localtime')),
     updated       TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );

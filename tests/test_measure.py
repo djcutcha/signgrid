@@ -83,6 +83,7 @@ class MeasureBase(GuideBase):
         for v in (w, h, d, gl):
             self.say(v)
         self.tap(mount=M.MOUNTS.index(mount))
+        self.tap(light="outer")
         self.say(post)
 
     def sign(self, i=-1):
@@ -100,6 +101,8 @@ class StepConditionTest(MeasureBase):
         self.to_overview(before=[Sign(id="old", name="① 正面の袖看板", size_w=3600, size_h=900,
                                       size_source="measured", size_by="line_guide:zzzz", size_at="2026-04-01",
                                       gl_mm=2500, gl_edge="bottom", height_m=3.4, mount="ビス", post="□50")])
+        self.assertEqual(self.last(), "照明はありますか")  # 寸法は引き継ぐので聞かない。照明の 1 問だけ
+        self.tap(light="outer")
         self.assertTrue(self.last().startswith("基礎部・上部構造を撮ってください(近くで1〜3枚)"))
         with self.ledger() as lg:
             s = [x for x in lg.list_signs() if x.id != "old"][0]
@@ -121,6 +124,7 @@ class StepConditionTest(MeasureBase):
 
     def test_known_size_without_a_measured_source_is_inherited_with_its_label(self):
         self.to_overview(before=[Sign(id="old", name="① 正面の袖看板", size_w=3000, size_h=800, size_source="drawing")])
+        self.tap(light="outer")
         for p in range(len(PARTS)):
             self.tap(nopart=1, p=p)
         self.assertIn("寸法は台帳の図面の値を使いました", self.last())
@@ -130,7 +134,9 @@ class SkipTest(MeasureBase):
     def test_skip_at_the_first_question_writes_nothing(self):
         self.to_overview()
         self.tap(m="skip")
-        self.assertTrue(self.last().startswith("寸法の実測は飛ばしました\n基礎部・上部構造を撮ってください(近くで1〜3枚)"))
+        self.assertEqual(self.last(), "寸法の実測は飛ばしました\n照明はありますか")
+        self.tap(light="outer")
+        self.assertTrue(self.last().startswith("基礎部・上部構造を撮ってください(近くで1〜3枚)"))
         s = self.sign()
         self.assertEqual((s.size_w, s.size_h, s.size_source, s.gl_mm, s.mount, s.post), (None,) * 6)
 
@@ -252,7 +258,9 @@ class InputTest(MeasureBase):
         self.say("900mm")
         self.tap(m="dx")
         self.say("2500")
+        self.tap(m="mpage")
         self.tap(mount=M.MOUNTS.index("分からない"))
+        self.tap(light="unknown")
         self.tap(m="nopost")
         s = self.sign()
         self.assertEqual((s.mount, s.post), (None, "無し"))
@@ -296,9 +304,12 @@ class LedgerTest(MeasureBase):
         self.say("900mm")
         self.tap(m="dx")
         self.tap(m="glx")
+        self.tap(m="mpage")
         self.tap(mount=M.MOUNTS.index(M.MOUNT_OTHER))
         self.assertEqual(self.last(), "取付方法を文字で送ってください(30字まで)")
         self.say("ケミカルアンカー")
+        self.assertEqual(self.last(), "照明はありますか")
+        self.tap(light="inner")
         self.assertIn("支柱", self.last())
         self.tap(m="nopost")
         self.assertEqual(self.sign().mount, "ケミカルアンカー")
@@ -313,7 +324,9 @@ class LedgerTest(MeasureBase):
         self.assertEqual(self.last(), "図面の写真か画像を送ってください(1〜3枚)")
         self.photo()
         self.tap(m="drawn")
-        self.assertTrue(self.last().startswith("図面 1枚を受け取りました。寸法は図面から事務所で入れます\n基礎部・上部構造を撮ってください(近くで1〜3枚)"))
+        self.assertEqual(self.last(), "図面 1枚を受け取りました。寸法は図面から事務所で入れます\n照明はありますか")
+        self.tap(light="outer")
+        self.assertTrue(self.last().startswith("基礎部・上部構造を撮ってください(近くで1〜3枚)"))
         self.photo()  # 部位の写真
         with self.ledger() as lg:
             s = lg.list_signs()[0]
@@ -427,6 +440,7 @@ class DraftInputTest(MeasureBase):
         self.tap(m="draw")
         self.photo()        # 図面
         self.tap(m="drawn")
+        self.tap(light="outer")
         self.photo()        # 部位の写真
         with self.ledger() as lg:
             s = lg.list_signs()[0]

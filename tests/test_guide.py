@@ -52,6 +52,10 @@ class GuideBase(Base):
         return self.client.replies[-1][1]
 
     def last_quick(self):
+        """最後の返信のクイックリプライ(どの問いにも付く「戻る」を除く。戻るは last_quick_raw)。"""
+        return [q for q in self.last_quick_raw() if q["action"]["label"] != "戻る"]
+
+    def last_quick_raw(self):
         return self.client.extras[-1]["quick_replies"]
 
     skip_measure = True  # 既存の流れの試験は、正面は「撮れない」、種類は「その他」、実測の最初の問いは「飛ばす」で通す(実測は MeasureTest が試す)
@@ -67,6 +71,9 @@ class GuideBase(Base):
             st = self.app_.guide.load(USER)
         if self.skip_measure and st is not None and st.step == "measure" and st.m_sub == "ask":
             res = self.tap(m="skip")
+            st = self.app_.guide.load(USER)
+        if self.skip_measure and st is not None and st.step == "lighting":
+            res = self.tap(light="outer")  # 照明の問いも通す(外照式は撮る場所が従来のまま)
         return res
 
     def tap(self, **q):
@@ -96,7 +103,7 @@ class StateMachineTest(GuideBase):
         self.say("① 正面の袖看板")
         self.assertEqual(self.last(), "全景を1枚撮ってください")
         self.photo()
-        self.assertEqual(self.last(), "寸法の実測は飛ばしました\n基礎部・上部構造を撮ってください(近くで1〜3枚)\n"
+        self.assertEqual(self.last(), "基礎部・上部構造を撮ってください(近くで1〜3枚)\n"
                                       "地面との境目(基礎)を近くで。傾きは全景で見ます")  # 種類「その他」の撮る場所
         self.assertEqual([i["action"]["label"] for i in self.last_quick()], ["この部位は無い"])
         self.photo()
@@ -232,7 +239,8 @@ class StateMachineTest(GuideBase):
         with self.ledger() as lg:
             self.assertEqual(len(lg.list_signs()), 2)
         self.tap(end=1)
-        self.assertEqual(self.last(), "終了しました")
+        self.assertTrue(self.last().startswith("点検のまとめ(サンプル駅前店)"))
+        self.assertTrue(self.last().endswith("お疲れさまでした"))
         self.assertFalse(self.app_.guide.active(USER))
 
     def test_location_during_site_step(self):
@@ -462,7 +470,8 @@ class SimulateTest(unittest.TestCase):
                 self.assertEqual(len(s.items), 8)
                 self.assertEqual(sum(1 for v in s.evidence.values() if v["guide"] == "unknown"), 2)
                 self.assertEqual(sum(1 for v in s.evidence.values() if v["guide"] == "na"), 8)  # 基礎部3・照明装置3(この部位は無い)、表示部-4、その他-3
-            self.assertEqual(client.replies[-1][1], "終了しました")
+            self.assertTrue(client.replies[-1][1].startswith("点検のまとめ"))
+            self.assertTrue(client.replies[-1][1].endswith("お疲れさまでした"))
             self.assertFalse(app.guide.active("Usimulated0000000000000000000000"))
 
     def test_operation_counts(self):
@@ -522,7 +531,9 @@ class ShootTest(GuideBase):
         self.tap(kind="pole")
         self.assertIn("寸法を測りますか", self.last())
         self.tap(m="skip")
-        self.assertEqual(self.last(), "寸法の実測は飛ばしました\n基礎部・上部構造を撮ってください(近くで1〜3枚)\n" + S.SHOOT["基礎部・上部構造"]["pole"])
+        self.assertEqual(self.last(), "寸法の実測は飛ばしました\n照明はありますか")
+        self.tap(light="outer")
+        self.assertEqual(self.last(), "基礎部・上部構造を撮ってください(近くで1〜3枚)\n" + S.SHOOT["基礎部・上部構造"]["pole"])
         with self.ledger() as lg:
             s = lg.list_signs()[0]
             tags = {lg.rel_path(r["image_path"]): r["tag"] for r in lg.conn.execute("SELECT image_path, tag FROM pages")}
@@ -535,6 +546,7 @@ class ShootTest(GuideBase):
         self.tap(front="next")
         self.tap(kind="wall")
         self.tap(m="skip")
+        self.tap(light="outer")
         for p in range(3):
             self.tap(nopart=1, p=p)
         self.assertEqual(self.last(), "表示部を撮ってください(近くで1〜3枚)\n表示面の傷み・側板・底と水抜き穴を近くで。正面の写真は撮ってあります")
@@ -549,6 +561,7 @@ class ShootTest(GuideBase):
         self.tap(front="skip")
         self.tap(kind="wall")
         self.tap(m="skip")
+        self.tap(light="outer")
         for p in range(3):
             self.tap(nopart=1, p=p)
         self.assertEqual(self.last(), "表示部を撮ってください(近くで1〜3枚)\n表示面の傷み・側板・底と水抜き穴を近くで")
@@ -577,6 +590,7 @@ class ShootTest(GuideBase):
         self.assertEqual(self.last(), "看板の種類を選んでください")
         self.say("飛ばす")  # 種類も飛ばせる(撮る場所は共通の言い方)
         self.tap(m="skip")
+        self.tap(light="outer")
         self.assertTrue(self.last().endswith(S.SHOOT["基礎部・上部構造"]["*"]))
         with self.ledger() as lg:
             self.assertEqual(lg.list_signs()[0].type, "突出")  # 先に選んだ種類は台帳に残る(飛ばしても消さない)

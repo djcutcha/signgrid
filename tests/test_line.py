@@ -55,9 +55,9 @@ class FakeClient:
             raise IOError("取得できない")
         return self.contents[mid]
 
-    def reply(self, token, text, quick_replies=None, button=None):
+    def reply(self, token, text, quick_replies=None, button=None, more=None):
         self.replies.append((token, text))
-        self.extras.append({"quick_replies": quick_replies, "button": button})
+        self.extras.append({"quick_replies": quick_replies, "button": button, "more": more})
 
 
 def img_event(mid, user=USER, token=None):

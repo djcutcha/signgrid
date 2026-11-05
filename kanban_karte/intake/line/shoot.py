@@ -64,15 +64,23 @@ SHOOT: dict[str, dict[str, str]] = {
     },
 }
 
+# 照明の種類(measure.LIGHTINGS のキー)ごとの、照明装置の撮る場所。外照式・分からない・未回答は SHOOT のまま。無しは部位ごと対象外にして問わない
+LIGHTING_SHOOT = {
+    "inner": "点灯した状態の表示面(できれば)、面板の裏側や電源部が見える所、配線の引き込み",
+}
+LIGHTING_PART = "照明装置"
+
 # 項目キー -> 答える時の一言(どの写真で見るか)
 ASK_HINT = {
     "基礎部・上部構造-1": "傾きは全景で、ぐらつきは手の届く所で",
 }
 
 
-def shoot_hint(part: str, kind: str | None, front_taken: bool = True) -> str:
+def shoot_hint(part: str, kind: str | None, front_taken: bool = True, lighting: str | None = None) -> str:
     rows = SHOOT.get(part, {})
     hint = rows.get(kind or "", rows.get("*", ""))
+    if part == LIGHTING_PART and lighting in LIGHTING_SHOOT:
+        hint = LIGHTING_SHOOT[lighting]
     if part == "表示部" and front_taken:
         hint += "。正面の写真は撮ってあります"
     return hint

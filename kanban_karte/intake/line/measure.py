@@ -18,6 +18,17 @@ from dataclasses import dataclass
 MOUNTS = ("アンカーボルト", "溶接・プレート", "ボルト・ナット・ビス", "ブラケット", "ポール 串刺し式", "ポール 盤上式", "二柱式",
           "基礎・根巻き", "置くだけ", "バンセン", "吊り", "その他(文字で入力)", "分からない")
 MOUNT_OTHER = "その他(文字で入力)"
+MOUNT_PAGE = 11  # 取付方法は 13 択+「戻る」で上限を超えるので 2 ページ(1 ページ目は先頭 11 個+「次のページ」+「戻る」= 13)
+# 照明の選択肢(キー, ボタンの文字, signs.lighting に入れる語。分からないは NULL)
+LIGHTINGS = (
+    ("inner", "内照式(中にLED・蛍光灯)", "内照式"),
+    ("outer", "外照式(スポット・投光器)", "外照式"),
+    ("none", "無し", "無し"),
+    ("unknown", "分からない", None),
+)
+LIGHTING_KEYS = tuple(k for k, _, _ in LIGHTINGS)
+LIGHTING_LABEL = {k: label for k, label, _ in LIGHTINGS}
+LIGHTING_VALUE = {k: v for k, _, v in LIGHTINGS}
 MOUNT_TEXT_MAX = 30
 UNKNOWN = "分からない"
 NONE_POST = "無し"

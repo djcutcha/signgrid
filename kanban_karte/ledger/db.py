@@ -80,6 +80,7 @@ class Sign:
     gl_edge: str | None = None
     mount: str | None = None       # ビス / バンセン / 吊り / 接着 / その他
     post: str | None = None        # 支柱(例 □50)。「無し」も値
+    lighting: str | None = None    # 照明: 内照式 / 外照式 / 無し。分からないは NULL
 
     def validate(self) -> None:
         if self.status not in SIGN_STATUSES:
@@ -155,7 +156,7 @@ class Ledger:
                          ("confirmed_at", "TEXT"), ("confirmed_by", "TEXT"), ("height_m", "REAL"),
                          ("draft_by", "TEXT"), ("size_source", "TEXT"), ("size_by", "TEXT"), ("size_at", "TEXT"),
                          ("gl_mm", "INTEGER"), ("gl_edge", "TEXT"), ("mount", "TEXT"), ("post", "TEXT"),
-                         ("size_d", "INTEGER")):
+                         ("size_d", "INTEGER"), ("lighting", "TEXT")):
             if col not in sign_cols:
                 self.conn.execute(f"ALTER TABLE signs ADD COLUMN {col} {ddl}")
         if "tag" not in {r[1] for r in self.conn.execute("PRAGMA table_info(pages)")}:
