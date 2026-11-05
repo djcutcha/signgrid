@@ -98,13 +98,14 @@ Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期�
 | 指標 | 値 |
 |---|---|
 | 一周(PDF 登録 → 69 基の下書き → 様式出力) | 約 9 分(537 秒)、API $7.44 |
+| **現場の一周(LINE のガイド付き点検、実物の看板 2 基、屋外広告士本人、2026-11-05、人の確認込み)** | 位置送信から 2 基目の記録まで **22 分 51 秒**(2 基目は 2 回目の位置送信から 16 分 24 秒= **1 基 約 8 分**)。写真 16 枚、項目 11+7、webhook 82 件 エラー 0、台帳に 2 基(下書き)。API 0(判定は本人、v3 の時点) |
 | 手書き点検票の転記の照合(Sonnet 5.5 ↔ Opus 5.5、15 頁) | 判定欄の一致 97/102 = 95.1% |
 | 完全一致(47 基、Opus 5.5) | 70.2%(33/47) |
 | 要対応の見逃し | **5/9** |
 | 誤警報 | 1/38 |
 | 黄色(判断できず) | 69 基 × 18 項目のうち 62.5%(昼の写真で見えない項目が大半) |
 
-限界: 1店舗・47 基で、要対応は 9 基(ランク4は 0)。例示は同じ店の別の看板。他の店へ一般化した数字ではない。
+限界: 1店舗・47 基で、要対応は 9 基(ランク4は 0)。現場の一周は 1 人・2 基・1 回(v3、自動下書き前)の実測で、慣れや看板の数で変わる。例示は同じ店の別の看板。他の店へ一般化した数字ではない。
 
 ## 5. 法規(許可・義務)
 
@@ -155,7 +156,7 @@ python3 -m kanban_karte.legal.cli judge --address "東京都豊島区見本町1-
 python3 -m kanban_karte.output.cli tokyo --from-json data/sample/ledger.json --site demo-site-1 --out out.xlsx
 python3 -m kanban_karte.gov.make_sample --db /tmp/gov.sqlite   # 行政の見本(写真10枚・台帳5基)。続きは docs/GOV.md
 python3 -m kanban_karte.eval.run_eval --help          # 評価(正解データは非公開。設定は data/private/sources.example.toml、docs/EVAL.md)
-python3 -m unittest                                   # テスト(696 件)
+python3 -m unittest                                   # テスト(827 件)
 ```
 
 - 下書き(AI)と寸法の推定は `ANTHROPIC_API_KEY`(環境変数か `.env`)があるときだけ動く。無いときは該当のボタンが無効になる。見本の画面は鍵なしで動く。
