@@ -110,7 +110,8 @@ class Ledger:
     def __init__(self, path: str | Path = ":memory:", data_dir: str | Path | None = None):
         if str(path) != ":memory:":
             Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(str(path))
+        # timeout: LINE の自動下書き(別スレッド・別接続)と webhook が同じ台帳に書く時、ロックを 30 秒まで待つ
+        self.conn = sqlite3.connect(str(path), timeout=30)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA foreign_keys = ON")
         self.data_dir = Path(data_dir) if data_dir is not None else None
