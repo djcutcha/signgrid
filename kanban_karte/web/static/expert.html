@@ -21,41 +21,50 @@
   </div>
   <div class="ex-grid">
     <section class="card ex-photos-card" aria-label="写真">
-      <div id="ex-photos" class="ex-photos"></div>
+      <div class="ex-viewer">
+        <button type="button" class="ex-nav" id="ex-ph-prev" aria-label="前の写真">‹</button>
+        <button type="button" id="ex-big" class="ex-big" aria-label="写真を拡大"></button>
+        <button type="button" class="ex-nav" id="ex-ph-next" aria-label="次の写真">›</button>
+        <span id="ex-ph-count" class="ex-ph-count"></span>
+      </div>
+      <div id="ex-photos" class="ex-thumbs"></div>
       <p id="ex-credit" class="sub ex-credit" hidden></p>
-      <p class="sub">写真をクリックで拡大。キーボード: 1〜4 で段階、Enter で保存して次へ、← で前へ、S で飛ばす。文章欄では Ctrl(または Cmd)+Enter で次へ。</p>
+      <p class="sub">キーボード: 1〜4 で段階、← → で写真を送る、Enter で保存して次へ、S で飛ばす。文章欄では Ctrl(または Cmd)+Enter で保存して次へ。大きい写真をクリックで全画面。</p>
     </section>
     <form id="ex-form" class="card ex-form" autocomplete="off" novalidate>
       <fieldset class="ex-field">
         <legend>危なさの直感</legend>
         <div id="ex-ranks" class="ex-ranks" role="radiogroup" aria-label="4 段階"></div>
-        <div class="ex-slider">
-          <label for="ex-score">0(安全)〜 100(危険)</label>
-          <input type="range" id="ex-score" min="0" max="100" step="1" value="50">
-          <output id="ex-score-out" for="ex-score">未入力</output>
-          <button type="button" class="btn ghost small" id="ex-score-clear">クリア</button>
-        </div>
-      </fieldset>
-      <div class="ex-field">
-        <label for="ex-reasons">根拠(気になる点。音声入力でも書けます)</label>
-        <textarea id="ex-reasons" rows="6" placeholder="どこがどう気になるか、なぜその段階か"></textarea>
-      </div>
-      <div class="ex-field">
-        <label for="ex-unknowns">写真では分からない点(この条件の部分は判断できない、など)</label>
-        <textarea id="ex-unknowns" rows="4" placeholder="例: 取付部の裏側が見えない / 基礎の根入れが分からない"></textarea>
-      </div>
-      <fieldset class="ex-field">
-        <legend>見えている劣化のサイン</legend>
-        <div id="ex-signs" class="ex-chips"></div>
+        <details class="ex-more">
+          <summary>数値でも付ける(任意)</summary>
+          <div class="ex-slider">
+            <label for="ex-score">0(安全)〜 100(危険)</label>
+            <input type="range" id="ex-score" min="0" max="100" step="1" value="50">
+            <output id="ex-score-out" for="ex-score">未入力</output>
+            <button type="button" class="btn ghost small" id="ex-score-clear">クリア</button>
+          </div>
+        </details>
       </fieldset>
       <fieldset class="ex-field">
         <legend>種類</legend>
         <div id="ex-kinds" class="ex-chips"></div>
       </fieldset>
+      <fieldset class="ex-field">
+        <legend>見えている劣化のサイン <span class="ex-hint">(点線の札は判定役の下書きから出した候補。合っていれば押す)</span></legend>
+        <div id="ex-signs" class="ex-chips"></div>
+      </fieldset>
+      <div class="ex-field">
+        <label for="ex-reasons">根拠(気になる点。音声入力でも書けます)</label>
+        <textarea id="ex-reasons" rows="7" placeholder="どこがどう気になるか、なぜその段階か"></textarea>
+      </div>
+      <div class="ex-field">
+        <label for="ex-unknowns">写真では分からない点(この条件の部分は判断できない、など)</label>
+        <textarea id="ex-unknowns" rows="5" placeholder="例: 取付部の裏側が見えない / 基礎の根入れが分からない"></textarea>
+      </div>
       <div class="ex-actions">
-        <button type="button" class="btn ghost" id="ex-prev">‹ 戻る</button>
-        <button type="button" class="btn ghost" id="ex-skip">分からない・飛ばす</button>
-        <button type="submit" class="btn" id="ex-next">保存して次へ ›</button>
+        <button type="submit" class="btn" id="ex-next">保存して次へ ›<small>Enter</small></button>
+        <button type="button" class="btn ghost" id="ex-prev">‹ 前の件</button>
+        <button type="button" class="btn ghost" id="ex-skip">分からない・飛ばす(S)</button>
       </div>
       <p id="ex-msg" class="sub" aria-live="polite"></p>
     </form>

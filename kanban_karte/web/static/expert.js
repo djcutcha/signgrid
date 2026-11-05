@@ -2,7 +2,7 @@
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
-  var S = { queue: [], idx: 0, item: null, meta: null, rank: null, scoreTouched: false, busy: false, photos: 0 };
+  var S = { queue: [], idx: 0, item: null, meta: null, rank: null, scoreTouched: false, busy: false, photos: 0, ph: 0 };
   var MID = { 1: 12, 2: 37, 3: 62, 4: 87 };       // 段階を押したとき、スライダーが未入力ならこの値に寄せる(触っていれば動かさない)
   var LABEL = ["良好", "経過観察", "要改善", "即時対応"];
 
@@ -32,6 +32,7 @@
     list.forEach(function (t) {
       var l = document.createElement("label"), i = document.createElement("input");
       i.type = type; i.name = name; i.value = t;
+      l.dataset.v = t;
       l.appendChild(i); l.appendChild(document.createTextNode(t)); box.appendChild(l);
     });
   }
@@ -71,16 +72,24 @@
     var c = S.meta.counts[item.source] || {};
     $("ex-src").textContent = item.source_label;
     var box = $("ex-photos");
-    box.innerHTML = ""; box.className = "ex-photos" + (item.n_photos === 1 ? " single" : "");
+    box.innerHTML = "";
     for (var i = 0; i < item.n_photos; i++) {
       (function (n) {
         var b = document.createElement("button"), im = document.createElement("img");
-        b.type = "button"; b.setAttribute("aria-label", "写真 " + (n + 1) + " を拡大");
-        im.src = imgUrl(item.id, n); im.alt = "写真 " + (n + 1) + " / " + item.n_photos; im.loading = n < 6 ? "eager" : "lazy";
-        b.appendChild(im); b.addEventListener("click", function () { openLb(n); }); box.appendChild(b);
+        b.type = "button"; b.setAttribute("aria-label", "写真 " + (n + 1) + " を大きく");
+        im.src = imgUrl(item.id, n); im.alt = "写真 " + (n + 1) + " / " + item.n_photos; im.loading = "eager";
+        b.appendChild(im); b.addEventListener("click", function () { showPh(n); }); box.appendChild(b);
       })(i);
     }
-    if (!item.n_photos) box.innerHTML = '<p class="muted">写真を読み込めませんでした(「分からない・飛ばす」で進めます)</p>';
+    box.hidden = item.n_photos < 2;
+    showPh(0);
+    if (!item.n_photos) $("ex-big").innerHTML = '<p class="muted">写真を読み込めませんでした(「分からない・飛ばす」で進めます)</p>';
+    // 所見の札: 判定役の下書きから出た候補を先頭に並べ、点線で示す(押すかどうかは入力する人が決める)
+    var sug = item.suggest_signs || [], sbox = $("ex-signs");
+    Array.prototype.slice.call(sbox.children).sort(function (a, b) {
+      var ia = sug.indexOf(a.dataset.v), ib = sug.indexOf(b.dataset.v);
+      return (ia < 0 ? 99 + S.meta.signs.indexOf(a.dataset.v) : ia) - (ib < 0 ? 99 + S.meta.signs.indexOf(b.dataset.v) : ib);
+    }).forEach(function (l) { l.classList.toggle("suggest", sug.indexOf(l.dataset.v) >= 0); sbox.appendChild(l); });
     renderCredit(item.web);
     var s = item.saved;
     $("ex-reasons").value = s ? s.reasons : ""; $("ex-unknowns").value = s ? s.unknowns : "";
@@ -134,6 +143,18 @@
     }).catch(function (e) { S.busy = false; msg("保存できません: " + e.message, true); });
   }
 
+  // 大きい写真 1 枚+送り
+  function showPh(n) {
+    if (!S.photos) { $("ex-ph-count").textContent = ""; return; }
+    S.ph = (n + S.photos) % S.photos;
+    var big = $("ex-big"); big.innerHTML = "";
+    var im = document.createElement("img"); im.src = imgUrl(S.item.id, S.ph); im.alt = "写真 " + (S.ph + 1) + " / " + S.photos;
+    big.appendChild(im);
+    $("ex-ph-count").textContent = (S.ph + 1) + " / " + S.photos;
+    $("ex-ph-prev").hidden = $("ex-ph-next").hidden = S.photos < 2;
+    Array.prototype.forEach.call($("ex-photos").children, function (b, i) { b.classList.toggle("on", i === S.ph); });
+  }
+
   // 写真の拡大
   var lbN = 0;
   function openLb(n) { lbN = n; showLb(); var d = $("ex-lb"); if (!d.open) d.showModal(); }
@@ -156,8 +177,8 @@
     var t = e.target;
     if (e.key >= "1" && e.key <= "4") { setRank(+e.key); e.preventDefault(); }
     else if (e.key === "Enter" && t.tagName !== "BUTTON" && !(t.tagName === "INPUT" && t.type === "checkbox")) { e.preventDefault(); commit(false, 1); }
-    else if (e.key === "ArrowLeft" && t.tagName !== "INPUT") { e.preventDefault(); commit(false, -1); }
-    else if (e.key === "ArrowRight" && t.tagName !== "INPUT") { e.preventDefault(); commit(false, 1); }
+    else if (e.key === "ArrowLeft" && t.tagName !== "INPUT") { e.preventDefault(); showPh(S.ph - 1); }
+    else if (e.key === "ArrowRight" && t.tagName !== "INPUT") { e.preventDefault(); showPh(S.ph + 1); }
     else if (e.key === "s" || e.key === "S") { e.preventDefault(); commit(true, 1); }
   }
 
@@ -177,6 +198,9 @@
     $("ex-skip").addEventListener("click", function () { commit(true, 1); });
     $("ex-score").addEventListener("input", function () { showScore(true); });
     $("ex-score-clear").addEventListener("click", function () { showScore(false); });
+    $("ex-ph-prev").addEventListener("click", function () { showPh(S.ph - 1); });
+    $("ex-ph-next").addEventListener("click", function () { showPh(S.ph + 1); });
+    $("ex-big").addEventListener("click", function () { if (S.photos) openLb(S.ph); });
     $("ex-lb-close").addEventListener("click", function () { $("ex-lb").close(); });
     $("ex-lb-prev").addEventListener("click", function () { lbMove(-1); });
     $("ex-lb-next").addEventListener("click", function () { lbMove(1); });

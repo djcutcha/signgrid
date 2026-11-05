@@ -462,8 +462,12 @@ class ClaudeJudge(Judge):
                  example_mix: list[int] | None = None, example_why: bool = False,
                  example_mix_by_source: dict[str, list[int]] | None = None,
                  example_select: str = "rank", example_pred: dict | None = None, example_scale: bool = False,
-                 rules: list[str] | None = None, max_long_edge: int = MAX_LONG_EDGE):
+                 rules: list[str] | None = None, max_long_edge: int = MAX_LONG_EDGE,
+                 expert_notes: list[dict] | None = None, expert_signs: dict[str, list[str]] | None = None):
         self.model = model
+        # 有資格者の見方(expert_notes.py)。看板ごとに同じ種類・重なる所見の件を最大 3 件、例示と規則の後ろに入れる
+        self.expert_notes = list(expert_notes or [])
+        self.expert_signs = dict(expert_signs or {})
         self.max_photos = max_photos
         self.max_long_edge = max_long_edge  # 判定対象の写真の長辺(例示の写真は既定のまま)
         self.workers = max(1, min(workers, MAX_WORKERS))
@@ -558,6 +562,10 @@ class ClaudeJudge(Judge):
     def build_messages(self, item: EvalItem) -> list[dict]:
         photos = self.photos_for(item)
         content: list[dict] = list(self.example_blocks(item.source)) + rules_block(self.rules)
+        sel = self.expert_for(item)
+        if sel:
+            from .expert_notes import block_text
+            content.append({"type": "text", "text": block_text(sel)})
         for i, p in enumerate(photos, 1):
             content.append({"type": "text", "text": f"写真{i}"})
             content.append({"type": "image", "source": {
@@ -590,7 +598,27 @@ class ClaudeJudge(Judge):
         return self.client.messages.create(
             model=self.model, max_tokens=MAX_TOKENS, system=self.system, messages=messages, **kw)
 
+    def expert_for(self, item: EvalItem) -> list[dict]:
+        """この看板に見せる有資格者の見方。手本の側の言葉づけだけから選び、看板自身の言葉づけは選ばない。"""
+        if not self.expert_notes:
+            return []
+        from .expert_notes import guess_kind, key_of, pick, role
+        k = key_of(item.sign_id)
+        pool = [n for n in self.expert_notes if role(n["sign_key"]) == "example"]
+        return pick(pool, guess_kind(item.meta.get("sign_name", "")), self.expert_signs.get(k, []), exclude=k)
+
     def judge(self, item: EvalItem) -> Prediction:
+        pr = self._judge(item)
+        sel = self.expert_for(item) if self.expert_notes else []
+        if sel and isinstance(pr.raw, dict):
+            from .expert_notes import TRACE
+            pr.raw["expert_refs"] = len(sel)
+            rs = pr.raw.get("reasons")
+            if isinstance(rs, list) and not any(TRACE in str(x) for x in rs):
+                rs.append(TRACE)   # 痕跡: モデルが書き忘れても下書きの理由に残す
+        return pr
+
+    def _judge(self, item: EvalItem) -> Prediction:
         if not self.photos_for(item):
             return Prediction(None, raw={"error": "no_photos"})
         form_items = item.meta.get("form_items") or []

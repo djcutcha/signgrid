@@ -10,6 +10,9 @@
   field  data/private/field_intake/photos/ の実データ(1 フォルダ= 1 基)と pages/(報告書ページ。1 頁= 1 件)
   scan   fkogei-estimate-data/scans/ の点検指示書スキャン PDF(1 PDF= 1 件。ページは pdftoppm で必要なときだけ描画)
 写真の実物(社名・個人情報)は画面にだけ出す。ID と表示名には現場名・社名を入れない。
+
+判定役の下書き(評価の結果 JSON、環境変数 KK_EXPERT_DRAFTS)があれば、評価セットの各件に「所見の候補」を付け、
+評価セットの未入力の先頭 EVAL_HEAD 件を種類・所見・要対応になりそうな物が散らばる順にする。下書きのランクは画面に出さない(先入観になる)。
 """
 from __future__ import annotations
 
@@ -40,6 +43,8 @@ SOURCE_LABEL = {"web": "外の写真", "eval": "評価セット", "field": "実�
 EVAL_LIMIT, EVAL_SEED = 34, 1           # docs/EVAL.md の 102 基(ソースごとに 34、seed 1)
 SCAN_QUEUE = 500                        # スキャンは 34,000 件超。キューには種をそろえた順で先頭からこの数だけ載せる
 SCAN_PAGES = 4                          # 1 PDF につき画面に出す最大ページ数
+EVAL_HEAD = 40                          # 評価セットの未入力のうち、散らばらせて先頭に置く件数(41 件目以降は元の順)
+DEFAULT_DRAFTS = Path(os.environ.get("KK_EXPERT_DRAFTS") or REPO_ROOT / "runs" / "2026-11-02_day2_ex6_opus_limit34.json")
 IMG_EXT = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif"}
 
 SCHEMA = """
@@ -138,9 +143,73 @@ def guess_kind(name: str) -> str:
     return ""
 
 
+# 下書きの理由の 1 文ずつに語があれば、その所見を候補にする。否定の文(「見られない」等)は数えない
+SIGN_WORDS = (("錆", r"錆|サビ|さび"), ("腐食", r"腐食"), ("塗装の剥がれ", r"塗装.{0,6}(剥|はが|浮)|剥離|塗膜"),
+              ("パネルの浮き", r"(パネル|面板|板面|表示面).{0,8}(浮|反り|たわ|変形)"), ("傾き", r"傾"),
+              ("ボルトの変色", r"(ボルト|ナット|ビス).{0,8}(錆|変色|サビ)|(錆|変色|サビ).{0,8}(ボルト|ナット|ビス)"),
+              ("取付部のすき間", r"すき間|隙間|ゆるみ|緩み|がたつ"), ("基礎のひび", r"基礎|ひび|亀裂|クラック"),
+              ("その他", r"汚れ|黄変|黄ば|退色|色あせ|欠け|割れ"))
+# 並べ方に使う所見の種類(依頼 10: 錆・ボルト・板面・照明・取付)
+CAT_WORDS = (("錆", r"錆|サビ|腐食"), ("ボルト", r"ボルト|ナット|ビス"), ("板面", r"板面|面板|パネル|表示面|割れ|退色|破損"),
+             ("照明", r"照明|蛍光|LED|点灯|球|安定器|内照|配線"), ("取付", r"取付|取り付け|金具|アンカー|支柱|ポール|基礎|傾"))
+NEG = re.compile(r"見られ(ない|ず)|見当たら|確認でき(ない|ず)|見え(ない|ず)|認められ(ない|ず)|ありません|はない|もない|無い|(判定|判断)でき|写っておらず|該当なし")
+
+
+def _sentences(reasons) -> list[str]:
+    out = []
+    for r in reasons if isinstance(reasons, list) else [reasons or ""]:
+        out += [x for x in re.split(r"[。\n]", str(r)) if x.strip()]
+    return [x for x in out if not NEG.search(x)]
+
+
+def parse_draft(rec: dict) -> dict:
+    """評価の結果 JSON の 1 件 → {rank, suggest, cats}。rank は並べ方にだけ使い、画面に出さない。"""
+    sents = _sentences(rec.get("reasons"))
+    text = "。".join(sents)
+    try:
+        rank = int(rec.get("rank_pred"))
+    except (TypeError, ValueError):
+        rank = None
+    return {"rank": rank, "suggest": [n for n, w in SIGN_WORDS if re.search(w, text)],
+            "cats": [n for n, w in CAT_WORDS if re.search(w, text)]}
+
+
+def load_drafts(path: str | Path | None) -> dict[str, dict]:
+    """sign_id("xlsx_center:0019" / "0000005930-007")→ 下書き。ファイルが無ければ空(画面は候補なしで動く)。"""
+    try:
+        recs = json.loads(Path(path).read_text(encoding="utf-8"))["records"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return {}
+    return {str(r.get("sign_id", "")).replace(":", "-"): parse_draft(r) for r in recs if r.get("sign_id")}
+
+
+def spread(items: list, drafts: dict[str, dict], n: int, seed: str = "expert-eval-v1") -> list:
+    """先頭 n 件を、種類・所見の種類・出どころ・要対応になりそうか(下書き 3〜4)が偏らない順に選ぶ。残りは元の順で後ろへ。
+    貪欲法: まだ少ない特徴を多く持つ件を先に取る(同点は種固定の乱数)。"""
+    rng = random.Random(seed)
+    tie = {id(it): rng.random() for it in items}
+    feats = {}
+    for it in items:
+        d = drafts.get(it.key) or {}
+        f = ["kind:" + (it.kind or "不明"), "grp:" + (it.group or "")] + ["cat:" + c for c in d.get("cats", [])]
+        f.append("risk:" + ("高" if (d.get("rank") or 0) >= 3 else "低"))
+        feats[id(it)] = f
+    seen: dict[str, int] = {}
+    pool, head = list(items), []
+    while pool and len(head) < n:
+        best = min(pool, key=lambda it: (sum(seen.get(x, 0) for x in feats[id(it)]) / len(feats[id(it)]) - 0.15 * len(feats[id(it)]), tie[id(it)]))
+        head.append(best)
+        pool.remove(best)
+        for x in feats[id(best)]:
+            seen[x] = seen.get(x, 0) + 1
+    taken = {id(i) for i in head}
+    return head + [i for i in items if id(i) not in taken]
+
+
 class Item:
-    def __init__(self, source: str, key: str, files: list[Path], kind: str = "", pdf: Path | None = None, web: dict | None = None):
-        self.source, self.key, self.files, self.kind, self.pdf, self.web = source, key, files, kind, pdf, web
+    def __init__(self, source: str, key: str, files: list[Path], kind: str = "", pdf: Path | None = None, web: dict | None = None,
+                 group: str = ""):
+        self.source, self.key, self.files, self.kind, self.pdf, self.web, self.group = source, key, files, kind, pdf, web, group
 
     @property
     def id(self) -> str:
@@ -151,8 +220,9 @@ class Catalog:
     """写真の出どころ 3 つを 1 本の順番にする。評価セット→実データ→報告書ページ→スキャン(種つきの並び)。"""
 
     def __init__(self, private: Path = PRIVATE, scans: Path = SCANS, cache: Path | None = None, with_eval: bool = True,
-                 sources_config: str | None = None, scan_queue: int = SCAN_QUEUE):
+                 sources_config: str | None = None, scan_queue: int = SCAN_QUEUE, drafts: str | Path | None = DEFAULT_DRAFTS):
         self.private, self.scans, self.scan_queue = Path(private), Path(scans), scan_queue
+        self.drafts = load_drafts(drafts) if drafts else {}
         self.cache = Path(cache) if cache else self.private / "expert_cache"
         self.items: dict[str, Item] = {}
         self.order: list[str] = []
@@ -220,7 +290,7 @@ class Catalog:
                 files = [Path(x) for x in i.photo_paths if Path(x).is_file()]
                 if files:
                     # sign_id は "xlsx_center:0019" のような連番で社名を含まない。正解ランクは持ち込まない
-                    self._add(Item("eval", i.sign_id.replace(":", "-"), files, guess_kind(i.meta.get("sign_name", ""))))
+                    self._add(Item("eval", i.sign_id.replace(":", "-"), files, guess_kind(i.meta.get("sign_name", "")), group=s))
                     n, p = n + 1, p + len(files)
         self.counts["eval"] = {"signs": n, "photos": p}
 
@@ -271,10 +341,26 @@ class Catalog:
 class Expert:
     def __init__(self, store: Store, catalog: Catalog):
         self.store, self.catalog = store, catalog
+        self._order: list[str] | None = None
+
+    def order(self, done: dict) -> list[str]:
+        """評価セットの区間だけ並べ替える: 未入力を散らばらせた先頭 EVAL_HEAD 件 → 残りの未入力(元の順)→ 入力済み。
+        プロセスで 1 回だけ決める(保存のたびに並びが動かないように)。"""
+        if self._order is None:
+            ids = self.catalog.order
+            ev = [i for i in ids if i.startswith("eval/")]
+            if ev and self.catalog.drafts:
+                todo = [self.catalog.items[i] for i in ev if i not in done]
+                new = [it.id for it in spread(todo, self.catalog.drafts, EVAL_HEAD)] + [i for i in ev if i in done]
+                at = ids.index(ev[0])
+                rest = [i for i in ids if not i.startswith("eval/")]
+                ids = rest[:at] + new + rest[at:]
+            self._order = ids
+        return self._order
 
     def queue(self) -> dict:
         done = {(r["source"] + "/" + r["sign_key"]): r for r in self.store.all()}
-        ids = self.catalog.order
+        ids = self.order(done)
         rows = [[i, 0 if i not in done else (2 if done[i]["skipped"] else 1)] for i in ids]   # 0 未 1 済 2 飛ばし
         return {"queue": rows, "total": len(ids),
                 "done": sum(1 for r in rows if r[1] == 1), "skipped": sum(1 for r in rows if r[1] == 2),
@@ -289,6 +375,7 @@ class Expert:
         saved = self.store.get(it.source, it.key)
         return {"id": it.id, "source": it.source, "source_label": SOURCE_LABEL[it.source], "key": it.key,
                 "n_photos": len(files), "kind_default": it.kind, "saved": saved,
+                "suggest_signs": (self.catalog.drafts.get(it.key) or {}).get("suggest", []) if it.source == "eval" else [],
                 "web": {k: v for k, v in it.web.items() if k != "condition_guess"} if it.web else None}
 
     def image(self, iid: str, n: int) -> tuple[bytes, str] | None:
