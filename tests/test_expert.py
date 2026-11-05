@@ -188,3 +188,63 @@ class ExpertWebTest(WebTest):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExpertDraftTest(unittest.TestCase):
+    """判定役の下書き: 所見の候補(否定の文は数えない)、評価セットの先頭の散らばり、入力済みは後ろ、下書きのランクは出さない。"""
+
+    def test_parse_draft_skips_negated(self):
+        d = expert.parse_draft({"rank_pred": "3", "reasons": ["箱体底部に広い範囲の錆と腐食がある", "固定ボルトに錆は見られない", "基礎は写っておらず判定できない"]})
+        self.assertEqual(d["rank"], 3)
+        self.assertEqual(d["suggest"], ["錆", "腐食"])
+        self.assertNotIn("ボルト", d["cats"])
+        self.assertEqual(expert.parse_draft({"rank_pred": None, "reasons": "表示面に汚れがある"})["suggest"], ["その他"])
+
+    def test_load_drafts_missing_file(self):
+        self.assertEqual(expert.load_drafts("/nonexistent/x.json"), {})
+        with tempfile.TemporaryDirectory() as td:
+            f = Path(td) / "r.json"
+            f.write_text(json.dumps({"records": [{"sign_id": "xlsx_center:0019", "rank_pred": "2", "reasons": ["錆がある"]}]}), encoding="utf-8")
+            self.assertEqual(expert.load_drafts(f)["xlsx_center-0019"]["suggest"], ["錆"])
+
+    def _items(self):
+        items, drafts = [], {}
+        # 元の順: 全部が同じ出どころ・良好の物が先に 20 件、その後に危ない物 5 件
+        for i in range(25):
+            grp = "paper_scan" if i < 20 else "xlsx_center"
+            it = expert.Item("eval", f"k{i:02d}", [Path("x.jpg")], "壁面" if i < 20 else "袖", group=grp)
+            items.append(it)
+            drafts[it.key] = {"rank": 1 if i < 20 else 4, "suggest": [], "cats": ["錆"] if i < 20 else ["取付"]}
+        return items, drafts
+
+    def test_spread_mixes_head(self):
+        items, drafts = self._items()
+        out = expert.spread(items, drafts, 10)
+        self.assertEqual(len(out), 25)
+        self.assertEqual(len({id(i) for i in out}), 25)
+        head = out[:10]
+        self.assertGreaterEqual(sum(1 for i in head if drafts[i.key]["rank"] >= 3), 3)   # 危ない物が先頭に混ざる
+        self.assertEqual({i.group for i in head}, {"paper_scan", "xlsx_center"})
+        self.assertEqual([i.key for i in out], [i.key for i in expert.spread(items, drafts, 10)])   # 種固定
+
+    def test_order_done_last_and_suggest(self):
+        items, drafts = self._items()
+        with tempfile.TemporaryDirectory() as td:
+            cat = expert.Catalog(private=Path(td), scans=Path(td) / "none", with_eval=False, drafts=None)
+            cat._add(expert.Item("web", "w1", [Path("w.jpg")]))
+            for it in items:
+                cat._add(it)
+            cat.drafts = drafts
+            store = expert.Store(Path(td) / "n.sqlite")
+            store.save("eval", "k21", [], {"rank": 3})
+            ex = expert.Expert(store, cat)
+            ids = [r[0] for r in ex.queue()["queue"]]
+            self.assertEqual(ids[0], "web/w1")
+            self.assertEqual(ids[-1], "eval/k21")                       # 入力済みは後ろ
+            self.assertEqual(len(ids), 26)
+            store.save("eval", ids[1][5:], [], {"rank": 1})
+            self.assertEqual([r[0] for r in ex.queue()["queue"]], ids)  # 保存しても並びは動かない
+            drafts["k20"]["suggest"] = ["錆"]
+            it = ex.item("eval/k20")
+            self.assertEqual(it["suggest_signs"], ["錆"])
+            self.assertNotIn("rank", json.dumps({k: v for k, v in it.items() if k != "saved"}))   # 下書きのランクは出さない
