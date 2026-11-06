@@ -33,6 +33,19 @@ class SplitPickTest(unittest.TestCase):
         self.assertEqual(en.pick(pool, "", ["基礎のひび"]), [])           # 重なりが無ければ見せない
         self.assertEqual([n["sign_key"] for n in en.pick(pool, "壁面", ["錆"], exclude="c")], ["b", "a"])
 
+    def test_examples_reasons_first_one_good_per_outdoor_kind(self):
+        good = lambda k, kind: {**note(k, kind, [], "", ""), "good": True}
+        notes = [good("0000005930-007", "壁面"), note("0000006157-001"), good("0000006157-005", "壁面"),
+                 good("0000006157-023", "自立"), note("0000006157-041")]
+        self.assertEqual([n["sign_key"] for n in en.examples(notes)],
+                         ["0000006157-001", "0000006157-041", "0000005930-007", "0000006157-023"])
+        self.assertEqual([n["sign_key"] for n in en.examples(notes, 3)], ["0000006157-001", "0000006157-041", "0000005930-007"])
+
+    def test_pick_prefers_reasons_over_good_on_tie(self):
+        pool = [{**note("g", "壁面", [], "", ""), "good": True}, note("r", "壁面", [])]
+        self.assertEqual([n["sign_key"] for n in en.pick(pool, "壁面", [])], ["r", "g"])
+        self.assertIn(en.GOOD_TEXT, en.block_text(pool[:1]))
+
     def test_block_text_scrubs_numbers(self):
         t = en.block_text([note("0000005930-007", reasons="案件 0000005930 の底が錆")])
         self.assertNotIn("0000005930", t)
@@ -47,9 +60,13 @@ class SplitPickTest(unittest.TestCase):
             st.save("eval", "0000005930-007", [], {"rank": 3, "reasons": "錆", "signs": ["錆"], "kind": "壁面"})
             st.save("eval", "0000006157-001", [], {"skipped": True, "reasons": "x"})
             st.save("eval", "0000006157-005", [], {"rank": 1})
+            st.save("eval", "0000006157-023", [], {"rank": 1, "kind": "自立"})
+            st.save("eval", "0000006157-041", [], {"rank": 2, "kind": "壁面"})
+            st.save("eval", "0000006157-061", [], {"rank": 1, "kind": "その他"})
             st.save("web", "1", [], {"rank": 1, "reasons": "web は使わない"})
             got = en.load(db)
-            self.assertEqual([n["sign_key"] for n in got], ["0000005930-007"])
+            self.assertEqual([n["sign_key"] for n in got], ["0000005930-007", "0000006157-023"])   # 文の無い物は屋外のランク 1 だけ
+            self.assertTrue(got[1]["good"])
             self.assertEqual(got[0]["signs"], ["錆"])
 
 
