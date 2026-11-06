@@ -4,6 +4,7 @@ import json
 import tempfile
 import threading
 import unittest
+from unittest import mock
 from urllib.parse import quote
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from tests.test_web import WebTest
 JPEG = bytes.fromhex("ffd8ffe000104a46494600010100000100010000ffdb004300080606070605080707070909080a0c140d0c0b0b0c1912130f141d1a1f1e1d1a1c1c20242e2720222c231c1c2837292c30313434341f27393d38323c2e333432ffc0000b080001000101011100ffc4001400010000000000000000000000000000000affc400141001000000000000000000000000000000ffda0008010100003f00d2cf20ffd9")
 
 
+@mock.patch.object(expert, "OUTDOOR_FILTER", False)   # 並びの絞り込みは ExpertOutdoorTest で見る
 class ExpertTest(WebTest):
     @classmethod
     def setUpClass(cls):
@@ -111,6 +113,7 @@ class ExpertTest(WebTest):
         self.assertEqual(expert.guess_kind("ほげ"), "")
 
 
+@mock.patch.object(expert, "OUTDOOR_FILTER", False)
 class ExpertWebTest(WebTest):
     """外の写真(expert_web/index.json): キュー先頭、状態の混ぜ、出典、相対パス保存、export の列。"""
     @classmethod
@@ -229,7 +232,7 @@ class ExpertDraftTest(unittest.TestCase):
 
     def test_order_done_last_and_suggest(self):
         items, drafts = self._items()
-        with tempfile.TemporaryDirectory() as td:
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(expert, "OUTDOOR_FILTER", False):
             cat = expert.Catalog(private=Path(td), scans=Path(td) / "none", with_eval=False, drafts=None)
             cat._add(expert.Item("web", "w1", [Path("w.jpg")]))
             for it in items:
@@ -248,3 +251,27 @@ class ExpertDraftTest(unittest.TestCase):
             it = ex.item("eval/k20")
             self.assertEqual(it["suggest_signs"], ["錆"])
             self.assertNotIn("rank", json.dumps({k: v for k, v in it.items() if k != "saved"}))   # 下書きのランクは出さない
+
+
+class ExpertOutdoorTest(unittest.TestCase):
+    """残りのキューは屋外の看板(壁面・袖・自立・屋上)だけ: 除く物は出さない、分からない物は後ろ、入力済みは残す。"""
+
+    def test_outdoor_class(self):
+        self.assertEqual(expert.outdoor_class("袖", ""), ("outdoor", "袖"))
+        self.assertEqual(expert.outdoor_class("", "2本支柱の自立看板で、傾斜は見られない"), ("outdoor", "自立"))
+        self.assertEqual(expert.outdoor_class("壁面", "ドアガラスにカッティングシートを貼った表示"), ("exclude", "カッティングシート"))
+        self.assertEqual(expert.outdoor_class("", "屋内の壁面に平付けされた表示板"), ("exclude", "室内"))
+        self.assertEqual(expert.outdoor_class("その他", "メッシュフェンスに結束した板"), ("unknown", ""))
+
+    def test_queue_outdoor_first_unknown_back_excluded_hidden(self):
+        with tempfile.TemporaryDirectory() as td:
+            cat = expert.Catalog(private=Path(td), scans=Path(td) / "none", with_eval=False, drafts=None)
+            for key, kind in (("u1", ""), ("o1", "壁面"), ("x1", ""), ("d1", ""), ("o2", "")):
+                cat._add(expert.Item("field", key, [Path("f.jpg")], kind))
+            cat.hints = {"field/x1": "店内の天井から吊った案内", "field/o2": "屋上の塔屋看板", "field/d1": "店内の案内"}
+            store = expert.Store(Path(td) / "n.sqlite")
+            store.save("field", "d1", [], {"rank": 1})
+            with mock.patch.object(expert, "OUTDOOR_FILTER", True):
+                q = expert.Expert(store, cat).queue()
+            self.assertEqual([r[0] for r in q["queue"]], ["field/o1", "field/d1", "field/o2", "field/u1"])
+            self.assertEqual(q["outdoor"], {"outdoor": 2, "unknown": 1, "exclude": {"室内": 1}})

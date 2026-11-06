@@ -43,6 +43,11 @@ SOURCE_LABEL = {"web": "外の写真", "eval": "評価セット", "field": "実�
 EVAL_LIMIT, EVAL_SEED = 34, 1           # docs/EVAL.md の 102 基(ソースごとに 34、seed 1)
 SCAN_QUEUE = 500                        # スキャンは 34,000 件超。キューには種をそろえた順で先頭からこの数だけ載せる
 SCAN_PAGES = 4                          # 1 PDF につき画面に出す最大ページ数
+OUTDOOR = ("壁面", "袖", "自立", "屋上")   # 屋外広告物の点検義務に近い種類。残りのキューはこれだけを先に出す(2026-11-06 Cutcha)
+# 種類・屋内の手がかり(看板名 → 判定役の下書きの文の順に見る)。除く物は出さない、分からない物は後ろへ(消さない)
+EXCLUDE_WORDS = (("カッティングシート", r"カッティング|カッテイング"), ("室内", r"屋内|室内|店内|館内|窓の内側|ドアガラス"))
+KIND_WORDS = (("屋上", r"屋上|塔屋"), ("袖", r"袖|突出"), ("自立", r"自立|支柱|ポール|塔看板|門型"), ("壁面", r"壁面|外壁"))
+OUTDOOR_FILTER = os.environ.get("KK_EXPERT_OUTDOOR", "1") != "0"
 EVAL_HEAD = 40                          # 評価セットの未入力のうち、散らばらせて先頭に置く件数(41 件目以降は元の順)
 DEFAULT_DRAFTS = Path(os.environ.get("KK_EXPERT_DRAFTS") or REPO_ROOT / "runs" / "2026-11-02_day2_ex6_opus_limit34.json")
 IMG_EXT = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif"}
@@ -170,8 +175,22 @@ def parse_draft(rec: dict) -> dict:
         rank = int(rec.get("rank_pred"))
     except (TypeError, ValueError):
         rank = None
+    raw = " ".join(str(r) for r in rec.get("reasons")) if isinstance(rec.get("reasons"), list) else str(rec.get("reasons") or "")
     return {"rank": rank, "suggest": [n for n, w in SIGN_WORDS if re.search(w, text)],
-            "cats": [n for n, w in CAT_WORDS if re.search(w, text)]}
+            "cats": [n for n, w in CAT_WORDS if re.search(w, text)], "text": raw}
+
+
+def outdoor_class(kind: str, text: str) -> tuple[str, str]:
+    """('outdoor' | 'exclude' | 'unknown', 理由)。除く語が先、次に種類(看板名の種類 → 文の語)。"""
+    for label, w in EXCLUDE_WORDS:
+        if re.search(w, text or ""):
+            return "exclude", label
+    if kind in OUTDOOR:
+        return "outdoor", kind
+    for k, w in KIND_WORDS:
+        if re.search(w, text or ""):
+            return "outdoor", k
+    return "unknown", ""
 
 
 def load_drafts(path: str | Path | None) -> dict[str, dict]:
@@ -229,6 +248,7 @@ class Catalog:
         self.counts: dict[str, dict] = {}
         self.warnings: list[str] = []
         self._pdf_names: list[str] = []
+        self.hints: dict[str, str] = {}   # 項目 id → 種類の手がかりの文(下書きの理由など)
         self._load_web()
         self._load_eval(sources_config) if with_eval else None
         self._load_field()
@@ -296,11 +316,19 @@ class Catalog:
 
     def _load_field(self) -> None:
         root = self.private / "field_intake"
+        remarks: dict[str, str] = {}
+        try:   # 現場の判定役の下書き(看板名+所見の文)。種類と屋内かどうかの手がかりにだけ使う
+            c = sqlite3.connect(f"file:{self.private / 'field_site.sqlite'}?mode=ro", uri=True)
+            remarks = {r[0]: f"{r[1] or ''} {r[2] or ''} {r[3] or ''}" for r in c.execute("SELECT id, name, type, remark FROM signs")}
+            c.close()
+        except sqlite3.Error:
+            pass
         n = p = 0
         for d in sorted((root / "photos").glob("*")) if (root / "photos").is_dir() else []:
             files = sorted(f for f in d.iterdir() if f.suffix.lower() in IMG_EXT)
             if files:
                 self._add(Item("field", d.name, files))
+                self.hints["field/" + d.name] = remarks.get(d.name, "")
                 n, p = n + 1, p + len(files)
         self.counts["field"] = {"signs": n, "photos": p}
         n = p = 0
@@ -342,6 +370,7 @@ class Expert:
     def __init__(self, store: Store, catalog: Catalog):
         self.store, self.catalog = store, catalog
         self._order: list[str] | None = None
+        self.filter_counts: dict = {}
 
     def order(self, done: dict) -> list[str]:
         """評価セットの区間だけ並べ替える: 未入力を散らばらせた先頭 EVAL_HEAD 件 → 残りの未入力(元の順)→ 入力済み。
@@ -355,8 +384,31 @@ class Expert:
                 at = ids.index(ev[0])
                 rest = [i for i in ids if not i.startswith("eval/")]
                 ids = rest[:at] + new + rest[at:]
-            self._order = ids
+            self._order = self._outdoor(ids, done) if OUTDOOR_FILTER else ids
         return self._order
+
+    def _outdoor(self, ids: list[str], done: dict) -> list[str]:
+        """未入力だけを屋外の看板に絞る: 屋外(元の順)→ 分からない物は後ろ。除く物(カッティングシート・室内)は出さない。
+        入力済みは元の位置のまま残す。内訳は self.filter_counts に。"""
+        keep, back = [], []
+        cnt = {"outdoor": 0, "unknown": 0, "exclude": {}}
+        for i in ids:
+            if i in done:
+                keep.append(i)
+                continue
+            it = self.catalog.items[i]
+            text = self.catalog.hints.get(i) or (self.catalog.drafts.get(it.key) or {}).get("text", "") if it.source == "eval" else self.catalog.hints.get(i, "")
+            cls, why = outdoor_class(it.kind, text)
+            if cls == "exclude":
+                cnt["exclude"][why] = cnt["exclude"].get(why, 0) + 1
+            elif cls == "outdoor":
+                cnt["outdoor"] += 1
+                keep.append(i)
+            else:
+                cnt["unknown"] += 1
+                back.append(i)
+        self.filter_counts = cnt
+        return keep + back
 
     def queue(self) -> dict:
         done = {(r["source"] + "/" + r["sign_key"]): r for r in self.store.all()}
@@ -364,7 +416,7 @@ class Expert:
         rows = [[i, 0 if i not in done else (2 if done[i]["skipped"] else 1)] for i in ids]   # 0 未 1 済 2 飛ばし
         return {"queue": rows, "total": len(ids),
                 "done": sum(1 for r in rows if r[1] == 1), "skipped": sum(1 for r in rows if r[1] == 2),
-                "counts": self.catalog.counts, "warnings": self.catalog.warnings,
+                "counts": self.catalog.counts, "warnings": self.catalog.warnings, "outdoor": self.filter_counts,
                 "ranks": RANKS, "signs": SIGNS, "kinds": KINDS}
 
     def item(self, iid: str) -> dict | None:
