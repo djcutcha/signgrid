@@ -1,0 +1,25 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SignGrid N5 看板ごとの確認</title><link rel="stylesheet" href="ui.css"><link rel="stylesheet" href="n5.css"></head>
+<body data-page="n5" data-no-foot>
+<script src="data.js"></script><script src="shell.js"></script>
+<main class="page" id="app">
+  <div class="empty" id="state"><b>読み込んでいます…</b></div>
+</main>
+
+<div class="dlg-back" id="lawDlg"><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="lawTitle">
+  <h3 id="lawTitle">根拠条文</h3>
+  <p class="small muted">法規役が参照した条文です。点検の義務を決めるものではなく、参考として表示しています。</p>
+  <ul class="law-list" id="lawList"></ul>
+  <div class="law-card" id="lawCard" hidden></div>
+  <div class="row"><button class="btn" id="lawClose" type="button">閉じる</button></div>
+</div></div>
+<div class="dlg-back" id="byDlg"><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="byTitle">
+  <h3 id="byTitle">あなたの名前を入れてください</h3>
+  <p class="small muted">訂正と確認済みの記録に、この名前が残ります。この端末に覚えておきます。</p>
+  <label class="f" for="byIn">名前(有資格者)</label>
+  <input class="input" id="byIn" autocomplete="name" maxlength="40">
+  <div class="row"><button class="btn ghost" id="byCancel" type="button">やめる</button><button class="btn primary" id="byOk" type="button">決める</button></div>
+</div></div>
+<div class="toast" id="toast" role="status"></div>
+<script src="n5.js"></script>
+</body></html>

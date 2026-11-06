@@ -1,0 +1,40 @@
+/* N7 報告書専用 */
+.cols7{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:24px;align-items:start}
+.paper{background:#fff;border:1px solid var(--g300);box-shadow:var(--shadow);padding:40px 48px;max-width:760px;margin:0 auto;width:100%}
+.paper .form-name{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.paper h2{text-align:center;font-size:20px;margin:16px 0 24px;letter-spacing:.08em}
+.paper dl{display:grid;grid-template-columns:96px minmax(0,1fr);border:1px solid var(--g300);margin:0 0 16px;font-size:13px}
+.paper dt,.paper dd{padding:8px 12px;border-bottom:1px solid var(--line);margin:0;min-width:0}
+.paper dt{background:var(--g50);font-weight:600;border-right:1px solid var(--line)}
+.paper dl>*:nth-last-child(-n+2){border-bottom:0}
+.paper table.t th,.paper table.t td{padding:8px 12px}
+.paper table.t td.g{background:var(--g100);font-weight:700;color:var(--fg)}
+.paper table.t td.r{white-space:nowrap;width:1%}
+.paper .total{margin-top:16px;border:1px solid var(--g300);padding:12px 16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:14px}
+.paper .sign-row{margin-top:24px;font-size:13px;display:flex;justify-content:flex-end}
+.toast{position:fixed;left:50%;bottom:88px;transform:translateX(-50%);background:var(--g900);color:#fff;padding:8px 16px;border-radius:var(--r-sm);font-size:13px;z-index:30;display:none;max-width:calc(100vw - 32px)}
+.toast.on{display:block}
+.side{position:sticky;top:16px}
+@media (max-width:1100px){.cols7{grid-template-columns:minmax(0,1fr)}.side{position:static}}
+@media (max-width:760px){.paper{padding:16px}.paper dl{grid-template-columns:80px minmax(0,1fr)}.seg{display:flex;flex-wrap:wrap}}
+.callout b.num{white-space:nowrap}
+
+/* 転記の照合の印(札ではない小さな印) */
+.vm{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;font-size:10px;font-weight:800;line-height:1;margin-left:8px;vertical-align:1px}
+.vm.m-ok{background:#ECFDF3;color:#15803D}.vm.m-chk{background:#FFF7E6;color:#B45309;border:1px solid #FCD9A5}.vm.m-fix{background:#EFF4FF;color:#1D4ED8;border:1px solid #BFD3FB}
+.legend-v{display:flex;align-items:center;gap:4px 8px;flex-wrap:wrap;font-size:12px;margin:0 0 8px}
+.legend-v .vm{margin-left:8px}
+.paper table.t td.r{width:1%}
+@media print{.vm{border:1px solid #999;background:#fff;color:#000}}
+
+/* 本実装の追加 */
+.mockband{display:none}
+.paper+.paper{margin-top:24px}
+.paper .vm-text{font-size:11px;color:var(--muted);margin-left:4px}
+@media print{
+  .topbar,.stepper,.wizard-foot,.side,.page-head,.seg,.no-print{display:none !important}
+  body{background:#fff}
+  .page{padding:0;max-width:none}
+  .cols7{display:block}
+  .paper{box-shadow:none;border:0;max-width:none;padding:0;break-after:page}
+}
