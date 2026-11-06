@@ -273,5 +273,5 @@ class ExpertOutdoorTest(unittest.TestCase):
             store.save("field", "d1", [], {"rank": 1})
             with mock.patch.object(expert, "OUTDOOR_FILTER", True):
                 q = expert.Expert(store, cat).queue()
-            self.assertEqual([r[0] for r in q["queue"]], ["field/o1", "field/d1", "field/o2", "field/u1"])
+            self.assertEqual([r[0] for r in q["queue"]], ["field/o1", "field/o2", "field/u1", "field/d1"])   # 入力済み d1 は最後尾(2026-11-06 15:55 の直し)
             self.assertEqual(q["outdoor"], {"outdoor": 2, "unknown": 1, "exclude": {"室内": 1}})

@@ -389,12 +389,12 @@ class Expert:
 
     def _outdoor(self, ids: list[str], done: dict) -> list[str]:
         """未入力だけを屋外の看板に絞る: 屋外(元の順)→ 分からない物は後ろ。除く物(カッティングシート・室内)は出さない。
-        入力済みは元の位置のまま残す。内訳は self.filter_counts に。"""
-        keep, back = [], []
+        入力済みは最後尾に回す(消さない)。内訳は self.filter_counts に。"""
+        keep, back, fin = [], [], []
         cnt = {"outdoor": 0, "unknown": 0, "exclude": {}}
         for i in ids:
             if i in done:
-                keep.append(i)
+                fin.append(i)   # 入力済みは最後尾へ(画面の「次へ」は位置で進むので、途中に残すと済みの物が出る。2026-11-06 15:55 Cutcha 指摘)
                 continue
             it = self.catalog.items[i]
             text = self.catalog.hints.get(i) or (self.catalog.drafts.get(it.key) or {}).get("text", "") if it.source == "eval" else self.catalog.hints.get(i, "")
@@ -408,7 +408,7 @@ class Expert:
                 cnt["unknown"] += 1
                 back.append(i)
         self.filter_counts = cnt
-        return keep + back
+        return keep + back + fin
 
     def queue(self) -> dict:
         done = {(r["source"] + "/" + r["sign_key"]): r for r in self.store.all()}
