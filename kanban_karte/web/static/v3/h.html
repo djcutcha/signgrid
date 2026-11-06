@@ -1,0 +1,43 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SignGrid 今日やること</title><link rel="stylesheet" href="ui.css"><link rel="stylesheet" href="h.css"></head>
+<body data-page="h">
+<script src="data.js"></script>
+<script>/* 見本の固定データを本物に差し替える(shell.js が読む前に): 日付は今日、会社名は API が返すまで空 */
+SG.TODAY = new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric", weekday: "short" }); SG.COMPANY = "";</script>
+<script src="shell.js"></script>
+<main class="page">
+  <div class="page-head">
+    <div><h1>今日やること</h1><p class="lead" id="lead"></p></div>
+    <div class="ingest" id="ingest" role="status" aria-label="取り込み中の束" hidden></div>
+  </div>
+
+  <p class="load-msg" id="loading" role="status">読み込んでいます…</p>
+  <div class="err-box" id="error" role="alert" hidden>
+    <b>台帳を読めませんでした</b><span id="errMsg"></span>
+    <button type="button" class="btn sm" id="retry">もう一度読む</button>
+  </div>
+
+  <div id="viewFull" hidden>
+    <section class="grid g2" aria-label="入口">
+      <a class="entry-card" href="n3.html"><div class="ic">+</div><h3>新規点検</h3><p>はじめての物件。写真と報告書を取り込み、有資格者が確認して署名します。</p><span class="go">新規点検を始める →</span></a>
+      <a class="entry-card" href="l.html" id="reinspect"><div class="ic">↻</div><h3>既存物件の再点検</h3><p>前回の結果と比べながら点検します。物件を 1 つ選んでください。</p><span class="go">物件を選ぶ →</span></a>
+    </section>
+
+    <section class="card sec-gap" aria-labelledby="waitH">
+      <div class="card-title"><h2 id="waitH">確認待ち</h2><span class="right">有資格者の確認を待つ看板</span></div>
+      <div class="wait-sum num" id="waitSum"></div>
+      <ul class="list" id="waitList"></ul>
+    </section>
+
+    <section class="card sec-gap" aria-labelledby="dueH">
+      <div class="card-title"><h2 id="dueH">期限が近い物件</h2><span class="right">次の点検日・許可の期限が近い順</span></div>
+      <ul class="list" id="dueList"></ul>
+    </section>
+  </div>
+
+  <div id="viewEmpty" hidden>
+    <section class="card"><div class="empty"><b>まだ物件がありません</b>新規点検から始めてください。<br><a class="btn primary lg" href="n3.html">新規点検を始める</a></div></section>
+  </div>
+</main>
+<script src="h.js"></script>
+</body></html>

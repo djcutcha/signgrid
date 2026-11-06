@@ -1,0 +1,55 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SignGrid N3 取り込み</title><link rel="stylesheet" href="ui.css"><link rel="stylesheet" href="n3.css"></head>
+<body data-page="n3" data-no-foot>
+<script src="data.js"></script>
+<script>/* 見本の固定データを本物に差し替える(shell.js が読む前に): 日付は今日、会社名は API が返すまで空 */
+SG.TODAY = new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric", weekday: "short" }); SG.COMPANY = "";</script>
+<script src="shell.js"></script>
+<main class="page narrow">
+  <section id="v-before">
+    <div class="page-head"><div><h1>写真と報告書を落としてください</h1><p class="lead">落とすと、その場で仕分けから始めます。</p></div></div>
+    <div class="err-box" id="pickErr" role="alert" hidden></div>
+    <div class="drop" id="drop">
+      <div class="big">ここに写真フォルダと紙の点検表を落とす</div>
+      <div class="muted">紙はスキャンの PDF でも、現場で撮った写真(JPG)でもよい</div>
+      <div class="row" style="margin-top:16px;justify-content:center">
+        <label class="btn">ファイルを選ぶ<input type="file" id="pick" multiple accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp" hidden></label>
+        <label class="btn">フォルダを選ぶ<input type="file" id="pickDir" webkitdirectory hidden></label>
+      </div>
+    </div>
+    <p class="hint">PDF は 1 本だけ。写真は 100 枚まで(JPEG / PNG / WEBP)。PDF と写真は一緒に落とせません。</p>
+  </section>
+
+  <section id="v-sending" hidden>
+    <div class="page-head"><div><h1>送っています</h1><p class="lead" id="sendMsg"></p></div></div>
+    <div class="card"><div class="bar"><i style="width:40%;animation:slide 1.2s ease-in-out infinite alternate"></i></div></div>
+  </section>
+
+  <section id="v-running" hidden>
+    <div class="page-head"><div><h1>AI が読んでいます</h1><p class="lead">看板ごとに仕分けて、紙の文字を写し、下書きを作ります。確定は、あとで人が行います。</p></div></div>
+    <div class="card stack">
+      <div id="stages"></div>
+      <div class="log" id="log" aria-live="polite" aria-label="AI が今やっていること"></div>
+    </div>
+  </section>
+
+  <section id="v-done" hidden>
+    <div class="page-head"><div><h1>読み取りが終わりました</h1></div></div>
+    <div class="card stack">
+      <p class="sumline" id="sumline"></p>
+      <div class="row"><span class="chip draft" id="sumDraft"></span><span class="unk" id="sumUnk" hidden></span></div>
+      <p class="muted">不明点は、写真や手書きから AI が決められなかった所です。看板ごとの確認で、人が答えて確定します。</p>
+      <div class="row"><a class="btn primary lg" id="toN5" href="n5.html">看板ごとの確認へ</a><button type="button" class="btn" id="again">別の物を取り込む</button></div>
+    </div>
+  </section>
+
+  <section id="v-error" hidden>
+    <div class="page-head"><div><h1>取り込みを続けられませんでした</h1></div></div>
+    <div class="card stack">
+      <p id="errText"></p>
+      <div class="row"><button type="button" class="btn primary" id="retry">もう一度送る</button><button type="button" class="btn" id="back">選び直す</button></div>
+    </div>
+  </section>
+</main>
+<script src="n3.js"></script>
+</body></html>
