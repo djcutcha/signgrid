@@ -95,6 +95,16 @@ class SampleStartTest(WebTest):
 
     def test_static_traversal(self):
         self.assertEqual(self.req("/static/../server.py", raw=True)[0], 404)
+        self.assertEqual(self.req("/v3/../../server.py", raw=True)[0], 404)
+
+    def test_v3_entrances(self):
+        for path, want in (("/v3/", "今日やること"), ("/v3/field/", "現場"), ("/v3/n5.html", "N5")):
+            st, body, _ = self.req(path, raw=True)
+            self.assertEqual(st, 200, path)
+            self.assertIn(want, body.decode("utf-8"), path)
+        st, body, _ = self.req("/field", raw=True)   # 308 → /v3/field/(urllib は転送をたどる)
+        self.assertEqual(st, 200)
+        self.assertIn("現場", body.decode("utf-8"))
 
     def test_post_needs_json(self):
         st, _, _ = self.req("/api/signs/demo-001/items", {"item": "rank", "value": 2, "by": "x"}, ctype="text/plain")

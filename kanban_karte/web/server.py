@@ -26,7 +26,7 @@ from ..gov.geocode import Geocoder
 from ..ledger.db import Ledger
 from ..legal.locate import SamplePlacer, make_placer
 from ..pipeline.intake_run import IntakeJobs
-from . import api, citizen, expert
+from . import api, citizen, expert, field_submit
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STATIC = Path(__file__).with_name("static")
@@ -139,6 +139,18 @@ def make_handler(app: App):
                     return self._send(308, b"", "text/plain", {"Location": path + "/" + (f"?{url.query}" if url.query else "")})
                 if path in ("/gov/", "/owner/"):
                     return self._file(STATIC / (path.strip("/") + ".html"), "text/html; charset=utf-8")
+                if path in ("/v3", "/field", "/field/"):  # 社内 UI v3 の入口(/field/ は現場ウィザード)
+                    return self._send(308, b"", "text/plain", {"Location": "/v3/" + ("field/" if path.startswith("/field") else "")
+                                                               + (f"?{url.query}" if url.query else "")})
+                if path.startswith("/v3/"):  # static/v3 をそのまま。末尾スラッシュは H ホーム / 現場ウィザードの入口
+                    rel = path[len("/v3/"):]
+                    if rel in ("", "field/"):
+                        rel += "index.html" if rel else "h.html"
+                    p = (STATIC / "v3" / rel).resolve()
+                    if not p.is_relative_to((STATIC / "v3").resolve()) or not p.is_file():
+                        return self._error(404, "見つかりません")
+                    ctype = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
+                    return self._file(p, ctype + ("; charset=utf-8" if ctype.startswith("text/") or ctype.endswith("javascript") else ""))
                 if path.startswith("/static/"):
                     p = (STATIC / path[len("/static/"):]).resolve()
                     if not p.is_relative_to(STATIC.resolve()) or not p.is_file():
@@ -232,10 +244,14 @@ def make_handler(app: App):
                     return self._json(api.owner_estimate(body, app.estimator_factory, app.placer))
                 if path == "/api/field/draft":  # 台帳を開かない・書かない。写真は保存しない
                     return self._json(api.field_draft(body, app.field_drafter_factory))
+                if path == "/api/field/photo":  # 写真を 1 枚置く(台帳は開かない)。Claude API は呼ばない
+                    return self._json(field_submit.field_photo(body, app.data_dir))
                 with app.ledger() as ledger:
                     m = SITE_PATCH.match(path)
                     if m:
                         return self._json(api.patch_site(ledger, m[1], body))
+                    if path == "/api/field/submit":  # 看板 1 基を下書き(確認待ち)として台帳に入れる。Claude API は呼ばない
+                        return self._json(field_submit.field_submit(ledger, body, app.data_dir))
                     if path == "/api/intake/upload":
                         return self._json(api.intake_upload(ledger, body, app.intake_jobs, app.data_dir))
                     if path == "/api/gov/upload":
@@ -260,6 +276,8 @@ def make_handler(app: App):
                     if m:
                         return self._json(api.draft_bundle(ledger, int(m[1]), app.judge_factory))
                 self._error(404, "見つかりません")
+            except field_submit.SubmitError as e:
+                self._json({"error": e.message, **e.extra}, e.status)
             except api.ApiError as e:
                 self._error(e.status, e.message)
 

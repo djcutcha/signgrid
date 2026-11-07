@@ -281,16 +281,19 @@ class IntakeJobs:
 def progress(ledger: Ledger, bundle_id: int, jobs: IntakeJobs) -> dict | None:
     """画面の進み具合。台帳に記録がある段だけ数を出し、無い段は done/total とも None。
       仕分け = 種別を付けたページ / 全ページ    下書き = 下書きが付いた看板 / 看板(看板がまだ無い間は None)
-      転記・反証役 = 本線がまだ記録を持たない(None)"""
+      転記 = 紙の頁(完成報告書・点検表)/ 紙の頁。完成報告書から看板の枠(写真セル)を切り出した後に、全頁を済みとして数える
+             (頁ごとの記録は持たない。写真だけの束=紙の頁が無い束は None)
+      反証役 = 本線がまだ記録を持たない(None)"""
     b = ledger.get_bundle(bundle_id)
     if b is None:
         return None
     st = jobs.state(bundle_id)
     pages = ledger.list_pages(bundle_id)
     signs = ledger.list_signs(bundle_id=bundle_id)
+    paper = [p for p in pages if p["kind"] in ("完成報告書", "点検表")]
     stages = {
         "sort": {"done": sum(1 for p in pages if p["kind_basis"] is not None), "total": len(pages)} if pages else None,
-        "transcribe": None,
+        "transcribe": ({"done": len(paper) if signs else 0, "total": len(paper)} if paper else None),
         "draft": ({"done": sum(s.status in ("draft", "confirmed", "needs_photos") for s in signs), "total": len(signs)}
                   if signs else None),
         "verify": None,

@@ -1,0 +1,27 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SignGrid 現場の点検</title><link rel="stylesheet" href="../ui.css"><link rel="stylesheet" href="field.css"></head>
+<body>
+<div class="fshell">
+  <header class="fbar"><button type="button" class="back" id="backBtn" style="visibility:hidden">‹ 戻る</button>
+    <div class="ttl" id="ttl">看板 1 基目</div><div class="co"></div></header>
+  <div class="fstep" id="fstep" hidden><div class="now" id="fnow"></div><ol aria-hidden="true" id="fbar"></ol></div>
+  <main class="fpage" id="view" tabindex="-1"></main>
+</div>
+
+<div class="ffoot wizard-foot" id="foot" hidden><div class="in">
+  <button type="button" class="btn primary lg" id="nextBtn"></button>
+  <button type="button" class="btn ghost" id="ghostBtn" hidden></button>
+</div></div>
+
+<div class="sheet-back" id="sheetBack">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetT">
+    <div class="grab"></div>
+    <p class="small muted" id="sheetK"></p>
+    <h3 id="sheetT"></h3>
+    <div id="opts"></div>
+    <button type="button" class="btn block ghost" id="sheetClose">閉じる</button>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<script src="app.js"></script>
+</body></html>

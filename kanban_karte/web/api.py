@@ -52,8 +52,24 @@ def can_draft() -> bool:
     return bool(os.environ.get("ANTHROPIC_API_KEY"))
 
 
+DEFAULT_COMPANY = "株式会社エフ広芸"
+
+
+def company_name() -> str:
+    """画面の右上に出す会社名。環境変数 KANBAN_KARTE_COMPANY か .env、無ければ既定。"""
+    v = os.environ.get("KANBAN_KARTE_COMPANY")
+    if not v:
+        try:
+            from ..eval.claude_judge import load_dotenv
+            load_dotenv()
+        except Exception:
+            pass
+        v = os.environ.get("KANBAN_KARTE_COMPANY")
+    return (v or "").strip() or DEFAULT_COMPANY
+
+
 def meta(sample: bool) -> dict:
-    return {"sample": sample, "can_draft": can_draft(), "can_estimate": can_draft(), "results": list(RESULTS),
+    return {"sample": sample, "company": company_name(), "can_draft": can_draft(), "can_estimate": can_draft(), "results": list(RESULTS),
             "rank_labels": {str(k): v for k, v in RANK_LABEL.items()},
             "items": [{"key": f"{g}-{n}", "group": g, "no": n, "text": t} for g, n, t in _ITEMS]}
 
@@ -155,8 +171,20 @@ def sign_detail(ledger: Ledger, sign_id: str, placer=None) -> dict:
                          for i, p in enumerate(s.photos)],
               "corrections": [_correction(r, {i["key"]: f"{i['group']} {i['no']} {i['text']}" for i in items})
                               for r in rows],
-              "legal": sign_legal(s, site, placer), "editable": s.status == "draft", "result_choices": list(RESULTS)})
+              "legal": sign_legal(s, site, placer), "editable": s.status == "draft", "result_choices": list(RESULTS),
+              "from_paper": from_paper(ledger, s)})
     return d
+
+
+PAPER_PAGE_KINDS = ("完成報告書", "点検表")
+
+
+def from_paper(ledger: Ledger, s: Sign) -> bool:
+    """紙から転記した看板か。写真が紙の頁から切り出した物(data_dir/cells/ の下)か、元の束に紙の頁(完成報告書・点検表)がある。
+    写真フォルダ・LINE・現場ウィザードの束(写真の頁だけ)は False。"""
+    if any("cells" in Path(p).parts for p in s.photos):
+        return True
+    return s.source_bundle is not None and any(k in PAPER_PAGE_KINDS for k in ledger.kind_counts(s.source_bundle))
 
 
 def default_clarifier(sample: bool):
@@ -245,6 +273,8 @@ def site_json(ledger: Ledger, site, last_active: str | None = None) -> dict:
             "orderer_type": site.orderer_type, "chain_brand": site.chain_brand,
             "contact_person": site.contact_person, "contact": site.contact,
             "last_active": last_active,
+            "next_inspection": min((x.next_inspection for x in signs if x.next_inspection), default=None),   # 配下の看板の最小(いちばん近い期限)
+            "permit_expires": min((x.permit_expires for x in signs if x.permit_expires), default=None),
             "sign_count": len(signs), "draft_count": sum(s.status == "draft" for s in signs),
             "confirmed_count": sum(s.status == "confirmed" for s in signs)}
 
@@ -320,7 +350,7 @@ def draft_bundle(ledger: Ledger, bundle_id: int, judge_factory=None) -> dict:
     if judge_factory is None and not can_draft():
         raise ApiError(503, "ANTHROPIC_API_KEY がないので、下書きは作れません(環境変数か .env)")
     # ガイド付き点検(LINE)で現場が答えた看板がある束は、答えを上書きせず「分からない」だけを下書きする
-    only_missing = any((ledger.get_sign(sid).draft_by or "").startswith("line_guide")
+    only_missing = any((ledger.get_sign(sid).draft_by or "").startswith(("line_guide", "field_wizard"))
                        for sid in draft_mod.ensure_signs(ledger, bundle_id))
     try:
         judge = (judge_factory or (lambda rules: draft_mod.default_judge(rules)))(ledger.recent_rules())
