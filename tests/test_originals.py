@@ -42,10 +42,10 @@ def item(sid, source, site, name, date, photos, rank=2) -> EvalItem:
 
 class NameTest(unittest.TestCase):
     def test_kaikan_key_matches_eval_and_folder_names(self):
-        folders = ["3.たまプラーザ会館", "1.甲社　 仙川会館", "10.東久留米会館", "5.鶴見営業所", "写真"]
-        sites = ["甲社 たまプラーザ会館", "甲社 仙川会館", "甲社会館 東久留米", "甲社 鶴見営業所"]
-        self.assertEqual([og.kaikan_key(f, V) for f in folders[:4]], ["たまプラーザ", "仙川", "東久留米", "鶴見"])
-        self.assertEqual([og.kaikan_key(s, V) for s in sites], ["たまプラーザ", "仙川", "東久留米", "鶴見"])
+        folders = ["3.みなみ台会館", "1.甲社　 北浜会館", "10.西丘会館", "5.中野原営業所", "写真"]
+        sites = ["甲社 みなみ台会館", "甲社 北浜会館", "甲社会館 西丘", "甲社 中野原営業所"]
+        self.assertEqual([og.kaikan_key(f, V) for f in folders[:4]], ["みなみ台", "北浜", "西丘", "中野原"])
+        self.assertEqual([og.kaikan_key(s, V) for s in sites], ["みなみ台", "北浜", "西丘", "中野原"])
 
     def test_nfd_dakuten_is_normalized(self):
         nfd = unicodedata.normalize("NFD", "3.プラザ会館")
@@ -53,8 +53,8 @@ class NameTest(unittest.TestCase):
         self.assertEqual(og.kaikan_key(nfd, V), og.kaikan_key("甲社 プラザ会館", V))
 
     def test_center_key(self):
-        self.assertEqual(og.center_key("新百合ヶ丘営業センター", V), "新百合ヶ丘")
-        self.assertEqual(og.center_key("乙不動産ステップ小石川", V), "小石川")
+        self.assertEqual(og.center_key("桜ヶ丘営業センター", V), "桜ヶ丘")
+        self.assertEqual(og.center_key("乙不動産ステップ緑町", V), "緑町")
 
     def test_sign_name_match_ignores_numbering(self):
         self.assertTrue(og.names_match("1.壁面袖看板", "1.袖看板"))
@@ -164,12 +164,12 @@ class MatchTest(unittest.TestCase):
 
     def test_center_pool_filters_by_key(self):
         nas = self.root / "nas" / "_済み" / "乙不動産　ステップ"
-        o = save(scene(1), nas / "ステップ　写真" / "ステップ　小石川" / "①袖看板" / "a.jpg")
+        o = save(scene(1), nas / "ステップ　写真" / "ステップ　緑町" / "①袖看板" / "a.jpg")
         save(scene(2), nas / "ステップ　写真" / "ステップ　赤羽" / "①袖看板" / "b.jpg")
         dirs_file = self.root / "dirs.txt"
         dirs_file.write_bytes(str(nas).encode("utf-8"))
         p = save(scene(1), self.root / "p.jpg", size=(100, 75))
-        items = [item("xlsx_center:0001", "xlsx_center", "小石川営業センター", "袖看板", "2025-11-27", [p])]
+        items = [item("xlsx_center:0001", "xlsx_center", "緑町営業センター", "袖看板", "2025-11-27", [p])]
         rows = og.build_index(items, og.read_dirs(dirs_file), self.cache, V)
         self.assertEqual((rows[0]["originals"], rows[0]["basis"]), (o, "name"))
 

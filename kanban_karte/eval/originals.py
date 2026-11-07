@@ -97,7 +97,7 @@ def _strip_suffix(s: str, suffixes: tuple[str, ...]) -> str:
 
 
 def kaikan_key(name: str, v: "Vocab") -> str:
-    """会館名の鍵。評価側の現場名(例 "<社名>会館 東久留米")も NAS のフォルダ名(例 "10.東久留米会館")も同じ鍵になる。"""
+    """会館名の鍵。評価側の現場名(例 "<社名>会館 西丘")も NAS のフォルダ名(例 "10.西丘会館")も同じ鍵になる。"""
     s = re.sub(r"^\d+[.．]", "", unicodedata.normalize("NFKC", name).strip())
     s = squash(s)
     for w in v.karte_strip:

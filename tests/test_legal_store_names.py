@@ -33,8 +33,8 @@ class ExtractTest(unittest.TestCase):
         self.assertEqual(name("見本マート　ＡＢ店点検"), ("chain", "見本マートAB店"))
 
     def test_generic_forms(self):
-        for s, want in (("つくば店　自立サイン点検", "つくば店"), ("某社 取手支店点検", "取手支店"),
-                        ("某社熊谷センター・看板点検", "某社熊谷センター"), ("個別学院 杉戸校 点検", "杉戸校")):
+        for s, want in (("若葉店　自立サイン点検", "若葉店"), ("某社 港支店点検", "港支店"),
+                        ("某社川辺センター・看板点検", "某社川辺センター"), ("個別学院 青葉校 点検", "青葉校")):
             with self.subTest(s=s):
                 self.assertEqual(name(s), ("generic", want))
 
