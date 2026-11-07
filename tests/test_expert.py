@@ -1,4 +1,4 @@
-"""有資格者の言葉づけ画面(/expert/): ルート、保存→読み戻し、export、入力検証。写真は一時フォルダの小さな JPEG。"""
+"""有資格者のアノテーション画面(/expert/): ルート、保存→読み戻し、export、入力検証。写真は一時フォルダの小さな JPEG。"""
 import csv
 import json
 import tempfile

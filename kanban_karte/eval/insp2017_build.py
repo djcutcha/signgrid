@@ -1,4 +1,4 @@
-"""2017 年の点検報告書と写真を、言葉づけの列(/expert/ の点検記録)が読む items.tsv にする(依頼 14 B)。
+"""2017 年の点検報告書と写真を、アノテーションの列(/expert/ の点検記録)が読む items.tsv にする(依頼 14 B)。
 
   python3 -m kanban_karte.eval.insp2017_build [--root ~/Projects/fkogei-estimate-data/eval/insp2017]
 

@@ -129,7 +129,7 @@ def make_handler(app: App):
             url = urlsplit(self.path)
             path, q = unquote(url.path), parse_qs(url.query)
             try:
-                if expert.wants(path):   # 有資格者の言葉づけ画面(expert.py)
+                if expert.wants(path):   # 有資格者のアノテーション画面(expert.py)
                     return expert.serve(self, app, "GET", path, q, None)
                 if citizen.wants(path):  # 市民からの報告(citizen.py)。ログイン不要
                     return citizen.serve(self, app, "GET", path, q, None)

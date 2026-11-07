@@ -1,4 +1,4 @@
-"""有資格者の言葉づけ画面(/expert/)。写真を見て、危なさの直感・根拠・気になる点・写真では分からない点を言葉にする。
+"""有資格者のアノテーション画面(/expert/)。写真を見て、危なさの直感・根拠・気になる点・写真では分からない点を言葉にする。
 
   python3 -m kanban_karte.web.expert export [--out DIR] [--db PATH]   CSV と JSONL を書き出す
   python3 -m kanban_karte.web.expert stats  [--db PATH]               件数だけ見る
@@ -492,7 +492,7 @@ class Expert:
                 continue
             it = self.catalog.items[i]
             if it.source == "web":
-                web.append(i)   # 外のサイトの写真(1 基 1 枚、点検結果なし)は言葉づけの対象外= 入力済みより後ろ(2026-11-06 16:01 Cutcha 指摘)
+                web.append(i)   # 外のサイトの写真(1 基 1 枚、点検結果なし)はアノテーションの対象外= 入力済みより後ろ(2026-11-06 16:01 Cutcha 指摘)
                 continue
             text = self.catalog.hints.get(i) or (self.catalog.drafts.get(it.key) or {}).get("text", "") if it.source == "eval" else self.catalog.hints.get(i, "")
             cls, why = (it.cls, "カッティングシート") if it.cls else outdoor_class(it.kind, text)
@@ -620,7 +620,7 @@ def export(db: str | Path, out: str | Path) -> dict:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(prog="kanban_karte.web.expert", description="有資格者の言葉づけ(expert_notes)")
+    ap = argparse.ArgumentParser(prog="kanban_karte.web.expert", description="有資格者のアノテーション(expert_notes)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     e = sub.add_parser("export", help="CSV と JSONL に書き出す")
     e.add_argument("--db", default=str(DEFAULT_DB))

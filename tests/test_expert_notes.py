@@ -1,4 +1,4 @@
-"""有資格者の言葉づけ → 判定役の手本: 分け方(偶奇)、選び方、送る文(番号を伏せる)、物差しへ自分の言葉を見せない、痕跡、規則の候補。"""
+"""有資格者のアノテーション → 判定役の手本: 分け方(偶奇)、選び方、送る文(番号を伏せる)、物差しへ自分の言葉を見せない、痕跡、規則の候補。"""
 import json
 import sqlite3
 import tempfile
@@ -74,7 +74,7 @@ class JudgeWiringTest(unittest.TestCase):
         j = ClaudeJudge(client=object(), expert_notes=notes, expert_signs={"0000006157-015": ["錆"]})
         t = self.texts(j, self.item("0000006157-015"))
         self.assertIn("手本の言葉", t)
-        self.assertNotIn("自分の言葉", t)             # 物差しの側の言葉づけは手本にしない
+        self.assertNotIn("自分の言葉", t)             # 物差しの側のアノテーションは手本にしない
 
     def test_no_notes_no_block_and_trace(self):
         j0 = ClaudeJudge(client=object())

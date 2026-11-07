@@ -1,4 +1,4 @@
-/* 有資格者の言葉づけ: 写真を見て、危なさの直感・根拠・気になる点を 1 件ずつ即時保存する */
+/* 有資格者のアノテーション: 写真を見て、危なさの直感・根拠・気になる点を 1 件ずつ即時保存する */
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };

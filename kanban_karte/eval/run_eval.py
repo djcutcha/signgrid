@@ -463,8 +463,8 @@ def main(argv=None) -> int:
                    help="評価基準(a〜d と部位ごとの判定ポイント)の要点をシステムプロンプトに入れる")
     g.add_argument("--rules-from-db", default=None, metavar="LEDGER",
                    help="台帳(SQLite)の rules 表の最新20件を「有資格者の規則」として例示の後ろに入れる(既定オフ)")
-    e = ap.add_argument_group("有資格者の言葉づけ(expert_notes.py)")
-    e.add_argument("--expert-db", default=None, metavar="SQLITE", help="expert_notes.sqlite。手本の側の言葉づけを看板ごとに最大 3 件見せる")
+    e = ap.add_argument_group("有資格者のアノテーション(expert_notes.py)")
+    e.add_argument("--expert-db", default=None, metavar="SQLITE", help="expert_notes.sqlite。手本の側のアノテーションを看板ごとに最大 3 件見せる")
     e.add_argument("--expert-max", type=int, default=None, metavar="N", help="手本に使う件数の上限(入力順。学習曲線の 0/10/25/50)")
     e.add_argument("--expert-drafts", default=None, metavar="JSON", help="判定する看板の所見の候補を拾う過去の結果 JSON(手本の選び方に使う)")
     e.add_argument("--expert-rule", action="store_true", help="unknowns の規則の候補(要実測)を規則として入れる")
@@ -516,7 +516,7 @@ def main(argv=None) -> int:
         if a.expert_db:
             from . import expert_notes as en
             if not Path(a.expert_db).exists():
-                ap.error(f"言葉づけの DB がありません: {a.expert_db}")
+                ap.error(f"アノテーションの DB がありません: {a.expert_db}")
             opts["expert_notes"] = en.examples(en.load(a.expert_db), a.expert_max)
             opts["expert_signs"] = en.target_signs(a.expert_drafts)
     elif a.judge == "replay":

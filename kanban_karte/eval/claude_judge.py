@@ -599,7 +599,7 @@ class ClaudeJudge(Judge):
             model=self.model, max_tokens=MAX_TOKENS, system=self.system, messages=messages, **kw)
 
     def expert_for(self, item: EvalItem) -> list[dict]:
-        """この看板に見せる有資格者の見方。手本の側の言葉づけだけから選び、看板自身の言葉づけは選ばない。"""
+        """この看板に見せる有資格者の見方。手本の側のアノテーションだけから選び、看板自身のアノテーションは選ばない。"""
         if not self.expert_notes:
             return []
         from .expert_notes import guess_kind, key_of, pick, role
