@@ -275,3 +275,98 @@ class ExpertOutdoorTest(unittest.TestCase):
                 q = expert.Expert(store, cat).queue()
             self.assertEqual([r[0] for r in q["queue"]], ["field/o1", "field/o2", "field/u1", "field/d1"])   # 入力済み d1 は最後尾(2026-11-06 15:55 の直し)
             self.assertEqual(q["outdoor"], {"outdoor": 2, "unknown": 1, "exclude": {"室内": 1}})
+
+
+class ExpertNasTest(unittest.TestCase):
+    """点検記録(nas): 実データの直後・報告書ページの前、屋外を先にランクを交ぜる、記録済みランクは画面に出さない、重複は載せない。"""
+
+    ROWS = [("1.屋上チャンネルサイン", "3", 2), ("2.自立サイン", "1", 1), ("3.袖看板", "2", 8), ("4.壁面サイン", "1", 1),
+            ("5.ポスターパネルA型サイン", "4", 1), ("6.ドアのカッティングシート", "1", 1), ("7.掲示板", "1", 1), ("8.写真なしの看板", "1", 0)]
+
+    def _catalog(self, td: Path, dup: bool = False):
+        nas = td / "eval" / "nas"
+        nas.mkdir(parents=True)
+        (nas / "expert_sets.txt").write_text("set_a\nset_b\n")
+        for s in ("set_a", "set_b"):
+            (nas / s / "photos").mkdir(parents=True)
+            with open(nas / s / "items.tsv", "w", encoding="utf-8", newline="") as f:
+                w = csv.writer(f, delimiter="\t")
+                w.writerow(["source_file", "sheet", "client", "site", "inspection_date", "sign_name", "sign_no", "sign_rank_normalized", "photo_files"])
+                for n, (name, rank, k) in enumerate(self.ROWS):
+                    files = [f"photos/{n}_{i}.jpg" for i in range(k)]
+                    for i, x in enumerate(files):
+                        (nas / s / x).write_bytes(JPEG + f"{s}{n}{i}".encode())   # 中身を変えて重複にしない
+                    w.writerow([f"{s}.xlsx", "表", "社名", "現場", "2022-08-23", name, str(n + 1), rank, json.dumps(files)])
+        (td / "field_intake" / "photos" / "fs-1").mkdir(parents=True)
+        (td / "field_intake" / "photos" / "fs-1" / "01.jpg").write_bytes(JPEG + (b"set_a00" if dup else b"field"))
+        (td / "field_intake" / "pages" / "000001").mkdir(parents=True)
+        (td / "field_intake" / "pages" / "000001" / "p-001.jpg").write_bytes(JPEG)
+        return expert.Catalog(private=td, scans=td / "scans", with_eval=False, drafts=None)
+
+    def test_position_mix_and_classes(self):
+        with tempfile.TemporaryDirectory() as td:
+            cat = self._catalog(Path(td))
+            src = [i.split("/")[0] for i in cat.order]
+            self.assertEqual(sorted(set(src), key=src.index), ["field", "nas", "page"])
+            self.assertEqual(cat.counts["nas"], {"signs": 14, "photos": 26, "dup_skipped": 0})   # 写真なしは載せない、袖の 8 枚は 6 枚まで
+            nas = [cat.items[i] for i in cat.order if i.startswith("nas/")]
+            self.assertTrue(all("社名" not in it.key and "現場" not in it.key for it in nas))
+            out = [it for it in nas if it.cls == "outdoor"]
+            self.assertEqual(len(out), 8)
+            self.assertEqual(nas[: len(out)], out)   # 屋外が先
+            ranks = [cat.nas_meta[it.key]["rank"] for it in out]
+            self.assertGreaterEqual(ranks[0], 3)      # 要対応→良好→経過観察→良好…
+            self.assertEqual(ranks[1], 1)
+            self.assertEqual(ranks[2], 2)
+            self.assertEqual({cat.nas_meta[it.key]["sign_name"][:2]: it.kind for it in out},
+                             {"1.": "屋上", "2.": "自立", "3.": "袖", "4.": "壁面"})
+            self.assertEqual(max(len(it.files) for it in nas), expert.NAS_PHOTOS)
+            store = expert.Store(Path(td) / "n.sqlite")
+            with mock.patch.object(expert, "OUTDOOR_FILTER", True):
+                ex = expert.Expert(store, cat)
+                q = ex.queue()
+            ids = [r[0] for r in q["queue"]]
+            names = {it.id: cat.nas_meta[it.key]["sign_name"] for it in nas}
+            self.assertFalse(any("カッティング" in names.get(i, "") for i in ids))       # カッティングシートは出さない
+            self.assertLess(ids.index(out[-1].id), ids.index("page/000001-p-001"))
+            back = [i for i in ids if names.get(i, "").startswith(("5.", "7."))]
+            self.assertEqual(len(back), 4)                                                 # 置き型・掲示板は後ろ(消さない)
+            self.assertGreater(min(ids.index(i) for i in back), ids.index(out[-1].id))
+            item = ex.item(out[0].id)
+            self.assertEqual(item["source_label"], "点検記録")
+            blob = json.dumps(item, ensure_ascii=False)
+            self.assertNotIn("rank\": 3", blob)
+            self.assertNotIn("屋上チャンネル", blob)                                          # 看板名・記録済みランクは画面に出さない
+            self.assertIsNone(item["saved"])
+
+    def test_insp2017_after_nas(self):
+        with tempfile.TemporaryDirectory() as td:
+            pol = Path(td) / "eval" / "insp2017"
+            (pol / "signs").mkdir(parents=True)
+            (pol / "signs" / "a.jpg").write_bytes(JPEG + b"insp2017")
+            with open(pol / "items.tsv", "w", encoding="utf-8", newline="") as f:
+                w = csv.writer(f, delimiter="\t")
+                w.writerow(["source_file", "sheet", "site", "sign_name", "sign_no", "sign_rank_normalized", "photo_files"])
+                w.writerow(["reports/x.pdf", "", "営業所", "ポール袖看板", "1", "3", json.dumps(["signs/a.jpg"])])
+            cat = self._catalog(Path(td))
+            src = [i.split("/")[0] for i in cat.order]
+            self.assertEqual(sorted(set(src), key=src.index), ["field", "nas", "insp2017", "page"])
+            pid = next(i for i in cat.order if i.startswith("insp2017/"))
+            self.assertEqual((cat.items[pid].cls, cat.items[pid].kind), ("outdoor", "袖"))
+            self.assertEqual(expert.Expert(expert.Store(Path(td) / "n.sqlite"), cat).item(pid)["source_label"], "点検記録(2017)")
+
+    def test_duplicate_of_field_photo_skipped(self):
+        with tempfile.TemporaryDirectory() as td:
+            cat = self._catalog(Path(td), dup=True)
+            self.assertEqual(cat.counts["nas"]["dup_skipped"], 1)
+            self.assertEqual(cat.counts["nas"]["signs"], 13)
+
+    def test_nas_meta_cli(self):
+        with tempfile.TemporaryDirectory() as td:
+            cat = self._catalog(Path(td))
+            out = Path(td) / "meta.tsv"
+            with mock.patch.object(expert, "Catalog", return_value=cat):
+                self.assertEqual(expert.main(["nas-meta", "--out", str(out)]), 0)
+            rows = list(csv.DictReader(open(out, encoding="utf-8"), delimiter="\t"))
+            self.assertEqual(len(rows), 14)   # 写真の無い行は列にも表にも入れない
+            self.assertEqual({r["rank"] for r in rows}, {"1", "2", "3", "4"})

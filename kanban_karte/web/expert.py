@@ -3,11 +3,15 @@
   python3 -m kanban_karte.web.expert export [--out DIR] [--db PATH]   CSV と JSONL を書き出す
   python3 -m kanban_karte.web.expert stats  [--db PATH]               件数だけ見る
   python3 -m kanban_karte.web.expert sources                          写真の出どころの件数(基・枚)
+  python3 -m kanban_karte.web.expert nas-meta [--out PATH]            点検記録(nas)の key → 記録済みランク・現場の表(TSV)
 
 この言葉が安全判定の正解データになり、後で構造化して規則にする。台帳 DB は触らない。
 保存先は data/private/expert_notes.sqlite(環境変数 KK_EXPERT_DB)。写真は読み取り専用で、出どころは 3 つ:
   eval   docs/EVAL.md の評価セット(有資格者ランク付き。--limit 34 --seed 1 の 3 ソース= 102 基)。正解ランクは画面に出さない
   field  data/private/field_intake/photos/ の実データ(1 フォルダ= 1 基)と pages/(報告書ページ。1 頁= 1 件)
+  nas    fkogei-estimate-data/eval/nas/<組>/items.tsv の点検記録(1 行= 1 基、写真は最大 6 枚)。組は nas/expert_sets.txt(1 行 1 組)か
+         環境変数 KK_EXPERT_NAS_SETS(カンマ区切り)。組の名前はデータ側にだけ置く。記録済みのランクは画面に出さない
+  insp2017  fkogei-estimate-data/eval/insp2017/items.tsv(2017 年の点検報告書と写真。kanban_karte.eval.insp2017_build が作る)。並びは nas の後
   scan   fkogei-estimate-data/scans/ の点検指示書スキャン PDF(1 PDF= 1 件。ページは pdftoppm で必要なときだけ描画)
 写真の実物(社名・個人情報)は画面にだけ出す。ID と表示名には現場名・社名を入れない。
 
@@ -39,7 +43,7 @@ RANKS = ("良好", "経過観察", "要改善", "即時対応")
 SIGNS = ("錆", "腐食", "塗装の剥がれ", "パネルの浮き", "傾き", "ボルトの変色", "取付部のすき間", "基礎のひび", "その他")
 KINDS = ("壁面", "袖", "自立", "屋上", "その他")
 WEB_FIRST = 50                          # 外の写真(web)は先頭 50 件を状態が混ざるように種固定でシャッフル
-SOURCE_LABEL = {"web": "外の写真", "eval": "評価セット", "field": "実データ", "page": "報告書ページ", "scan": "点検指示書スキャン"}
+SOURCE_LABEL = {"web": "外の写真", "eval": "評価セット", "field": "実データ", "nas": "点検記録", "insp2017": "点検記録(2017)", "page": "報告書ページ", "scan": "点検指示書スキャン"}
 EVAL_LIMIT, EVAL_SEED = 34, 1           # docs/EVAL.md の 102 基(ソースごとに 34、seed 1)
 SCAN_QUEUE = 500                        # スキャンは 34,000 件超。キューには種をそろえた順で先頭からこの数だけ載せる
 SCAN_PAGES = 4                          # 1 PDF につき画面に出す最大ページ数
@@ -49,6 +53,11 @@ EXCLUDE_WORDS = (("カッティングシート", r"カッティング|カッテ�
 KIND_WORDS = (("屋上", r"屋上|塔屋"), ("袖", r"袖|突出"), ("自立", r"自立|支柱|ポール|塔看板|門型"), ("壁面", r"壁面|外壁"))
 OUTDOOR_FILTER = os.environ.get("KK_EXPERT_OUTDOOR", "1") != "0"
 EVAL_HEAD = 40                          # 評価セットの未入力のうち、散らばらせて先頭に置く件数(41 件目以降は元の順)
+NAS_PHOTOS = 6                           # 1 基に出す写真の上限(既存の画面と同じ)
+# 看板名の語で屋外か決める(依頼 14)。後ろの語が先: 屋内・置き型は後ろへ、屋外の語は先へ、どちらでもない物も後ろへ
+NAS_BACK = r"写真の束|シート|ガラス|ウィンド|スタンド|フロア案内|室内|内部|ポスターパネル|サイネージ|EV|エレベ|受付|カウンター|パンフレット|メニュー|黒板|A型|ポスト"
+NAS_OUT = r"屋上|塔屋|自立|袖|突出|壁面|ポール|野立|欄間|フェンス|沿道|切り?文字|チャンネル|パラペット|ファサード|看板|サイン"
+NAS_KIND = (("屋上", r"屋上|塔屋"), ("袖", r"袖|突出"), ("自立", r"自立|ポール|野立|塔看板"), ("壁面", r"壁面|外壁|欄間|切り?文字|チャンネル|パラペット|ファサード"))
 DEFAULT_DRAFTS = Path(os.environ.get("KK_EXPERT_DRAFTS") or REPO_ROOT / "runs" / "2026-11-02_day2_ex6_opus_limit34.json")
 IMG_EXT = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif"}
 
@@ -225,22 +234,55 @@ def spread(items: list, drafts: dict[str, dict], n: int, seed: str = "expert-eva
     return head + [i for i in items if id(i) not in taken]
 
 
+def _mix_ranks(items: list, meta: dict[str, dict], seed: str = "expert-nas-v1") -> list:
+    """記録済みランクで 3 つに分け(要対応 3〜4 / 経過観察 2 / 良好 1・不明)、要対応→良好→経過観察→良好… の順に交互に取る。
+    良好ばかり続かないように(依頼 14)。各組の中は種固定でシャッフル。尽きた組は飛ばす。"""
+    rng = random.Random(seed)
+    groups: dict[str, list] = {"bad": [], "watch": [], "good": []}
+    for it in items:
+        r = (meta.get(it.key) or {}).get("rank") or 1
+        groups["bad" if r >= 3 else "watch" if r == 2 else "good"].append(it)
+    for g in groups.values():
+        rng.shuffle(g)
+    out, cycle = [], ("bad", "good", "watch", "good")
+    while any(groups.values()):
+        for k in cycle:
+            if groups[k]:
+                out.append(groups[k].pop(0))
+    return out
+
+
 class Item:
     def __init__(self, source: str, key: str, files: list[Path], kind: str = "", pdf: Path | None = None, web: dict | None = None,
-                 group: str = ""):
+                 group: str = "", cls: str = ""):
         self.source, self.key, self.files, self.kind, self.pdf, self.web, self.group = source, key, files, kind, pdf, web, group
+        self.cls = cls   # 屋外の絞り込みの区分を出どころ側で決めた物(nas)。空なら outdoor_class で決める
 
     @property
     def id(self) -> str:
         return f"{self.source}/{self.key}"
 
 
+def nas_sets(nas: Path) -> list[str]:
+    """点検記録の組(nas の下のフォルダ名)。KK_EXPERT_NAS_SETS か nas/expert_sets.txt。どちらも無ければ空(社名はコードに書かない)。"""
+    env = os.environ.get("KK_EXPERT_NAS_SETS")
+    if env is not None:
+        return [x.strip() for x in env.split(",") if x.strip()]
+    f = Path(nas) / "expert_sets.txt"
+    return [x.strip() for x in f.read_text(encoding="utf-8").splitlines() if x.strip() and not x.startswith("#")] if f.is_file() else []
+
+
 class Catalog:
-    """写真の出どころ 3 つを 1 本の順番にする。評価セット→実データ→報告書ページ→スキャン(種つきの並び)。"""
+    """写真の出どころを 1 本の順番にする。評価セット→実データ→点検記録(NAS)→報告書ページ→スキャン(種つきの並び)。"""
 
     def __init__(self, private: Path = PRIVATE, scans: Path = SCANS, cache: Path | None = None, with_eval: bool = True,
-                 sources_config: str | None = None, scan_queue: int = SCAN_QUEUE, drafts: str | Path | None = DEFAULT_DRAFTS):
+                 sources_config: str | None = None, scan_queue: int = SCAN_QUEUE, drafts: str | Path | None = DEFAULT_DRAFTS,
+                 nas: Path | None = None):
         self.private, self.scans, self.scan_queue = Path(private), Path(scans), scan_queue
+        # NAS の点検記録は scans の隣(fkogei-estimate-data/eval/nas)。試験は scans を一時フォルダにするので自然に空になる
+        self.nas = Path(nas or os.environ.get("KK_EXPERT_NAS") or Path(scans).parent / "eval" / "nas")
+        self.insp2017 = Path(os.environ.get("KK_EXPERT_INSP2017") or Path(scans).parent / "eval" / "insp2017")
+        self.nas_meta: dict[str, dict] = {}   # key → 記録済みのランク・現場など(画面・API には出さない。一致の数え直し用)
         self.drafts = load_drafts(drafts) if drafts else {}
         self.cache = Path(cache) if cache else self.private / "expert_cache"
         self.items: dict[str, Item] = {}
@@ -252,6 +294,9 @@ class Catalog:
         self._load_web()
         self._load_eval(sources_config) if with_eval else None
         self._load_field()
+        self._load_nas()
+        self._load_nas("insp2017", [("insp2017", self.insp2017)])
+        self._load_pages()
         self._load_scans()
 
     def _add(self, it: Item) -> None:
@@ -331,6 +376,55 @@ class Catalog:
                 self.hints["field/" + d.name] = remarks.get(d.name, "")
                 n, p = n + 1, p + len(files)
         self.counts["field"] = {"signs": n, "photos": p}
+
+    def _load_nas(self, source: str = "nas", sets: list[tuple[str, Path]] | None = None) -> None:
+        """NAS の点検記録(items.tsv)。屋外の語の看板を先に、要対応・経過観察と良好が交互に近くなる順にする(種固定)。
+        key は 社名・現場名・組の名前を入れない "<ハッシュ 10 桁>"(元の行は nas_meta で引ける)。カッティングシートは出さない。"""
+        import hashlib
+        out, back = [], []
+        n = p = dup = 0
+        digest = lambda x: hashlib.sha1(x.read_bytes()).hexdigest()
+        # 評価セット・実データと同じ写真を持つ看板は同じ看板の重複(評価セットの xlsx は NAS 由来)= 載せない。先に読み込んだ物と比べる
+        seen = {digest(f) for i in self.order if i.startswith(("eval/", "field/")) for f in self.items[i].files if f.is_file()}
+        for s, base in sets if sets is not None else [(x, self.nas / x) for x in nas_sets(self.nas)]:
+            f = base / "items.tsv"
+            if not f.is_file():
+                continue
+            with open(f, encoding="utf-8", newline="") as fh:
+                rows = list(csv.DictReader(fh, delimiter="\t"))
+            for r in rows:
+                try:
+                    files = [base / x for x in json.loads(r.get("photo_files") or "[]")]
+                except ValueError:
+                    files = []
+                files = [x for x in files if x.is_file() and x.suffix.lower() in IMG_EXT][:NAS_PHOTOS]
+                if not files:
+                    continue
+                if seen and any(digest(x) in seen for x in files):
+                    dup += 1
+                    continue
+                key = hashlib.sha1("|".join((s, r.get("source_file", ""), r.get("sheet", ""), r.get("sign_no", ""),
+                                                      r.get("sign_name", ""))).encode()).hexdigest()[:10]
+                name = r.get("sign_name", "")
+                rank = r.get("sign_rank_normalized") or r.get("overall_rank_normalized") or ""
+                self.nas_meta[key] = {"set": s, "site": r.get("site", ""), "sheet": r.get("sheet", ""), "sign_no": r.get("sign_no", ""),
+                                      "sign_name": name, "inspection_date": r.get("inspection_date", ""), "rank": int(rank) if rank.isdigit() else None}
+                if re.search(EXCLUDE_WORDS[0][1], name):
+                    cls = "exclude"
+                elif re.search(NAS_BACK, name) or not re.search(NAS_OUT, name):
+                    cls = "unknown"
+                else:
+                    cls = "outdoor"
+                kind = next((k for k, w in NAS_KIND if re.search(w, name)), "") if cls == "outdoor" else ""
+                it = Item(source, key, files, kind, group=s, cls=cls)
+                (out if cls == "outdoor" else back).append(it)
+                n, p = n + 1, p + len(files)
+        for it in _mix_ranks(out, self.nas_meta) + back:
+            self._add(it)
+        self.counts[source] = {"signs": n, "photos": p, "dup_skipped": dup}
+
+    def _load_pages(self) -> None:
+        root = self.private / "field_intake"
         n = p = 0
         for d in sorted((root / "pages").glob("*")) if (root / "pages").is_dir() else []:
             for f in sorted(d.iterdir()):
@@ -401,7 +495,7 @@ class Expert:
                 web.append(i)   # 外のサイトの写真(1 基 1 枚、点検結果なし)は言葉づけの対象外= 入力済みより後ろ(2026-11-06 16:01 Cutcha 指摘)
                 continue
             text = self.catalog.hints.get(i) or (self.catalog.drafts.get(it.key) or {}).get("text", "") if it.source == "eval" else self.catalog.hints.get(i, "")
-            cls, why = outdoor_class(it.kind, text)
+            cls, why = (it.cls, "カッティングシート") if it.cls else outdoor_class(it.kind, text)
             if cls == "exclude":
                 cnt["exclude"][why] = cnt["exclude"].get(why, 0) + 1
             elif cls == "outdoor":
@@ -534,6 +628,8 @@ def main(argv=None) -> int:
     s = sub.add_parser("stats", help="保存済みの件数")
     s.add_argument("--db", default=str(DEFAULT_DB))
     sub.add_parser("sources", help="写真の出どころごとの件数")
+    m = sub.add_parser("nas-meta", help="点検記録(nas)の key → 記録済みランク・現場(Cutcha のランクとの一致を数える元)")
+    m.add_argument("--out", default=str(REPO_ROOT / "runs" / "expert" / "nas_meta.tsv"))
     a = ap.parse_args(argv)
     if a.cmd == "export":
         print(json.dumps(export(a.db, a.out), ensure_ascii=False))
@@ -541,6 +637,17 @@ def main(argv=None) -> int:
         rows = Store(a.db).all()
         print(json.dumps({"saved": len(rows), "skipped": sum(r["skipped"] for r in rows),
                           "by_source": {s: sum(1 for r in rows if r["source"] == s) for s in SOURCE_LABEL}}, ensure_ascii=False))
+    elif a.cmd == "nas-meta":
+        c = Catalog()
+        out = Path(a.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        cols = ["set", "site", "sheet", "sign_no", "sign_name", "inspection_date", "rank"]
+        with open(out, "w", encoding="utf-8", newline="") as f:
+            w = csv.writer(f, delimiter="\t")
+            w.writerow(["sign_key"] + cols)
+            for k, v in c.nas_meta.items():
+                w.writerow([k] + ["" if v[x] is None else v[x] for x in cols])
+        print(json.dumps({"rows": len(c.nas_meta), "out": str(out)}, ensure_ascii=False))
     else:
         c = Catalog()
         print(json.dumps({"counts": c.counts, "queue": len(c.order), "warnings": c.warnings}, ensure_ascii=False))
