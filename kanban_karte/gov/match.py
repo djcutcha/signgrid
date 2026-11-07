@@ -4,7 +4,7 @@
 - 一致したら signs の法規の列(permit_required / permit_expires)から許可の状態と残り日数を出す。
 - 判定の優先: 期限が入っていれば期限で判定 → 無ければ permit_required で判定。
 状態(status)と地図の色:
-  unregistered       台帳に無い=無許可の疑い(要確認)        赤
+  unregistered       台帳に無い=未申請の疑い(要確認)        赤
   expired            台帳の許可期限が切れている                赤
   expiring           期限まで warn_days(既定 90)日以内        橙
   permit_incomplete  台帳に有るが許可の要否/期限が未記入       橙
@@ -31,12 +31,12 @@ STATUS_COLOR = {
     "no_position": "gray",
 }
 STATUS_LABEL = {
-    "unregistered": "台帳に無い(無許可の疑い・要確認)",
+    "unregistered": "未申請の疑い(台帳に無い)",
     "expired": "許可期限切れ",
     "expiring": "期限が近い",
-    "permit_incomplete": "台帳に有るが許可の要否・期限が未記入",
+    "permit_incomplete": "許可情報が未記入",
     "permitted": "許可あり",
-    "not_required": "許可不要(台帳)",
+    "not_required": "許可あり(台帳で許可不要)",
     "no_position": "位置なし",
 }
 

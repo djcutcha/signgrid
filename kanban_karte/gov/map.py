@@ -4,8 +4,8 @@
 - タイル: 国土地理院タイル「淡色地図」https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png
   一覧と利用条件 https://maps.gsi.go.jp/development/ichiran.html 。出典(地理院タイル)を地図の右下に必ず出す。
   (OpenStreetMap の標準タイルは使わない。使う場合は帰属表示と利用規約 https://operations.osmfoundation.org/policies/tiles/ が要る。)
-- 点の色: 赤=台帳に無い/期限切れ  橙=期限90日以内・許可情報の不備  緑=許可あり/不要  灰=位置なし。
-  位置なしの写真は地図に置けないので、左の一覧に灰で出す。
+- 点の色: 赤=未申請の疑い(台帳に無い)/許可期限切れ  橙=期限が近い(90日以内)/許可情報が未記入  緑=許可あり(許可不要も含む)  灰=位置なし。
+  画面の表記は色名でなく意味の文字(2026-11-08 裁定)。位置なしの写真は地図に置けないので、左の一覧に出す。
 - 件数は HTML 本文に直接書く(スクリプトが動かなくても読める)。データは JSON で埋め込み、画面の組み立ては textContent で行う。
 - 市民からの報告の層(citizen= citizen.store.Store.summary()): 紫の点線の丸。ピンと件数だけ(丸めた位置・状態・日付)。
   写真・一言・住所は地図に入れない。層は右上の切り替えで消せる。
@@ -28,16 +28,16 @@ LEAFLET_CSS_SRI = "sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaI
 TILE_URL = "https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png"
 
 COLORS = {"red": "#c62828", "orange": "#ef6c00", "green": "#2e7d32", "gray": "#757575"}
-COLOR_NAME = {"red": "赤", "orange": "橙", "green": "緑", "gray": "灰"}
+COLOR_NAME = {"red": "未申請の疑い / 許可期限切れ", "orange": "期限が近い / 許可情報が未記入", "green": "許可あり", "gray": "位置なし"}
 CITIZEN_COLORS = {"未把握": "#7b1fa2", "把握済み": "#9c7cc0", "点検済み": "#00897b", "受付": "#9e9e9e"}
 CITIZEN_MEANING = {"未把握": "台帳の看板が近く(30 m)に無い", "把握済み": "台帳の看板と一致", "点検済み": "報告の後に点検された",
                    "受付": "位置が無い(地図に置けない)"}
 
 COLOR_MEANING = {
-    "red": "台帳に無い(無許可の疑い・要確認)/ 許可期限切れ",
-    "orange": "許可の期限が近い(90日以内)/ 台帳の許可情報が未記入",
-    "green": "許可あり / 台帳で許可不要",
-    "gray": "位置なし(GPS の無い写真)",
+    "red": "台帳に無い(現地確認が要る。断定ではない)/ 台帳の許可期限が切れている",
+    "orange": "許可の期限まで90日以内 / 台帳の許可の要否・期限が空",
+    "green": "許可あり(台帳で許可不要も含む)",
+    "gray": "GPS の無い写真(地図に置けない)",
 }
 
 
@@ -145,12 +145,14 @@ aside {{ padding:12px 16px; background:var(--card); border-top:1px solid var(--l
 h2 {{ font-size:14px; margin:14px 0 6px; }}
 h2:first-child {{ margin-top:0; }}
 ul {{ list-style:none; margin:0; padding:0; }}
-.legend li {{ display:grid; grid-template-columns:18px 2em 3em 1fr; align-items:center; gap:6px; padding:5px 0; font-size:13px; border-bottom:1px solid var(--line); }}
+.legend li {{ display:grid; grid-template-columns:18px minmax(0,1fr) 3em; align-items:center; gap:6px; padding:5px 0; font-size:13px; border-bottom:1px solid var(--line); }}
 .legend .lg-n {{ font-weight:700; font-size:18px; text-align:right; }}
-.legend .lg-mean {{ color:var(--muted); font-size:12px; }}
+.legend .lg-name {{ font-weight:600; }}
+.legend .lg-mean {{ grid-column:2 / -1; color:var(--muted); font-size:12px; }}
 .dot {{ display:inline-block; width:14px; height:14px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px #0004; }}
 .dot.cz {{ background:transparent; border:2px dashed; box-shadow:none; }}
 .legend.cz-legend li {{ grid-template-columns:18px 4.5em 2em 1fr; }}
+.legend.cz-legend .lg-mean {{ grid-column:auto; }}
 .dot.sm {{ width:10px; height:10px; margin-right:6px; border-width:1px; }}
 .stat li {{ font-size:12.5px; padding:2px 0; color:var(--muted); }}
 .stat li b {{ color:var(--fg); }}
@@ -179,9 +181,9 @@ ul {{ list-style:none; margin:0; padding:0; }}
     <ul class="stat">{status_rows or '<li>なし</li>'}</ul>
     <p class="note" id="ledger-note">台帳(位置つき)の看板 {len(signs_with_pos)} 基のうち、今回の巡回で写真と一致したのは {len(confirmed)} 基、
     写っていなかったのは {len(unseen)} 基{('(' + '、'.join(esc(s.name or s.id) for s in unseen[:5]) + ('ほか' if len(unseen) > 5 else '') + ')') if unseen else ''}。</p>
-    <h2>要対応(赤・橙)</h2>
+    <h2>要対応</h2>
     <ul class="list" id="todo"></ul>
-    <h2>位置なしの写真(灰)</h2>
+    <h2>位置なしの写真</h2>
     <ul class="list" id="nopos"></ul>
     <p class="note">
       このデモでは、自治体の許可台帳の代わりに自社の施工台帳を使っています。「台帳に無い」は無許可と決まったという意味ではなく、

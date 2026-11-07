@@ -1,4 +1,4 @@
-// 行政画面: 職員が撮った写真の一括登録。看板ごとに束ね、許可台帳と突き合わせた結果を 赤/橙/緑/灰 で並べる。地図は gov.map の HTML を埋める。
+// 行政画面: 職員が撮った写真の一括登録。看板ごとに束ね、許可台帳と突き合わせた結果を意味の文字(未申請の疑い・期限が近い・許可あり・位置なし など。色の丸は添えるだけ)で並べる。地図は gov.map の HTML を埋める。
 "use strict";
 (function () {
   const { el } = KK;
@@ -24,7 +24,7 @@
     const th = (t) => el("th", {}, t);
     const cell = (k, cls, ...kids) => el("td", { class: cls, dataset: { k } }, ...kids);
     const rows = cands.map((c) => el("tr", { class: `cand ${COLOR_CLASS[c.color]}` },
-      cell("", "c-state", colorChip(c.color, names[c.color]), el("div", { class: "sub", text: c.label })),
+      cell("", "c-state", colorChip(c.color, c.label)),
       cell("位置", "c-pos", c.has_position ? "あり" : el("span", { class: "muted", text: "なし(GPS なし)" }),
         c.place ? el("div", { class: "sub", text: c.place }) : null),
       cell("写真", "c-photos", `${c.photo_count} 枚`),
@@ -223,7 +223,7 @@
       el("section", { class: "card gov-map" }, el("h2", { text: "地図" }),
         el("iframe", { src: `/api/gov/map.html?batch=${id}${tq}`, title: "巡回調査マップ", loading: "lazy", sandbox: "allow-scripts allow-popups allow-popups-to-escape-sandbox" }),
         el("p", { class: "sub" }, "地図: ", el("a", { href: "https://maps.gsi.go.jp/development/ichiran.html", target: "_blank", rel: "noopener", text: "国土地理院 地理院タイル(淡色地図)" }),
-          "。赤の点は無許可の疑いで、確認が要ります(断定ではありません)。")),
+          "。「未申請の疑い」は台帳に無いという意味で、確認が要ります(断定ではありません)。")),
       candidatesTable(cand.candidates, cand.colors));
     if (sent) document.getElementById("gov-results").scrollIntoView({ block: "start" });  // 送った直後は、その束の件数・地図・候補表へ
   };
