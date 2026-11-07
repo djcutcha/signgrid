@@ -11,7 +11,7 @@
   field  data/private/field_intake/photos/ の実データ(1 フォルダ= 1 基)と pages/(報告書ページ。1 頁= 1 件)
   nas    fkogei-estimate-data/eval/nas/<組>/items.tsv の点検記録(1 行= 1 基、写真は最大 6 枚)。組は nas/expert_sets.txt(1 行 1 組)か
          環境変数 KK_EXPERT_NAS_SETS(カンマ区切り)。組の名前はデータ側にだけ置く。記録済みのランクは画面に出さない
-  insp2017  fkogei-estimate-data/eval/insp2017/items.tsv(2017 年の点検報告書と写真。kanban_karte.eval.insp2017_build が作る)。並びは nas の後
+  insp2017  fkogei-estimate-data/eval/insp2017/items.tsv(2017 年の点検報告書と写真。kanban_karte.eval.insp2017_build が作る)。並びは field の後・nas の前(2026-11-08)
   scan   fkogei-estimate-data/scans/ の点検指示書スキャン PDF(1 PDF= 1 件。ページは pdftoppm で必要なときだけ描画)
 写真の実物(社名・個人情報)は画面にだけ出す。ID と表示名には現場名・社名を入れない。
 
@@ -294,8 +294,8 @@ class Catalog:
         self._load_web()
         self._load_eval(sources_config) if with_eval else None
         self._load_field()
+        self._load_nas("insp2017", [("insp2017", self.insp2017)])   # 2017 年の点検報告書(写真+記録済みランク)を NAS より先に(Cutcha 2026-11-08 08:4x)
         self._load_nas()
-        self._load_nas("insp2017", [("insp2017", self.insp2017)])
         self._load_pages()
         self._load_scans()
 
@@ -498,8 +498,8 @@ class Expert:
             cls, why = (it.cls, "カッティングシート") if it.cls else outdoor_class(it.kind, text)
             if cls == "exclude":
                 cnt["exclude"][why] = cnt["exclude"].get(why, 0) + 1
-            elif cls == "outdoor":
-                cnt["outdoor"] += 1
+            elif cls == "outdoor" or it.source == "insp2017":
+                cnt["outdoor"] += 1   # 2017 年の点検報告書(中央住宅)は種類が読めない物(写真の束)も先頭側に残す(Cutcha 2026-11-08 08:5x)
                 keep.append(i)
             else:
                 cnt["unknown"] += 1

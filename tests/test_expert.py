@@ -339,7 +339,7 @@ class ExpertNasTest(unittest.TestCase):
             self.assertNotIn("屋上チャンネル", blob)                                          # 看板名・記録済みランクは画面に出さない
             self.assertIsNone(item["saved"])
 
-    def test_insp2017_after_nas(self):
+    def test_insp2017_before_nas(self):
         with tempfile.TemporaryDirectory() as td:
             pol = Path(td) / "eval" / "insp2017"
             (pol / "signs").mkdir(parents=True)
@@ -350,7 +350,7 @@ class ExpertNasTest(unittest.TestCase):
                 w.writerow(["reports/x.pdf", "", "営業所", "ポール袖看板", "1", "3", json.dumps(["signs/a.jpg"])])
             cat = self._catalog(Path(td))
             src = [i.split("/")[0] for i in cat.order]
-            self.assertEqual(sorted(set(src), key=src.index), ["field", "nas", "insp2017", "page"])
+            self.assertEqual(sorted(set(src), key=src.index), ["field", "insp2017", "nas", "page"])   # 2017 報告書は NAS より先(2026-11-08)
             pid = next(i for i in cat.order if i.startswith("insp2017/"))
             self.assertEqual((cat.items[pid].cls, cat.items[pid].kind), ("outdoor", "袖"))
             self.assertEqual(expert.Expert(expert.Store(Path(td) / "n.sqlite"), cat).item(pid)["source_label"], "点検記録(2017)")
