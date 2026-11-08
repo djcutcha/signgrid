@@ -297,6 +297,26 @@ def seed_sample(db: Path, data_dir: Path = SAMPLE_JSON.parent) -> None:
         lg.import_json(SAMPLE_JSON)
 
 
+SAMPLE_RULES = [
+    # (文, 状態)。有資格者の訂正から育った規則の見本。承認済みだけが下書きに効く
+    ("支柱の根元に錆が面で広がっているときは、面積が小さくても「鉄骨のさび発生、塗装の老朽化」を経過観察(C)以上にする。", "approved"),
+    ("アンカーボルトやプレートに赤錆の流れ跡があり、写真が全景だけのときは「判断できず」にして、部位の寄り写真を求める。", "approved"),
+    ("アルミ複合板の表示面は、退色が見えていても構造(基礎部・支持部・取付部)の判定は下げない。", "candidate"),
+]
+
+
+def seed_sample_rules(db: Path, data_dir: Path = SAMPLE_JSON.parent) -> int:
+    """見本の台帳に規則が 1 本も無ければ見本の規則を入れる(2026-11-08、公開デモの「判定の規則」が空だったため)。入れた本数を返す。"""
+    with Ledger(db, data_dir=data_dir) as lg:
+        if lg.list_rules():
+            return 0
+        for text, status in SAMPLE_RULES:
+            rid = lg.add_rule(text, source="見本(有資格者の訂正)")
+            if status == "approved":
+                lg.set_rule_status(rid, "approved", "見本 太郎")
+    return len(SAMPLE_RULES)
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="kanban_karte.web", description="看板管理台帳の画面")
     ap.add_argument("--db", default=None, help="台帳 SQLite(既定 data/private/ledger.sqlite、環境変数 KANBAN_KARTE_DB。無ければ見本データ)")
@@ -319,6 +339,7 @@ def main(argv=None) -> int:
         data_dir = SAMPLE_JSON.parent
         if not db.exists():
             seed_sample(db, data_dir)
+        seed_sample_rules(db, data_dir)
     app = App(db, data_dir, sample=sample, placer=None if sample else make_placer())
     if not sample:
         print("用途地域: " + ("GIS を読み込んだ" if app.placer else "GIS が無いので区分なしで判定(python3 -m kanban_karte.geo.fetch_gis)"), file=sys.stderr)

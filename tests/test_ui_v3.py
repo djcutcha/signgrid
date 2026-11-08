@@ -545,7 +545,7 @@ class FieldLocateTest(unittest.TestCase):
 
 
 class KPageTest(Server, unittest.TestCase):
-    """K 学んだこと(k.html): ページが返る、上の枠の「学んだこと」が k.html を指す、画面が使う規則の API が通る。"""
+    """K 判定の規則(k.html): ページが返る、上の枠の「判定の規則」が k.html を指す、画面が使う規則の API が通る。"""
 
     def setUp(self):
         self.setUp_server()
@@ -557,7 +557,7 @@ class KPageTest(Server, unittest.TestCase):
         st, body = self.req("/v3/k.html", raw=True)
         self.assertEqual(st, 200)
         html = body.decode("utf-8")
-        self.assertIn("学んだこと", html)
+        self.assertIn("判定の規則", html)
         self.assertIn('data-page="k"', html)
         self.assertIn('src="k.js"', html)
         for path in ("/v3/k.js", "/v3/k.css"):
@@ -568,7 +568,7 @@ class KPageTest(Server, unittest.TestCase):
 
     def test_nav_points_to_k(self):
         shell = self.req("/v3/shell.js", raw=True)[1].decode("utf-8")
-        self.assertIn('<a href="k.html"${page === "k" ? \' aria-current="page"\' : ""}>学んだこと</a>', shell)
+        self.assertIn('<a href="k.html"${page === "k" ? \' aria-current="page"\' : ""}>判定の規則</a>', shell)
         self.assertNotIn("/index.html#/rules", shell)
 
     def test_rules_api_used_by_page(self):

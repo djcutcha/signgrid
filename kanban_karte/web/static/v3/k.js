@@ -1,4 +1,4 @@
-// K 学んだこと(本実装)。有資格者の訂正から育った規則の一覧と、候補の承認・却下。
+// K 判定の規則(旧名 学んだこと、本実装)。有資格者の訂正から育った規則の一覧と、候補の承認・却下。
 // API: GET /api/rules / GET /api/meta(項目の名前)/ GET /api/signs/ID(由来の看板の名前)/
 //      POST /api/rules/ID/approve|reject {by} / POST /api/rules/resolve {keep, drop, by}(矛盾の組で片方を残す)
 "use strict";
