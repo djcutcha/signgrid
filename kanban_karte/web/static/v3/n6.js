@@ -179,7 +179,6 @@
 
   async function init() {
     // 上の枠の会社名は見本の固定値なので、本物の画面では出さない(日付だけ)
-    const c = document.querySelector(".topbar .company"); if (c) c.innerHTML = `<b>${new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" })}</b>`;
     if (!SITE) return message("現場が選ばれていません", "N1 の物件の選択から入ってください。", ["h.html", "ホームへ"]);
     foot();
     try { site = (await api("/api/sites")).find((s) => s.id === SITE) || null; } catch (e) { site = null; }

@@ -1,4 +1,4 @@
-// N1 物件: /api/sites の一覧から 1 つ選んで N3 取り込み(n3.html?site=<id>)へ。「新しい物件」は site なしで N3 へ。
+// N1 物件: /api/sites の一覧から 1 つ選んで N2 入口(n2.html?site=<id>)へ。「新しい物件」は site なしで N2 へ。
 (function () {
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -22,7 +22,7 @@
     $("sites").innerHTML = shown.length ? shown.map((s) =>
       `<li><span class="nm">${esc(s.name || s.id)}<small>${esc(s.address || "住所 未記入")}${s.municipality ? "・" + esc(s.municipality) : ""}</small></span>` +
       `<span class="due-dates"><span>看板 <b class="num">${s.sign_count}</b> 基</span><span>次の点検日 <b class="num">${esc(s.next_inspection || "未設定")}</b></span></span>` +
-      `<a class="btn sm primary" href="n3.html?site=${encodeURIComponent(s.id)}">この物件を点検する</a></li>`).join("")
+      `<a class="btn sm primary" href="n2.html?site=${encodeURIComponent(s.id)}">この物件を点検する</a></li>`).join("")
       : '<li class="empty-line">該当する物件がありません。</li>';
   }
   $("q").addEventListener("input", render);

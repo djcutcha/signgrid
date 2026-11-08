@@ -155,7 +155,6 @@
 
   async function init() {
     // 上の枠の会社名は見本の固定値なので、本物の画面では出さない(日付だけ)
-    const c = document.querySelector(".topbar .company"); if (c) c.innerHTML = `<b>${new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" })}</b>`;
     if (!SITE) return message("現場が選ばれていません", "ホームで物件を選んでから入ってください。", ["h.html", "ホームへ"]);
     foot();
     try { signs = await api(`/api/signs?site=${S}`); }

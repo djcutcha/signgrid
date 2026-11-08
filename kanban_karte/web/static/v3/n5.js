@@ -278,7 +278,7 @@
   function foot() {
     if (document.querySelector(".wizard-foot")) return;
     const s = encodeURIComponent(SITE);
-    document.body.insertAdjacentHTML("beforeend", `<div class="wizard-foot"><div class="in"><a class="btn" href="n3.html?site=${s}">戻る</a><a class="btn primary lg" id="nextBtn" href="n6.html?site=${s}">署名へ進む</a></div></div>`);
+    document.body.insertAdjacentHTML("beforeend", `<div class="wizard-foot"><div class="in"><a class="btn" href="n4.html?site=${s}">戻る</a><a class="btn primary lg" id="nextBtn" href="n6.html?site=${s}">署名へ進む</a></div></div>`);
   }
   function message(title, body, link) {
     $("app").innerHTML = `<div class="empty"><b>${esc(title)}</b>${esc(body || "")}${link ? `<br><a class="btn" href="${esc(link[0])}">${esc(link[1])}</a>` : ""}</div>`;
@@ -294,8 +294,7 @@
   }
   async function init() {
     // 上の枠の会社名は見本の固定値なので、本物の画面では出さない(日付だけ)
-    const c = document.querySelector(".topbar .company"); if (c) c.innerHTML = `<b>${new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" })}</b>`;
-    if (!SITE) return message("現場が選ばれていません", "N1 の物件の選択から入ってください。", ["n1.html", "物件を選ぶ"]);
+    if (!SITE) return message("現場が選ばれていません", "物件を選び直してください。", ["n1.html", "物件を選ぶ"]);
     foot();
     try { signs = await api(`/api/signs?site=${encodeURIComponent(SITE)}`); }
     catch (e) { return message("看板の一覧を読み込めませんでした", e.message, ["n5.html?site=" + encodeURIComponent(SITE), "もう一度読み込む"]); }

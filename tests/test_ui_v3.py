@@ -670,7 +670,7 @@ class N4PageTest(unittest.TestCase):
             self.assertEqual(self.get("/v3/" + asset)[0], 200, asset)
 
     def test_links_point_to_n4_and_on_to_n5(self):
-        self.assertIn('["n4", "N4 不明点"]', self.get("/v3/shell.js")[1])     # 見本の画面一覧
+        self.assertNotIn("mockband", self.get("/v3/shell.js")[1])              # 見本の画面一覧の帯は出さない
         n3 = self.get("/v3/n3.js")[1]
         self.assertIn('$("toN5").href = "n4.html"', n3)                       # N3 の「次へ」は N4 へ
         self.assertNotIn('$("toN5").href = "n5.html"', n3)
@@ -713,7 +713,6 @@ class N6SignPageTest(Server, unittest.TestCase):
         self.assertIn('href="n6.html?site=${s}">署名へ進む</a>', n5)      # N5 の次 = N6
         n7 = (self.v3 / "n7.js").read_text("utf-8")
         self.assertIn('href="n6.html${SITE ? "?site=" + q(SITE) : ""}">戻る</a>', n7)   # N7 の戻る = N6
-        self.assertIn('["n6", "N6 署名"]', (self.v3 / "shell.js").read_text("utf-8"))
         n6 = (self.v3 / "n6.js").read_text("utf-8")
         self.assertIn("n7.html?site=", n6)      # 全部確定したら報告書へ
         self.assertIn("n5.html?site=", n6)      # 戻る・判断できずの看板は N5 へ

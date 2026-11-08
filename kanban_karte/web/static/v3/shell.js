@@ -1,18 +1,11 @@
-// 見本 v3 の共通の枠: 見本用の帯 / 上の枠 / 段の進み(N1〜N7)/ 下の「次へ」。
-// 各画面は <body data-page="n3"> と、本文を <main class="page"> に書く。API なし・保存なし。
+// UI v3 の共通の枠: 上の枠 / 段の進み(N1〜N7)/ 下の「次へ」。
+// 各画面は <body data-page="n3"> と、本文を <main class="page"> に書く。
 (function () {
-  const PAGES = [
-    ["h", "H ホーム"], ["n1", "N1 物件"], ["n2", "N2 入口"], ["n3", "N3 取り込み"], ["n4", "N4 不明点"],
-    ["n5", "N5 看板ごとの確認"], ["n6", "N6 署名"], ["n7", "N7 報告書"], ["l", "L 台帳"], ["k", "K 学んだこと"],
-    ["field/f0", "F 現場(スマホ)"],
-  ];
   const STEPS = ["物件", "入口", "取り込み", "不明点", "看板ごとの確認", "署名", "報告書"];
   const page = document.body.dataset.page;
   const stepNo = /^n(\d)$/.test(page) ? +page.slice(1) : 0;
   const h = (html) => { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; };
 
-  const band = h(`<nav class="mockband" aria-label="見本の画面一覧"><b>見本 v3(静的・保存なし)</b>${PAGES.map(([id, nm]) =>
-    `<a href="${id}.html"${id === page ? ' aria-current="page"' : ""}>${nm}</a>`).join("")}</nav>`);
   const top = h(`<header class="topbar">
     <a class="brand" href="h.html"><i></i>SignGrid</a>
     <nav class="topnav">
@@ -20,9 +13,11 @@
       <a href="l.html"${page === "l" ? ' aria-current="page"' : ""}>台帳</a>
       <a href="k.html"${page === "k" ? ' aria-current="page"' : ""}>学んだこと</a>
     </nav>
-    <div class="company"><b>${SG.COMPANY}</b>${SG.TODAY}</div>
+    <div class="company"><b></b>${SG.TODAY}</div>
   </header>`);
-  document.body.prepend(band, top);
+  document.body.prepend(top);
+  // 会社名は /api/meta から(見本データでは既定の社名)。返らなければ空のまま
+  fetch("/api/meta").then((r) => r.json()).then((m) => { const b = top.querySelector(".company b"); const nm = m.company || m.company_name; if (b && nm) b.textContent = nm; }).catch(() => {});
 
   if (stepNo) {
     const st = h(`<div class="stepper"><div class="stepper-in">

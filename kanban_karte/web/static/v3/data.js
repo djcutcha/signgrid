@@ -1,7 +1,7 @@
 // 見本の架空データ。会社名・店名・人名はすべて架空。写真は無地に番号。
 window.SG = {
   COMPANY: "見本看板工業株式会社",
-  TODAY: "2026年11月6日(金)",
+  TODAY: new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric", weekday: "short" }),
   // 点検様式の 18 項目(kanban_karte/ledger/items.py の _ITEMS と同じ原文)
   GROUPS: ["基礎部・上部構造", "支持部", "取付部", "表示部", "照明装置", "その他"],
   ITEMS: [
