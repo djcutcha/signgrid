@@ -110,7 +110,6 @@
       try { unk = (await getJSON("/api/signs?site=" + encodeURIComponent(p.site_id))).reduce((a, s) => a + (s.undecided || 0), 0); } catch (e) { /* 数字なしで出す */ }
     }
     $("sumline").textContent = "看板 " + p.sign_count + " 基、下書き " + draft + (unk == null ? "" : "、不明点 " + unk);
-    $("sumDraft").textContent = "下書き " + draft;
     $("sumUnk").hidden = unk == null; if (unk != null) $("sumUnk").textContent = "判断できず " + unk;
     $("toN5").href = "n4.html" + (p.site_id ? "?site=" + encodeURIComponent(p.site_id) : "");
     view("done");
