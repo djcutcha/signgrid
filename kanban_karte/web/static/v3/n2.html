@@ -1,0 +1,49 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SignGrid N2 入口</title><link rel="stylesheet" href="ui.css"><link rel="stylesheet" href="n2.css"></head>
+<body data-page="n2">
+<script src="data.js"></script>
+<script>/* 見本の固定データを本物に差し替える(shell.js が読む前に): 日付は今日、会社名は API が返すまで空 */
+SG.TODAY = new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric", weekday: "short" }); SG.COMPANY = "";</script>
+<script src="shell.js"></script>
+<main class="page">
+  <div class="page-head"><div><h1>どう取り込みますか</h1><p class="lead">1 つ選んで「次へ」。選んだ方で、次の画面が変わります。</p></div></div>
+  <p class="site-line" id="siteLine" role="status"></p>
+
+  <div class="grid n2g" role="group" aria-label="取り込み方">
+    <button type="button" class="entry-card choice" data-v="files" aria-pressed="true">
+      <div class="ic"><i class="pic-pc" aria-hidden="true"></i></div>
+      <h3>写真と報告書のファイルを取り込む</h3>
+      <p>撮りためた写真のフォルダや、紙の点検表のスキャン(PDF)を、事務所の PC からまとめて落とします。AI が看板ごとに仕分けて下書きを作ります。</p>
+      <div class="row chips"><span class="chip draft">写真フォルダ</span><span class="chip draft">PDF</span><span class="chip draft">スキャン</span></div>
+    </button>
+
+    <button type="button" class="entry-card choice" data-v="field" aria-pressed="false">
+      <div class="ic"><i class="pic-sp" aria-hidden="true"></i></div>
+      <h3>現場でスマホで撮る</h3>
+      <p>現場の担当者がスマホで開き、画面の案内どおりに撮って送ります。位置情報と写真がそのまま届きます。</p>
+      <div class="stack-sm"><div class="small muted">撮る順番</div>
+        <div class="order">看板の種類 <span class="a">→</span> 全景 <span class="a">→</span> 正面 <span class="a">→</span> 部位 <span class="a">→</span> 寸法と所見 <span class="a">→</span> 送信</div></div>
+    </button>
+
+    <button type="button" class="entry-card choice" data-v="paper" aria-pressed="false">
+      <div class="ic"><i class="pic-paper" aria-hidden="true"></i></div>
+      <h3>紙の点検票を撮って送る</h3>
+      <p>現場で書いた紙の点検票を、判定欄・仕様欄・手描きのスケッチもそのままスマホで撮って送ります。</p>
+      <div class="row chips"><span class="chip draft">判定欄</span><span class="chip draft">仕様欄</span><span class="chip draft">スケッチ</span></div>
+    </button>
+  </div>
+
+  <div class="card phone" id="phone" hidden>
+    <div class="stack-sm">
+      <div class="small muted">スマホで開くアドレス</div>
+      <div class="addr num" id="phoneUrl"></div>
+      <p class="small muted" id="phoneNote"></p>
+      <a class="btn sm" id="phoneOpen" href="field/">この PC で開いて見る</a>
+    </div>
+  </div>
+
+  <p class="small muted" style="margin-top:16px">LINE からも送れます(すでに動いている入口)。</p>
+  <p class="sel" id="sel" role="status"></p>
+</main>
+<script src="n2.js"></script>
+</body></html>
