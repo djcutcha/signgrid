@@ -563,6 +563,8 @@ class N2EntranceTest(Server, unittest.TestCase):
         for v in ("files", "field", "paper"):
             self.assertIn(f'data-v="{v}"', html)
         self.assertIn('src="n2.js"', html)
+        self.assertNotIn("点検票", html)   # 現場ウィザードと同じ「点検表」に揃える
+        self.assertNotIn("点検票", self.page("/v3/n2.js"))
         self.page("/v3/n2.js")
         self.page("/v3/n2.css")
 
@@ -577,6 +579,7 @@ class N2EntranceTest(Server, unittest.TestCase):
         self.assertIn('"field/" + q()', js)
         self.assertIn('"field/" + q({ mode: "paper" })', js)
         self.assertIn('p.set("site", site)', js)
+        self.assertIn('new URL(d.href, location.href)', js)   # スマホで開くアドレスも「次へ」と同じ行き先
         self.page("/v3/n3.html")
         self.page("/v3/field/")
 

@@ -15,7 +15,7 @@
   const DEST = {
     files: { href: "n3.html" + q(), label: "写真と報告書のファイルを取り込む", next: "次へ(ファイルを落とす)" },
     field: { href: "field/" + q(), label: "現場でスマホで撮る", next: "次へ(現場の画面を開く)" },
-    paper: { href: "field/" + q({ mode: "paper" }), label: "紙の点検票を撮って送る", next: "次へ(点検票を撮る画面を開く)" },
+    paper: { href: "field/" + q({ mode: "paper" }), label: "紙の点検表を撮って送る", next: "次へ(点検表を撮る画面を開く)" },
   };
 
   // 物件の行: 来ていれば名前、来ていなければ「まだ選んでいない」
@@ -30,7 +30,6 @@
     }).catch(() => {});
   }
 
-  const fieldAbs = new URL("field/" + q(), location.href).href;
   const cards = [...document.querySelectorAll(".choice")], nb = $("nextBtn"), sel = $("sel");
   function pick(v) {
     cards.forEach((c) => { const on = c.dataset.v === v; c.setAttribute("aria-pressed", on); c.classList.toggle("dim", !on); });
@@ -40,13 +39,14 @@
     const ph = v !== "files";
     $("phone").hidden = !ph;
     if (ph) {
-      $("phoneUrl").textContent = fieldAbs;
+      $("phoneUrl").textContent = new URL(d.href, location.href).href;   // スマホにも「次へ」と同じ行き先(紙なら mode=paper 付き)
       $("phoneOpen").href = d.href;
       $("phoneNote").textContent = v === "paper"
         ? "スマホでこのアドレスを開き、最初の画面で「紙の点検表を撮って送る」を選びます。"
         : "スマホでこのアドレスを開き、最初の画面で「案内に沿って撮る」を選びます。";
     }
   }
-  cards.forEach((c) => c.addEventListener("click", () => pick(c.dataset.v)));
+  // スマホの 2 択を選んだら、下に出るアドレスの欄を画面に入れる(スマホ幅や低い画面ではカードの下に隠れるため)
+  cards.forEach((c) => c.addEventListener("click", () => { pick(c.dataset.v); if (c.dataset.v !== "files") $("phone").scrollIntoView({ block: "nearest", behavior: "smooth" }); }));
   pick("files");
 })();
