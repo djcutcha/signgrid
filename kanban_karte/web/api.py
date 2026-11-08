@@ -14,7 +14,7 @@ import tempfile
 from datetime import date
 from pathlib import Path
 
-from ..ledger.db import ORDERER_TYPES, Ledger, Sign
+from ..ledger.db import ORDERER_TYPES, Ledger, Sign, Site
 from ..ledger.items import _ITEMS, ITEM_KEYS, RESULTS
 from ..gov.map import COLOR_NAME, COLORS, COLOR_MEANING, summarize, write_map
 from ..gov.upload import UploadError, upload as gov_upload_photos
@@ -378,6 +378,26 @@ def draft_bundle(ledger: Ledger, bundle_id: int, judge_factory=None) -> dict:
                          "error": r.error} for r in results]}
 
 
+def attach_new_site(ledger: Ledger, bundle_id: int) -> str:
+    """物件の無い束に、新しい物件(取り込み日時の名前)を作って紐づける。束から作った看板も同じ物件に。返り= 物件 id。"""
+    from datetime import datetime
+    now = datetime.now()
+    sid = f"site-{now:%Y%m%d-%H%M%S}-{bundle_id}"
+    ledger.upsert_site(Site(id=sid, name=f"新しい物件 {now:%Y-%m-%d %H:%M}(取り込み {bundle_id})"))
+    ledger.set_bundle(bundle_id, site_id=sid)
+    ledger.conn.execute("UPDATE signs SET site_id=? WHERE source_bundle=? AND site_id IS NULL", (sid, bundle_id))
+    ledger.conn.commit()
+    return sid
+
+
+def attach_orphan_bundles(ledger: Ledger) -> int:
+    """物件の無い束を全部、新しい物件に紐づける(起動時の修復)。返り= 直した束の数。"""
+    rows = ledger.conn.execute("SELECT id FROM bundles WHERE site_id IS NULL OR site_id=''").fetchall()
+    for r in rows:
+        attach_new_site(ledger, r["id"])
+    return len(rows)
+
+
 def intake_upload(ledger: Ledger, body: dict, jobs, data_dir: Path) -> dict:
     """画面の取り込み: 写真(複数)・点検表の PDF 1本・紙1枚の写真 → 束を作り、裏で 仕分け → 看板の枠 → 下書き を走らせる。
     body = {files: [{name, data(base64)}], site_id?}。同じ内容は取り込み直さず既存の束を返す(終わっていない・失敗した束だけ続きをやり直す)。"""
@@ -389,6 +409,10 @@ def intake_upload(ledger: Ledger, body: dict, jobs, data_dir: Path) -> dict:
     except intake_run.IntakeError as e:
         raise ApiError(e.status, e.message)
     b = ledger.get_bundle(up.bundle_id)
+    if not b["site_id"]:
+        # 物件を選ばずに取り込んだ束= 物件を作って紐づける(無いと N4/N5 が「現場が選ばれていません」で開けない、2026-11-08)
+        attach_new_site(ledger, up.bundle_id)
+        b = ledger.get_bundle(up.bundle_id)
     if not up.existed or (b["status"] in ("new", "error") and not jobs.running(up.bundle_id)):
         jobs.start(up.bundle_id)
     p = intake_run.progress(ledger, up.bundle_id, jobs)

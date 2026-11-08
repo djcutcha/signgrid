@@ -340,6 +340,10 @@ def main(argv=None) -> int:
         if not db.exists():
             seed_sample(db, data_dir)
         seed_sample_rules(db, data_dir)
+        with Ledger(db, data_dir=data_dir) as lg:
+            n = api.attach_orphan_bundles(lg)   # 物件なしで取り込んだ束を物件に紐づける(見本の台帳の修復、2026-11-08)
+            if n:
+                print(f"物件の無い束 {n} 件に物件を作って紐づけた", file=sys.stderr)
     app = App(db, data_dir, sample=sample, placer=None if sample else make_placer())
     if not sample:
         print("用途地域: " + ("GIS を読み込んだ" if app.placer else "GIS が無いので区分なしで判定(python3 -m kanban_karte.geo.fetch_gis)"), file=sys.stderr)
