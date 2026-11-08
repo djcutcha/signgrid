@@ -90,8 +90,8 @@ class SampleStartTest(WebTest):
         urls = [p["url"] for p in d["photos"]]
         self.assertEqual(urls[0], "/media/photos/plain_a.jpg")
         st, body, h = self.req(urls[0], raw=True)
-        self.assertEqual((st, h["Content-Type"]), (200, "image/png"))
-        self.assertTrue(body.startswith(b"\x89PNG"))
+        self.assertEqual((st, h["Content-Type"]), (200, "image/jpeg"))
+        self.assertTrue(body.startswith(b"\xff\xd8"))
         for bad in ("/media/../ledger.json", "/media/%2e%2e/ledger.json", "/media/ledger.json", "/media/photos/none.png",
                     "/media/photos"):
             self.assertEqual(self.req(bad, raw=True)[0], 404, bad)
