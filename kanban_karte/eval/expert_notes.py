@@ -1,6 +1,7 @@
 """有資格者のアノテーション(/expert/ の expert_notes)を判定役の「手本」にする。
 
 - 手本と物差しの分け方(機械的な規則): sign_key の数字の合計が偶数なら手本、奇数なら物差し。
+  評価セットの外(点検記録・2017 年の報告書= EXTRA_SOURCES)は物差しに入らないので、全部手本の側(依頼 17)。
   物差しの看板には手本を一切見せない(アノテーションがあっても手本に使わない)。
 - 手本の選び方: 判定する看板と同じ種類(kind)で、所見(signs)が重なる件を最大 3 件。
   手本の側は理由のある物を先に並べ、理由が空のランク 1(見るべき所なし= 良好)は屋外の種類ごとに最大 1 件だけ足す。
@@ -22,6 +23,7 @@ import sys
 from pathlib import Path
 
 PER_ITEM = 3
+EXTRA_SOURCES = ("nas", "insp2017")   # 評価セットの外で手本に使う出どころ。field は動画 47 基(line_paper)と同じ看板の写真なので入れない(答えが漏れる)
 TRACE = "有資格者の見方を参照"
 OUTDOOR = ("壁面", "袖", "自立", "屋上")
 GOOD_TEXT = "見るべき所なし(良好、ランク 1)"
@@ -40,6 +42,11 @@ def role(sign_key: str) -> str:
     return "example" if sum(int(c) for c in key_of(sign_key) if c.isdigit()) % 2 == 0 else "measure"
 
 
+def is_example(n: dict) -> bool:
+    """手本の側か。評価セットは偶奇、評価セットの外は全部手本(物差しは評価セットの物差し側だけ)。"""
+    return n.get("source", "eval") != "eval" or role(n["sign_key"]) == "example"
+
+
 def guess_kind(name: str) -> str:
     """web/expert.py の guess_kind と同じ語(eval から web を import しないため写す)。"""
     for word, kind in (("屋上", "屋上"), ("自立", "自立"), ("袖", "袖"), ("壁面", "壁面"), ("壁", "壁面"), ("塔", "自立")):
@@ -49,11 +56,12 @@ def guess_kind(name: str) -> str:
 
 
 def load(db: str | Path) -> list[dict]:
-    """評価セットのアノテーション(飛ばしでない物)を入力順に。文の無い物は、屋外の種類のランク 1 だけ good=True で残す。"""
+    """評価セットと EXTRA_SOURCES のアノテーション(飛ばしでない物)を入力順に。文の無い物は、屋外の種類のランク 1 だけ good=True で残す。"""
     c = sqlite3.connect(db)
     c.row_factory = sqlite3.Row
     try:
-        rows = c.execute("SELECT * FROM expert_notes WHERE source='eval' AND skipped=0 ORDER BY id").fetchall()
+        rows = c.execute("SELECT * FROM expert_notes WHERE source IN ('eval', %s) AND skipped=0 ORDER BY id"
+                         % ",".join("?" * len(EXTRA_SOURCES)), EXTRA_SOURCES).fetchall()
     finally:
         c.close()
     out = []
@@ -70,10 +78,10 @@ def load(db: str | Path) -> list[dict]:
 
 def examples(notes: list[dict], cap: int | None = None) -> list[dict]:
     """手本の側だけ、理由のある物を入力順に先、良好は種類ごと最大 1 件を後に、最大 cap 件(学習曲線の 0 / 10 / 25 / 50)。"""
-    ex = [n for n in notes if role(n["sign_key"]) == "example" and not n.get("good")]
+    ex = [n for n in notes if is_example(n) and not n.get("good")]
     seen = set()
     for n in notes:
-        if n.get("good") and role(n["sign_key"]) == "example" and n.get("kind") not in seen:
+        if n.get("good") and is_example(n) and n.get("kind") not in seen:
             seen.add(n.get("kind"))
             ex.append(n)
     return ex if cap is None else ex[: max(0, cap)]
@@ -127,8 +135,8 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     if a.cmd == "split":
         notes = load(a.db)
-        print(json.dumps({"notes": len(notes), "example": [n["sign_key"] for n in notes if role(n["sign_key"]) == "example"],
-                          "measure": [n["sign_key"] for n in notes if role(n["sign_key"]) == "measure"]}, ensure_ascii=False))
+        print(json.dumps({"notes": len(notes), "example": [n["sign_key"] for n in notes if is_example(n)],
+                          "measure": [n["sign_key"] for n in notes if not is_example(n)]}, ensure_ascii=False))
     else:
         from ..ledger.db import Ledger
         from ..pipeline.review import _add_rule

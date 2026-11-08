@@ -27,6 +27,13 @@ class SplitPickTest(unittest.TestCase):
         self.assertEqual(len(en.examples(notes, 2)), 2)
         self.assertEqual(en.examples(notes, 0), [])
 
+    def test_outside_eval_is_example_regardless_of_parity(self):
+        n = {**note("c2a2bc20f3"), "source": "nas"}                 # 物差しの組は評価セットだけ(依頼 17)
+        self.assertEqual(en.role(n["sign_key"]), "measure")
+        self.assertTrue(en.is_example(n))
+        self.assertFalse(en.is_example({**note("0000006157-015"), "source": "eval"}))
+        self.assertNotIn("field", en.EXTRA_SOURCES)                        # 実データは動画 47 基と同じ看板= 手本にしない
+
     def test_pick_kind_and_signs(self):
         pool = [note("a", "屋上", ["錆"]), note("b", "壁面", []), note("c", "壁面", ["錆", "腐食"]), note("d", "袖", ["傾き"])]
         self.assertEqual([n["sign_key"] for n in en.pick(pool, "壁面", ["錆", "腐食"])], ["c", "b", "a"])

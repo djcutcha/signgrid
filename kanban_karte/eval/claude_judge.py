@@ -602,9 +602,9 @@ class ClaudeJudge(Judge):
         """この看板に見せる有資格者の見方。手本の側のアノテーションだけから選び、看板自身のアノテーションは選ばない。"""
         if not self.expert_notes:
             return []
-        from .expert_notes import guess_kind, key_of, pick, role
+        from .expert_notes import guess_kind, is_example, key_of, pick
         k = key_of(item.sign_id)
-        pool = [n for n in self.expert_notes if role(n["sign_key"]) == "example"]
+        pool = [n for n in self.expert_notes if is_example(n)]
         return pick(pool, guess_kind(item.meta.get("sign_name", "")), self.expert_signs.get(k, []), exclude=k)
 
     def judge(self, item: EvalItem) -> Prediction:
