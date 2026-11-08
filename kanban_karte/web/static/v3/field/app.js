@@ -265,6 +265,8 @@
     try {
       const j = await api("/api/owner/estimate", { address: S.address.trim(), photos: [S.front.b64], kind: S.kind });
       const e = j.estimate, ph = (e.photos && e.photos[0]) || {}, b = ph.sign_box || [0.25, 0.3, 0.75, 0.55];
+      // 看板が写っていない写真では推定が W 1 × H 1 mm のような値になる。その尺度で角を動かしても数字は変わらないので、測れなかったとして扱う
+      if (!(e.w_mm >= 100 && e.h_mm >= 100)) throw new Error(`写真の中に看板を見つけられませんでした(推定 W ${fmt(e.w_mm)} × H ${fmt(e.h_mm)} mm)。看板が正面に大きく写るように撮り直すか、スキップして 5/6 で寸法を手で入れてください。`);
       const W = S.front.w, H = S.front.h;
       S.vb = { w: W, h: H };
       S.pts = [[b[0] * W, b[1] * H], [b[2] * W, b[1] * H], [b[2] * W, b[3] * H], [b[0] * W, b[3] * H]];
