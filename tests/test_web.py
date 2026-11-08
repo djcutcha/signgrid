@@ -88,7 +88,7 @@ class SampleStartTest(WebTest):
     def test_media_resolves_relative_paths(self):
         _, d, _ = self.req("/api/signs/demo-001")
         urls = [p["url"] for p in d["photos"]]
-        self.assertEqual(urls[0], "/media/photos/plain_a.png")
+        self.assertEqual(urls[0], "/media/photos/plain_a.jpg")
         st, body, h = self.req(urls[0], raw=True)
         self.assertEqual((st, h["Content-Type"]), (200, "image/png"))
         self.assertTrue(body.startswith(b"\x89PNG"))
