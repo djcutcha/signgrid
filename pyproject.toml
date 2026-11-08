@@ -7,7 +7,7 @@ name = "kanban-karte"
 version = "0.0.1"
 description = "看板カルテ: 看板1基=1行の看板管理台帳(Built with Claude: Japan 2026)"
 requires-python = ">=3.12"
-dependencies = ["anthropic==2.3.0", "numpy==2.5.4", "pillow==12.3.0", "pypdf==6.21.4"]
+dependencies = ["anthropic==2.3.0", "numpy==2.5.4", "openpyxl==3.1.5", "pillow==12.3.0", "pypdf==6.21.4", "pyshp==3.0.3"]
 
 [project.scripts]
 kanban-karte = "kanban_karte.cli:main"
