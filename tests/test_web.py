@@ -54,9 +54,12 @@ class WebTest(unittest.TestCase):
 
 class SampleStartTest(WebTest):
     def test_index_and_meta(self):
-        st, body, h = self.req("/", raw=True)
+        st, body, h = self.req("/index.html", raw=True)   # 旧い台帳画面(/ は /v3/ へ転送、下で確かめる)
         self.assertEqual(st, 200)
         self.assertIn("text/html", h["Content-Type"])
+        st, body, h = self.req("/", raw=True)   # / は /v3/(UI v3 のホーム)へ転送される(urlopen が追う)
+        self.assertEqual(st, 200)
+        self.assertIn("今日やること", body.decode("utf-8"))
         st, meta, _ = self.req("/api/meta")
         self.assertTrue(meta["sample"])
         self.assertEqual(len(meta["items"]), 18)
@@ -139,7 +142,7 @@ class EntryTest(WebTest):
         return re.findall(r'<a href="[^"]*" data-nav="[^"]*">([^<]*)</a>', html)
 
     def test_internal_tabs(self):
-        html = self.page("/")
+        html = self.page("/index.html")   # 旧い台帳画面(/ は UI v3 へ転送)
         self.assertIn('data-entry="internal"', html)
         self.assertEqual(self.tabs(html), ["受付", "台帳", "規則と出力"])
         self.assertIn("<title>SignGrid</title>", html)

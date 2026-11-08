@@ -133,7 +133,9 @@ def make_handler(app: App):
                     return expert.serve(self, app, "GET", path, q, None)
                 if citizen.wants(path):  # 市民からの報告(citizen.py)。ログイン不要
                     return citizen.serve(self, app, "GET", path, q, None)
-                if path == "/" or path == "/index.html":
+                if path == "/":  # 入口は UI v3 のホーム(2026-11-08)。旧い台帳画面は /index.html に残す
+                    return self._send(308, b"", "text/plain", {"Location": "/v3/" + (f"?{url.query}" if url.query else "")})
+                if path == "/index.html":
                     return self._file(STATIC / "index.html", "text/html; charset=utf-8")
                 if path in ("/gov", "/owner"):  # 末尾スラッシュ無しは入口へ転送(クエリは引き継ぐ)
                     return self._send(308, b"", "text/plain", {"Location": path + "/" + (f"?{url.query}" if url.query else "")})
