@@ -17,3 +17,5 @@
 .err-box{display:flex;gap:8px 16px;align-items:center;flex-wrap:wrap;background:var(--warn-soft);border:1px solid #FCD9A5;border-radius:var(--r);padding:16px}
 .list li.empty-line{padding:16px 0;color:var(--muted)}
 @media (max-width:760px){.ingest{margin-left:0;max-width:none;width:100%}}
+.other-entries{display:flex;flex-wrap:wrap;gap:8px;padding:16px}
+.other-entries .btn{height:auto;min-height:40px;padding:8px 16px;white-space:normal;text-align:left}
