@@ -313,6 +313,50 @@ class SampleWithDbMainTest(unittest.TestCase):
             self.assertEqual(app.media_path("pages/x.jpg"), db.parent / "pages" / "x.jpg")   # 永続側の写真も配る
 
 
+class ResendAfterFilesLostTest(unittest.TestCase):
+    """再配備で uploads/・pages/ の画像が消えた束に、同じ写真の再送が吸われない(2026-11-08 公開デモ)。"""
+
+    def _files(self):
+        import hashlib
+        import io
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new("RGB", (64, 48), "gray").save(buf, "JPEG")
+        b = buf.getvalue()
+        return [{"name": "a.jpg", "bytes": b, "is_pdf": False, "fmt": "JPEG", "sha256": hashlib.sha256(b).hexdigest()}]
+
+    def test_missing_files_rebuild_bundle_but_confirmed_is_kept(self):
+        import shutil
+        from kanban_karte.ledger import Sign
+        from kanban_karte.pipeline import intake_run
+        with tempfile.TemporaryDirectory() as td:
+            data = Path(td).resolve()
+            with Ledger(data / "l.sqlite", data_dir=data) as lg:
+                files = self._files()
+                up = intake_run.store_upload(lg, files, data)
+                self.assertFalse(up.existed)
+                srcs = intake_run.upload_paths(data, lg, up.bundle_id)
+                intake_run.register_images(lg, up.bundle_id, srcs, data / "pages")
+                lg.set_bundle(up.bundle_id, status="signs_drafted")
+                lg.upsert_sign(Sign(id="s-draft", source_bundle=up.bundle_id, status="draft"))
+                # 実体がそろっていれば従来どおり既存の束
+                self.assertTrue(intake_run.store_upload(lg, files, data).existed)
+                shutil.rmtree(data / "uploads"); shutil.rmtree(data / "pages")
+                up2 = intake_run.store_upload(lg, files, data)
+                self.assertEqual((up2.bundle_id, up2.existed), (up.bundle_id, False))
+                self.assertEqual(len(intake_run.upload_paths(data, lg, up.bundle_id)), 1)   # uploads が再作成された
+                self.assertEqual(lg.get_bundle(up.bundle_id)["status"], "new")
+                self.assertEqual(lg.list_pages(up.bundle_id), [])
+                self.assertIsNone(lg.get_sign("s-draft"))
+                # 確定済みの看板がある束は消さず、従来どおり既存の束を返す
+                intake_run.register_images(lg, up.bundle_id, intake_run.upload_paths(data, lg, up.bundle_id), data / "pages")
+                lg.upsert_sign(Sign(id="s-fix", source_bundle=up.bundle_id, status="confirmed"))
+                shutil.rmtree(data / "pages")
+                up3 = intake_run.store_upload(lg, files, data)
+                self.assertTrue(up3.existed)
+                self.assertIsNotNone(lg.get_sign("s-fix"))
+
+
 class SampleBadgeTest(unittest.TestCase):
     """「見本データ」の帯は hidden 属性で消す。CSS の display 指定が hidden に勝つと実データでも帯が出る(2026-11-03 の一周の画面で発覚)。"""
 

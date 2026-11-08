@@ -102,9 +102,32 @@ def store_upload(ledger: Ledger, files: list[dict], data_dir: Path, site_id: str
     is_pdf = files[0]["is_pdf"]
     sha = files[0]["sha256"] if is_pdf else hashlib.sha256(("images:" + ",".join(f["sha256"] for f in files)).encode()).hexdigest()
     old = ledger.find_bundle_by_sha(sha)
+    kind = "pdf" if is_pdf else "images"
     if old is not None:
-        return Upload(old["id"], True, "pdf" if is_pdf else "images", len(files))
-    d = data_dir / "uploads" / sha[:12]
+        # 実体の無い重複(再配備で uploads/ や pages/ の画像が消えた束)は、古い束に吸わせず今回のファイルで作り直す。
+        # 確定済みの看板がある束は触らず、従来どおり既存の束を返す。
+        if not _bundle_files_missing(ledger, data_dir, old["id"]) or not ledger.reset_bundle(old["id"]):
+            return Upload(old["id"], True, kind, len(files))
+        _write_files(data_dir / "uploads" / sha[:12], files, is_pdf)
+        if site_id:
+            ledger.set_bundle(old["id"], site_id=site_id)
+        return Upload(old["id"], False, kind, len(files))
+    paths = _write_files(data_dir / "uploads" / sha[:12], files, is_pdf)
+    label = str(paths[0]) if is_pdf else f"upload://{len(files)}枚/{files[0]['name']}"
+    bid = ledger.add_bundle(label, sha, pages=0)
+    if site_id:
+        ledger.set_bundle(bid, site_id=site_id)
+    return Upload(bid, False, "pdf" if is_pdf else "images", len(files))
+
+
+def _bundle_files_missing(ledger: Ledger, data_dir: Path, bundle_id: int) -> bool:
+    """束の元ファイルが無い、または登録済みページの画像が1枚でも実在しない。"""
+    if not upload_paths(data_dir, ledger, bundle_id):
+        return True
+    return any(not r["image_path"] or not ledger.resolve_path(r["image_path"]).exists() for r in ledger.list_pages(bundle_id))
+
+
+def _write_files(d: Path, files: list[dict], is_pdf: bool) -> list[Path]:
     d.mkdir(parents=True, exist_ok=True)
     paths = []
     for k, f in enumerate(files, 1):
@@ -112,11 +135,7 @@ def store_upload(ledger: Ledger, files: list[dict], data_dir: Path, site_id: str
         p = d / (stem if is_pdf else Path(stem).stem + IMAGE_FORMATS[f["fmt"]])
         p.write_bytes(f["bytes"])
         paths.append(p)
-    label = str(paths[0]) if is_pdf else f"upload://{len(files)}枚/{files[0]['name']}"
-    bid = ledger.add_bundle(label, sha, pages=0)
-    if site_id:
-        ledger.set_bundle(bid, site_id=site_id)
-    return Upload(bid, False, "pdf" if is_pdf else "images", len(files))
+    return paths
 
 
 def upload_paths(data_dir: Path, ledger: Ledger, bundle_id: int) -> list[Path]:

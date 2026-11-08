@@ -323,6 +323,16 @@ class Ledger:
             self.conn.execute(f"UPDATE bundles SET {', '.join(sets)} WHERE id=?", [*args, bundle_id])
             self.conn.commit()
 
+    def reset_bundle(self, bundle_id: int) -> bool:
+        """束を取り込み前(status=new)に戻す: pages と、確定でない看板を消す。確定済みの看板がある束は何も消さず False。"""
+        if self.conn.execute("SELECT 1 FROM signs WHERE source_bundle=? AND status='confirmed' LIMIT 1", (bundle_id,)).fetchone():
+            return False
+        self.conn.execute("DELETE FROM signs WHERE source_bundle=?", (bundle_id,))
+        self.conn.execute("DELETE FROM pages WHERE bundle_id=?", (bundle_id,))
+        self.conn.execute("UPDATE bundles SET status='new', pages=0, error=NULL, kind_counts='{}' WHERE id=?", (bundle_id,))
+        self.conn.commit()
+        return True
+
     def get_bundle(self, bundle_id: int) -> sqlite3.Row | None:
         return self.conn.execute("SELECT * FROM bundles WHERE id=?", (bundle_id,)).fetchone()
 
