@@ -345,7 +345,10 @@ class Catalog:
             cfg = cfg or os.environ.get("KANBAN_KARTE_SOURCES") or str(self.private / "sources.toml")
             items = dataset.load_all(cfg, sources=dataset.AGGREGATE_SOURCES)
         except Exception as e:   # 評価セットの実体が無い環境でも画面は動かす
-            self.warnings.append(f"評価セットを読めません: {type(e).__name__}")
+            if isinstance(e, FileNotFoundError):
+                self.warnings.append("評価セットがありません。この画面は手元の正解データ(data/private)がある環境でだけ使えます。公開デモには入っていません。")
+            else:
+                self.warnings.append(f"評価セットを読めません: {type(e).__name__}")
             return
         n = p = 0
         for s in dataset.AGGREGATE_SOURCES:

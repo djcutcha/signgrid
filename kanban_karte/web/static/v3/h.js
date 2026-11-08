@@ -30,15 +30,20 @@
     const tot = waiting.reduce((a, s) => a + s.draft_count, 0);
     $("waitSum").innerHTML = tot + "<small>基が確認待ち</small>";
     $("waitList").innerHTML = waiting.length ? waiting.map((s) =>
-      `<li><span class="nm">${esc(s.name)}${s.address ? `<small>${esc(s.address)}</small>` : ""}</span><span class="chip wait">確認待ち ${s.draft_count} 基</span><a class="btn sm primary" href="n5.html?site=${encodeURIComponent(s.id)}">確認を始める</a></li>`).join("")
+      `<li data-href="n5.html?site=${encodeURIComponent(s.id)}" style="cursor:pointer"><span class="nm">${esc(s.name)}${s.address ? `<small>${esc(s.address)}</small>` : ""}</span><span class="chip wait">確認待ち ${s.draft_count} 基</span><a class="btn sm primary" href="n5.html?site=${encodeURIComponent(s.id)}">確認を始める</a></li>`).join("")
       : '<li class="empty-line">確認待ちの看板はありません。</li>';
     // 期限は台帳の next_inspection / permit_expires。今の /api/sites には無い(入れば自動で出る)
     const soon = (s) => [s.next_inspection, s.permit_expires].filter(Boolean).sort()[0];
     const due = sites.filter(soon).sort((a, b) => soon(a).localeCompare(soon(b)));
     $("dueList").innerHTML = due.length ? due.map((s) =>
-      `<li><span class="nm">${esc(s.name)}</span><span class="due-dates"><span>次の点検日 <b class="num">${esc(s.next_inspection || "未設定")}</b></span><span>許可の期限 <b class="num">${esc(s.permit_expires || "未設定")}</b></span></span><a class="btn sm" href="l.html?site=${encodeURIComponent(s.id)}">台帳で開く</a></li>`).join("")
+      `<li data-href="l.html?site=${encodeURIComponent(s.id)}" style="cursor:pointer"><span class="nm">${esc(s.name)}</span><span class="due-dates"><span>次の点検日 <b class="num">${esc(s.next_inspection || "未設定")}</b></span><span>許可の期限 <b class="num">${esc(s.permit_expires || "未設定")}</b></span></span><a class="btn sm" href="l.html?site=${encodeURIComponent(s.id)}">台帳で開く</a></li>`).join("")
       : '<li class="empty-line">次の点検日や許可の期限が入った物件は、まだありません。</li>';
   }
+  // 行のどこを押してもボタンと同じ遷移先へ(ボタン・リンク自身のクリックは二重に拾わない)
+  for (const id of ["waitList", "dueList"]) $(id).addEventListener("click", (e) => {
+    const li = e.target.closest("li[data-href]");
+    if (li && !e.target.closest("a,button")) location.href = li.dataset.href;
+  });
   async function pollIngest() {
     const box = $("ingest");
     try {

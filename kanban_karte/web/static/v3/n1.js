@@ -20,11 +20,15 @@
     const shown = f ? sites.filter((s) => [s.name, s.address, s.municipality].join(" ").includes(f)) : sites;
     $("cnt").textContent = sites.length + " 件";
     $("sites").innerHTML = shown.length ? shown.map((s) =>
-      `<li><span class="nm">${esc(s.name || s.id)}<small>${esc(s.address || "住所 未記入")}${s.municipality ? "・" + esc(s.municipality) : ""}</small></span>` +
+      `<li data-href="n2.html?site=${encodeURIComponent(s.id)}" style="cursor:pointer"><span class="nm">${esc(s.name || s.id)}<small>${esc(s.address || "住所 未記入")}${s.municipality ? "・" + esc(s.municipality) : ""}</small></span>` +
       `<span class="due-dates"><span>看板 <b class="num">${s.sign_count}</b> 基</span><span>次の点検日 <b class="num">${esc(s.next_inspection || "未設定")}</b></span></span>` +
       `<a class="btn sm primary" href="n2.html?site=${encodeURIComponent(s.id)}">この物件を点検する</a></li>`).join("")
       : '<li class="empty-line">該当する物件がありません。</li>';
   }
+  $("sites").addEventListener("click", (e) => {   // 行のどこを押してもボタンと同じ遷移先へ
+    const li = e.target.closest("li[data-href]");
+    if (li && !e.target.closest("a,button")) location.href = li.dataset.href;
+  });
   $("q").addEventListener("input", render);
   $("retry").onclick = load;
   load();

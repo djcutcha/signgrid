@@ -162,7 +162,7 @@
   </section>`;
     $("byIn").value = getBy();
     $("byIn").oninput = draw;
-    $("byIn").onkeydown = (e) => { if (e.key === "Enter" && !$("signBtn").disabled) openDlg(); };
+    $("byIn").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); if (!$("signBtn").disabled) openDlg(); } };
     $("signBtn").onclick = openDlg;
   }
   function foot() {
