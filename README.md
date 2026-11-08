@@ -19,11 +19,11 @@ Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期�
 
 ## 2. 3つの入口と6つの画面
 
-入口は「誰の仕事か」で3つに分かれる(それぞれ別のページ、別のタイトル)。見本データ(架空の店)で動く。スクリーンショットは `docs/img/`(`python3 tools/web_screenshots.py` で撮り直せる)。
+入口は「誰の仕事か」で3つに分かれる(それぞれ別のページ、別のタイトル)。見本データ(架空の店)で動く。点検会社の画面は 2026-11-08 に新 UI(`/v3/`)へ: `/` は `/v3/`(PC: 今日やること → 新規点検 N1 物件 → N2 入口 → N3 取り込み → N4 不明点 → N5 看板ごとの確認 → N6 署名 → N7 報告書、L 台帳、K 学んだこと)に転送、現場は `/v3/field/`(スマホ)。旧画面(受付・台帳・規則と出力)は `/index.html` に残る。スクリーンショットは `docs/img/`(`python3 tools/web_screenshots.py` で撮り直せる)。
 
 | 入口 | 使う人 | 画面 |
 |---|---|---|
-| **① 点検会社**(`/`、SignGrid。屋外広告士がいて点検を仕事にしている会社) | 職人 | **LINE**。写真を送るだけ。または「ガイド付き点検」で案内どおりに部位ごとに撮り a/b/c を押す。初回は台帳に寸法が無ければ「寸法の実測」も聞く(`docs/LINE.md`) |
+| **① 点検会社**(`/v3/`、SignGrid。屋外広告士がいて点検を仕事にしている会社) | 職人 | **現場のスマホ画面**(`/v3/field/`)。案内どおりに 位置 → 全景 → 正面 → 部位 → 寸法と所見 の順に撮って送る。LINE の入口も残る(写真を送るだけ、または「ガイド付き点検」で a/b/c を押す。初回は台帳に寸法が無ければ「寸法の実測」も聞く、`docs/LINE.md`) |
 | | 有資格者(屋外広告士) | **カルテ**(スマホ / PC)。AI の下書きを18項目で確認し、黄色(判断できず)を直して「確定して署名」 |
 | | 事務・営業 | **受付・台帳・規則と出力**(PC)。受け付けた束、台帳、規則の承認、東京都 第2号様式・客先A型の xlsx 出力 |
 | **② 看板の持ち主**(`/owner/`、商店や企業。QR で開く) | 店舗オーナー | **許可の要否と義務の画面**(スマホ)。写真と住所から、許可の要否と点検まわりの4義務を条文つきで調べる。「看板屋に点検を頼む」へ |
@@ -36,10 +36,10 @@ Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期�
 
 ### ① 点検会社(`/`)
 
-**職人: LINE のガイド付き点検の結果を、カルテのバッジ「現場の回答」で確認**
+**職人: 現場のスマホ画面(`/v3/field/`)や LINE のガイド付き点検の結果を、カルテのバッジ「現場の回答」で確認**
 ![guide-karte-sp](docs/img/guide-karte-sp.png)
 
-**職人: 寸法の実測(初回だけ。飛ばせる。LINE の会話を模擬した画面)**
+**職人: 寸法の実測(初回だけ。飛ばせる。図は LINE の会話を模擬した画面)**
 ![guide-measure-pc](docs/img/guide-measure-pc.png)
 
 **有資格者: カルテ(黄色は判断できず)**
@@ -48,7 +48,7 @@ Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期�
 **事務・営業: 台帳**
 ![ledger-pc](docs/img/ledger-pc.png)
 
-**LINE のガイド付き点検は、全景の次に表示面の正面(各面)を撮り、看板の種類を選ぶ**: 部位ごとの問いに、種類に合わせた撮る場所が 1 行付く(高所に登らせない。傾きは全景で見る)。**寸法の実測は初回だけ**: 台帳にその看板の寸法が無い時、幅・高さ・厚み(任意)・GL(地面から看板の下端まで)・取付方法(一覧か文字)・支柱を聞く。図面があれば「図面で送る」、要らなければ「飛ばす」で通せる。2回目以降は前回の実測を引き継ぎ、聞かない(`docs/LINE.md`)。
+**ガイド付き点検は、全景の次に表示面の正面(各面)を撮り、看板の種類を選ぶ**: 部位ごとの問いに、種類に合わせた撮る場所が 1 行付く(高所に登らせない。傾きは全景で見る)。**寸法の実測は初回だけ**: 台帳にその看板の寸法が無い時、幅・高さ・厚み(任意)・GL(地面から看板の下端まで)・取付方法(一覧か文字)・支柱を聞く。図面があれば「図面で送る」、要らなければ「飛ばす」で通せる。2回目以降は前回の実測を引き継ぎ、聞かない(`docs/LINE.md`)。
 
 ### ② 看板の持ち主(`/owner/`)
 
@@ -119,7 +119,7 @@ Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期�
 点検とは別の判断(`docs/LEGAL.md`、`docs/GIS.md`)。
 
 - **4自治体の条例原文から規則を AI が抽出**: 東京都・埼玉県・越谷市・さいたま市(条例と施行規則の8本)。答えには根拠条文(条・項・号と原文の抜粋)が付く。
-- **許可の要否**: 要 / 不要 / 要実測の3段階。寸法が分からなければ「要実測」に倒す(保守側)。LINE のガイド付き点検の初回に寸法を実測して台帳に入れると、カルテを開くたびに面積と全高で再判定され、この「要実測」が減る。寸法の出どころはカルテのバッジ(実測 / 推定(AI) / 図面 / 未入力)で分かる。客先 1店舗の 74 基(図面のスケッチから W・H を読んだ場合)では、許可の要実測が 6 基から 3 基に減った(不要 / 要 / 要実測 = 67 / 4 / 3、`docs/FIELD.md`)。
+- **許可の要否**: 要 / 不要 / 要実測の3段階。寸法が分からなければ「要実測」に倒す(保守側)。ガイド付き点検の初回に寸法を実測して台帳に入れると、カルテを開くたびに面積と全高で再判定され、この「要実測」が減る。寸法の出どころはカルテのバッジ(実測 / 推定(AI) / 図面 / 未入力)で分かる。客先 1店舗の 74 基(図面のスケッチから W・H を読んだ場合)では、許可の要実測が 6 基から 3 基に減った(不要 / 要 / 要実測 = 67 / 4 / 3、`docs/FIELD.md`)。
 - **用途地域と全高を接続**: 住所 → 国土地理院で座標化 → 国土交通省の用途地域 GIS(埼玉県 58 + 東京都 52 = 110 本、15,783 ポリゴン)で区分を引き、判定に渡す。禁止地域は用途地域だけの暫定(風致・景観・文教などは未判定)。GIS は参考値。
 - **4つの義務**: 管理 / 点検 / 有資格者 / 行政への報告を別々に判定する。東京都の有資格者は「有資格の屋外広告物管理者を置く」義務(点検をさせる義務ではない)。24 ケースの表は `python3 tools/duties_matrix.py`(API なし)。
 - **限界**: 条例の写しは 2026-10-20 時点。使う前に最新の例規集と突き合わせる。埼玉県の他の市町村は県条例で引き、市独自条例は未確認。
@@ -127,7 +127,7 @@ Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期�
 ## 6. ハッカソンの後、誰がどう使い続けるか
 
 - **看板製作会社の有資格者と事務**: 客先の点検(紙の点検票とスマホ写真)を、看板1基=1行の台帳とカルテに載せる。有資格者は AI の下書きを確認して確定・署名し、事務は台帳と様式出力(東京都 第2号様式・客先A型)を使う。
-- **次回の点検**: 前回測った寸法と、確定した判定が台帳に残り、次回のカルテから参照できる。職人は LINE で写真を送るか、ガイドに沿って撮る。
+- **次回の点検**: 前回測った寸法と、確定した判定が台帳に残り、次回のカルテから参照できる。職人は現場のスマホ画面の案内に沿って撮る(LINE で写真を送ることもできる)。
 - **行政向け(提案する試作)**: 巡回の「撮る→送る」と地図。職員が撮った写真が位置で看板ごとに束ねられ、この仕組みの台帳との突き合わせと地図に出る。行政の許可情報とはつながっていない(許可の情報は行政の中だけで管理される物。行政向けの画面は行政の端末で動かす前提)。この試作を持って行政への提案を始めている(7 節)。
 - **看板の持ち主**: QR で開き、許可の要否と義務を条文つきで調べ、点検を依頼する。
 - **未実装・将来**: 行政の許可情報(許可番号・期限・申請者)はこの仕組みに入れない(行政の中だけで管理される物)。`/gov/` の突き合わせは、自社の施工台帳と街の人の報告に対して行う(`docs/GOV.md` の限界)。他の自治体の条例は未対応。
@@ -309,7 +309,7 @@ python3 -m unittest                                   # テスト(827 件)
 
 SignGrid ("karte" = a per-sign record) puts the inspection and legal checks that signboard makers' qualified inspectors run on paper and phone photos into a one-sign-per-row ledger. Built from scratch during Built with Claude: Japan 2026 (started 2026-11-02 12:30 JST). **A person confirms**: AI only drafts; a qualified person (outdoor-advertising specialist) confirms and signs, and the photo numbers and ordinance articles behind each fact stay on screen.
 
-- **Three entrances, six screens**: (1) inspection company `/`: LINE (photos, or guided inspection incl. an optional, skippable sign-measuring step on the first visit; later visits reuse it), web karte (qualified inspector confirms and signs), PC (intake, ledger, rules, xlsx output); (2) sign owner `/owner/` on a phone (permit and duties by ordinance, via QR); (3) government `/gov/`: patrol on a phone (shoot and send; photos bundled by GPS) and the desk on PC (batch photos on a map).
+- **Three entrances, six screens**: (1) inspection company `/v3/`: phone field wizard `/v3/field/` (shoot per part: location → overview → front → parts → size and notes → send; LINE photos and the LINE guided inspection incl. an optional, skippable sign-measuring step on the first visit are still accepted), PC flow N1–N7 (site → entrance → intake → open questions → per-sign check → sign → report) plus ledger and learned rules, web karte (qualified inspector confirms and signs), PC (intake, ledger, rules, xlsx output); (2) sign owner `/owner/` on a phone (permit and duties by ordinance, via QR); (3) government `/gov/`: patrol on a phone (shoot and send; photos bundled by GPS) and the desk on PC (batch photos on a map).
 - **Knowledge grows by a process**: AI draft, inspector correction, one follow-up question, rule candidate, approval (only approved rules affect later drafts), conflict detection. A measured effect of 6 approved rules on the draft was none (`docs/PIPELINE.md`).
 - **Inspection**: 18 items x 3 grades drafted by Opus 5.5. On our own 829 inspected signs (private, ground truth only), exact match 66.5%, misses 76.7% of signs needing action, 4.9% false alarms. On a real 2026 store (47 signs): 70.2% exact, 5/9 misses, 1/38 false alarms; a full lap took about 9 minutes.
 - **Law**: rules extracted by AI from the original text of 4 ordinances (Tokyo, Saitama, Koshigaya, Saitama City), joined with zoning GIS and height, and four separate duties (maintain, inspect, qualified person, report). Measuring a sign on site cuts "needs measuring" results. Reference values only; check against current law.
