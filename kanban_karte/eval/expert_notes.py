@@ -1,8 +1,10 @@
 """有資格者のアノテーション(/expert/ の expert_notes)を判定役の「手本」にする。
 
 - 手本と物差しの分け方(機械的な規則): sign_key の数字の合計が偶数なら手本、奇数なら物差し。
+  評価セットの外(点検記録・2017 年の報告書= EXTRA_SOURCES)は物差しに入らないので、全部手本の側(依頼 17)。
   物差しの看板には手本を一切見せない(アノテーションがあっても手本に使わない)。
 - 手本の選び方: 判定する看板と同じ種類(kind)で、所見(signs)が重なる件を最大 3 件。
+  手本の側は理由のある物を先に並べ、理由が空のランク 1(見るべき所なし= 良好)は屋外の種類ごとに最大 1 件だけ足す。
   種類は台帳の看板名の語から、所見は判定役の過去の下書きの理由から拾う(どちらも正解は使わない)。
   手本の文は reasons をそのまま使い、案件番号のような長い数字は伏せる。店名・人名・案件番号・sign_key は送らない。
 - 規則の候補: unknowns(写真では分からない物)を「判断できず(要実測)」にする規則を 1 本。
@@ -21,7 +23,10 @@ import sys
 from pathlib import Path
 
 PER_ITEM = 3
+EXTRA_SOURCES = ("nas", "insp2017")   # 評価セットの外で手本に使う出どころ。field は動画 47 基(line_paper)と同じ看板の写真なので入れない(答えが漏れる)
 TRACE = "有資格者の見方を参照"
+OUTDOOR = ("壁面", "袖", "自立", "屋上")
+GOOD_TEXT = "見るべき所なし(良好、ランク 1)"
 UNKNOWNS_RULE = ("写真では分からない物(ボルト・ナットの緩み、漏電などの電気関係、ピースやボルトでの固定の状態)は、"
                  "写真の見た目から良否を決めない。該当する項目は「判断できず(要実測)」とし、現地で確かめる点として reasons に書く。")
 HEAD = ("【有資格者の見方 {n} 件】同じ種類・似た所見の看板について、屋外広告士が写真を見て書いた見方です。"
@@ -37,6 +42,11 @@ def role(sign_key: str) -> str:
     return "example" if sum(int(c) for c in key_of(sign_key) if c.isdigit()) % 2 == 0 else "measure"
 
 
+def is_example(n: dict) -> bool:
+    """手本の側か。評価セットは偶奇、評価セットの外は全部手本(物差しは評価セットの物差し側だけ)。"""
+    return n.get("source", "eval") != "eval" or role(n["sign_key"]) == "example"
+
+
 def guess_kind(name: str) -> str:
     """web/expert.py の guess_kind と同じ語(eval から web を import しないため写す)。"""
     for word, kind in (("屋上", "屋上"), ("自立", "自立"), ("袖", "袖"), ("壁面", "壁面"), ("壁", "壁面"), ("塔", "自立")):
@@ -46,11 +56,12 @@ def guess_kind(name: str) -> str:
 
 
 def load(db: str | Path) -> list[dict]:
-    """評価セットのアノテーション(飛ばしでない物)を入力順に。"""
+    """評価セットと EXTRA_SOURCES のアノテーション(飛ばしでない物)を入力順に。文の無い物は、屋外の種類のランク 1 だけ good=True で残す。"""
     c = sqlite3.connect(db)
     c.row_factory = sqlite3.Row
     try:
-        rows = c.execute("SELECT * FROM expert_notes WHERE source='eval' AND skipped=0 ORDER BY id").fetchall()
+        rows = c.execute("SELECT * FROM expert_notes WHERE source IN ('eval', %s) AND skipped=0 ORDER BY id"
+                         % ",".join("?" * len(EXTRA_SOURCES)), EXTRA_SOURCES).fetchall()
     finally:
         c.close()
     out = []
@@ -59,12 +70,20 @@ def load(db: str | Path) -> list[dict]:
         d["signs"] = json.loads(d.get("signs") or "[]")
         if (d.get("reasons") or "").strip() or (d.get("unknowns") or "").strip():
             out.append(d)
+        elif d.get("rank") == 1 and d.get("kind") in OUTDOOR:
+            d["good"] = True
+            out.append(d)
     return out
 
 
 def examples(notes: list[dict], cap: int | None = None) -> list[dict]:
-    """手本の側だけ、入力順に最大 cap 件(学習曲線の 0 / 10 / 25 / 50)。"""
-    ex = [n for n in notes if role(n["sign_key"]) == "example"]
+    """手本の側だけ、理由のある物を入力順に先、良好は種類ごと最大 1 件を後に、最大 cap 件(学習曲線の 0 / 10 / 25 / 50)。"""
+    ex = [n for n in notes if is_example(n) and not n.get("good")]
+    seen = set()
+    for n in notes:
+        if n.get("good") and is_example(n) and n.get("kind") not in seen:
+            seen.add(n.get("kind"))
+            ex.append(n)
     return ex if cap is None else ex[: max(0, cap)]
 
 
@@ -73,21 +92,23 @@ def _scrub(t: str) -> str:
 
 
 def pick(pool: list[dict], kind: str, signs: list[str], k: int = PER_ITEM, exclude: str = "") -> list[dict]:
-    """同じ種類(+2)と重なる所見(1 つ +1)の点が 1 以上の件を、点の高い順(同点は入力順)に最大 k 件。"""
+    """同じ種類(+2)と重なる所見(1 つ +1)の点が 1 以上の件を、点の高い順(同点は理由のある物、入力順)に最大 k 件。"""
     scored = []
     for i, n in enumerate(pool):
         if exclude and n["sign_key"] == exclude:
             continue
         s = (2 if kind and n.get("kind") == kind else 0) + len(set(signs) & set(n.get("signs") or []))
         if s > 0:
-            scored.append((-s, i, n))
-    return [n for _, _, n in sorted(scored, key=lambda x: x[:2])[:k]]
+            scored.append((-s, 1 if n.get("good") else 0, i, n))
+    return [x[-1] for x in sorted(scored, key=lambda x: x[:3])[:k]]
 
 
 def block_text(sel: list[dict]) -> str:
     lines = [HEAD.format(n=len(sel))]
     for j, n in enumerate(sel, 1):
         lines.append(f"--- 見方{j}(種類: {n.get('kind') or '不明'} / 所見: {'・'.join(n.get('signs') or []) or 'なし'}) ---")
+        if n.get("good"):
+            lines.append("見方: " + GOOD_TEXT)
         if (n.get("reasons") or "").strip():
             lines.append("見方: " + _scrub(n["reasons"]))
         if (n.get("unknowns") or "").strip():
@@ -114,8 +135,8 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     if a.cmd == "split":
         notes = load(a.db)
-        print(json.dumps({"notes": len(notes), "example": [n["sign_key"] for n in notes if role(n["sign_key"]) == "example"],
-                          "measure": [n["sign_key"] for n in notes if role(n["sign_key"]) == "measure"]}, ensure_ascii=False))
+        print(json.dumps({"notes": len(notes), "example": [n["sign_key"] for n in notes if is_example(n)],
+                          "measure": [n["sign_key"] for n in notes if not is_example(n)]}, ensure_ascii=False))
     else:
         from ..ledger.db import Ledger
         from ..pipeline.review import _add_rule

@@ -71,7 +71,7 @@ def plot(rows: list[tuple[str, dict]], xs: list[int], out: str | Path) -> None:
             by.setdefault(x, []).append(y)
         ax.plot(list(by), [sum(v) / len(v) for v in by.values()], color=color, marker="o", label=name, linewidth=2)
         ax.scatter([x for x, _ in pts], [y for _, y in pts], color=color, s=14, alpha=.5)
-    ax.set_xlabel("手本に使った有資格者のアノテーション(件)")
+    ax.set_xlabel("手本にしたアノテーション(件)")
     ax.set_ylabel("%")
     ax.set_ylim(0, 100)
     ax.set_xticks(sorted(set(xs)))
