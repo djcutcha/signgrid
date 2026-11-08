@@ -4,6 +4,8 @@
 
 デモ動画(3 分・日本語): 準備中(2026-11-08 の提出時に URL を入れる)
 
+動く見本(見本データ・架空の店、鍵なし): https://signgrid.srv1601539.hstgr.cloud (点検会社 `/`、看板の持ち主 `/owner/`、行政 `/gov/`、街の人 `/report/`、アノテーション `/expert/`)。審査のための閲覧用で、AI の下書きと寸法の推定は鍵が無いので動かない。
+
 **人が確定する**: AI が出すのは下書きだけ。判定の確定と署名は有資格者(屋外広告士)が行う。画面には事実確認の根拠(写真番号・条文)が残る。
 
 Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期間中にゼロから作った。
@@ -314,4 +316,5 @@ SignGrid ("karte" = a per-sign record) puts the inspection and legal checks that
 - **After the hackathon**: qualified inspectors and office staff at signboard makers load customer inspections into the ledger and karte, and carry sizes and judgments to the next visit; government starts from shoot-and-send. Permit records stay inside the government and are not held by this system; we have begun proposing the prototype to a local government.
 - **Data**: our own inspection records (ground truth), customer photos, forms and logos are not in this repository and may not be reused; `data/sample/` is fictional, for demos. Code is public under a view-only license (see `LICENSE`): viewing, cloning and running locally for evaluation only; no redistribution, modified distribution, integration, hosting, business use or AI training. **How built**: Claude Code as the main line, headless `claude -p` sub-agents in parallel git worktrees; commit history is public from the start.
 - **What comes next (section 7)**: a prototype entrance `/report/` lets anyone send a photo and location of a sign they worry about (no login, no name, photos never published, location rounded). Citizens find; qualified inspectors confirm. Basis: 89 reported sign-fall accidents in Japan (2021-04 to 2024-12), 73 of them outside government records (AIJ paper, 2026-07); long-running citizen reporting such as FixMyStreet (2007-) and Chiba-repo (2014-); no sign-specific citizen reporting found in our search. No cash rewards; the reward is seeing the result.
+- Live demo (sample data, no API key): https://signgrid.srv1601539.hstgr.cloud
 - Quick start: section 9. License: view-only, see `LICENSE`.
