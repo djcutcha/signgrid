@@ -1,0 +1,21 @@
+/* N6 署名 */
+.signs{list-style:none;margin:16px 0 0;padding:0}
+.signs li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 16px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.signs li:last-child{border-bottom:0}
+.signs .nm{font-weight:600;min-width:0;overflow-wrap:anywhere}
+.signs .nm small{display:block;font-weight:400;color:var(--muted);font-size:12px;margin-top:2px}
+.signs .meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.signs .note{grid-column:1/-1;font-size:13px}
+.signs .note a{font-weight:600}
+.signs .note.bad{color:var(--bad)}
+.signs li.blocked .nm{color:var(--bad)}
+.signs .ok0{font-size:12px;color:var(--muted)}
+.who-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.who-row .input{max-width:360px}
+.locked{opacity:.6}
+.signed dl{margin:8px 0 0;display:grid;grid-template-columns:auto 1fr;gap:4px 16px;font-size:14px}
+.signed dt{color:var(--muted)} .signed dd{margin:0;min-width:0}
+@media (max-width:760px){
+  .signs li{grid-template-columns:minmax(0,1fr)}
+  .signs .meta{justify-content:flex-start}
+}
