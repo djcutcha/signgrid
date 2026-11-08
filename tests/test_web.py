@@ -233,6 +233,13 @@ class RoundTripTest(unittest.TestCase):
                 self.assertEqual(call("/api/signs/demo-002/items", {"item": "支持部-1", "value": "良好", "by": "x"})[0], 409)
                 self.assertEqual(call("/api/signs/demo-002/finalize", {"by": "x"})[0], 409)
                 self.assertEqual(call("/api/signs/demo-003/items", {"item": "rank", "value": 2, "by": "x"})[0], 409)
+                # 確定の取り消し: 名前が要る。下書きには 409。取り消すと editable に戻り、訂正が通る
+                self.assertEqual(call("/api/signs/demo-003/reopen", {"by": " "})[0], 400)
+                self.assertEqual(call("/api/signs/demo-001/reopen", {"by": "x"})[0], 409)
+                st, d = call("/api/signs/demo-003/reopen", {"by": "見本 太郎"})
+                self.assertEqual((st, d["status"], d["confirmed_by"], d["editable"]), (200, "draft", None, True))
+                self.assertEqual(call("/api/signs/demo-003/items", {"item": "rank", "value": 2, "by": "x"})[0], 200)
+                self.assertEqual(call("/api/signs/demo-003/finalize", {"by": "見本 太郎"})[1]["status"], "confirmed")
                 # 一覧と現場の集計に反映
                 signs = {s["id"]: s for s in call("/api/signs?site=demo-site-1")[1]}
                 self.assertEqual((signs["demo-002"]["status"], signs["demo-002"]["rank"]), ("confirmed", 3))

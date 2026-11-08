@@ -243,6 +243,20 @@ def finalize(ledger: Ledger, sign_id: str, body: dict, placer=None) -> dict:
     return sign_detail(ledger, sign_id, placer)
 
 
+def reopen(ledger: Ledger, sign_id: str, body: dict, placer=None) -> dict:
+    """確定を取り消して下書きに戻す(訂正をやり直す入口)。確定済みの看板だけ。"""
+    s = ledger.get_sign(sign_id)
+    if s is None:
+        raise ApiError(404, f"看板 {sign_id} が台帳にありません")
+    if s.status != "confirmed":
+        raise ApiError(409, f"看板 {sign_id} は status={s.status}。取り消せるのは確定だけ")
+    try:
+        review_mod.reopen(ledger, sign_id, str(body.get("by", "")))
+    except ValueError as e:
+        raise ApiError(400, str(e))
+    return sign_detail(ledger, sign_id, placer)
+
+
 def set_height(ledger: Ledger, sign_id: str, body: dict, placer=None) -> dict:
     """看板の全高(m)を台帳に書く(null で消す)。法規の判定に渡る。点検の項目ではないので status は問わない。"""
     s = ledger.get_sign(sign_id)

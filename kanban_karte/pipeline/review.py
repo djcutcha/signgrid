@@ -235,6 +235,19 @@ def finalize(ledger: Ledger, sign_id: str, by: str) -> None:
     ledger.upsert_sign(s)
 
 
+def reopen(ledger: Ledger, sign_id: str, by: str) -> None:
+    """確定(confirmed)を取り消して下書き(draft)に戻す。有資格者が訂正をやり直す時に使う。確定の記録(confirmed_by/at)は消す。"""
+    if not by or not by.strip():
+        raise ValueError("取り消す人(by)が要ります")
+    s = ledger.get_sign(sign_id)
+    if s is None:
+        raise LookupError(f"看板 {sign_id} が台帳にありません")
+    if s.status != "confirmed":
+        raise ValueError(f"看板 {sign_id} は status={s.status}。取り消せるのは確定(confirmed)だけ")
+    s.status, s.confirmed_by, s.confirmed_at = "draft", None, None
+    ledger.upsert_sign(s)
+
+
 def rank_changed_count(ledger: Ledger, bundle_id: int | None = None) -> tuple[int, int]:
     """(確定後のランクが下書きと違う看板数, 確定した看板数)。下書きのランクを持たない看板は数えない。"""
     done = [s for s in ledger.list_signs(bundle_id=bundle_id)

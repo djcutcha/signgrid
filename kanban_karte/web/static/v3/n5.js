@@ -91,7 +91,8 @@
     const yc = d.yellow_count;
     const judge = `<div class="jcard"><div class="jt">判定役 <span class="chip ${d.editable ? "draft" : "done"}">${d.editable ? "下書き" : "確定"}</span></div>
       <div class="jv">ランク ${esc(d.rank_label || "未判定")} ・ ${conf}</div>
-      <div class="jd">${yc ? `判断できない項目が ${yc} つあります。` : "判断できない項目はありません。"}${changed ? "有資格者がランクを変更しています。" : ""}</div></div>`;
+      <div class="jd">${yc ? `判断できない項目が ${yc} つあります。` : "判断できない項目はありません。"}${changed ? "有資格者がランクを変更しています。" : ""}${d.editable ? "" : ` この看板は確定済みです(${esc(d.confirmed_by || "有資格者")})。項目を直すには確定を取り消します。`}</div>
+      ${d.editable ? "" : `<button class="btn sm" id="reopenBtn" type="button">訂正を開く(確定を取り消す)</button>`}</div>`;
     let lawV, lawD;
     if (lg.error) { lawV = "法規を引けませんでした"; lawD = esc(lg.error); }
     else {
@@ -102,6 +103,15 @@
     $("judge").innerHTML = judge + `<button class="jcard" id="lawBtn" type="button" aria-haspopup="dialog"><div class="jt">参考(点検の義務外)</div>
       <div class="jv">法規 ${lawV}</div><div class="jd">${lawD}</div></button>`;
     $("lawBtn").onclick = openLaw;
+    const rb = $("reopenBtn");
+    if (rb) rb.onclick = reopenSign;
+  }
+  async function reopenSign() {
+    const by = await askBy(); if (!by) return;
+    try {
+      snapshotGroups(); d = await api(`/api/signs/${encodeURIComponent(d.id)}/reopen`, { by });
+      drawHead(); drawJudge(); drawGroups(); toast("確定を取り消しました。項目の「違う」から直せます。");
+    } catch (e) { toast(e.message); }
   }
   function drawHead() {
     const i = signs.findIndex((s) => s.id === d.id);
@@ -268,7 +278,7 @@
     </section>
     <section aria-labelledby="itemsTitle">
       <h2 id="itemsTitle" class="small" style="font-size:14px;margin-bottom:4px"></h2>
-      <div class="small muted" style="margin-bottom:8px">項目を押すと、左の写真がその根拠の写真へ移ります。違うときは「違う」を押してください。</div>
+      <div class="small muted" style="margin-bottom:8px">項目を押すと、左の写真がその根拠の写真へ移ります(根拠の写真が無い項目は動きません)。判定が違うときは右端の「違う」を押してください。確定済みの看板は上の「訂正を開く」で下書きに戻してから直します。</div>
       <div id="groups"></div>
     </section>
   </div>`;

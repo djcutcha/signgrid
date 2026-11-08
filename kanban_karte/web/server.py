@@ -38,7 +38,7 @@ MEDIA_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
                ".gif": "image/gif"}
 
 SIGN = re.compile(r"^/api/signs/([^/]+)$")
-SIGN_ACT = re.compile(r"^/api/signs/([^/]+)/(items|finalize)$")
+SIGN_ACT = re.compile(r"^/api/signs/([^/]+)/(items|finalize|reopen)$")
 SIGN_HEIGHT = re.compile(r"^/api/signs/([^/]+)/height$")
 RULE_ANSWER = re.compile(r"^/api/rules/(\d+)/answer$")
 RULE_ACT = re.compile(r"^/api/rules/(\d+)/(approve|reject)$")
@@ -265,6 +265,8 @@ def make_handler(app: App):
                     if m:
                         if m[2] == "items":
                             return self._json(api.correct(ledger, m[1], body, app.placer, app.clarifier or api.default_clarifier(app.sample)))
+                        if m[2] == "reopen":
+                            return self._json(api.reopen(ledger, m[1], body, app.placer))
                         return self._json(api.finalize(ledger, m[1], body, app.placer))
                     m = RULE_ANSWER.match(path)
                     if m:
