@@ -112,7 +112,7 @@
     $("sumline").textContent = "看板 " + p.sign_count + " 基、下書き " + draft + (unk == null ? "" : "、不明点 " + unk);
     $("sumDraft").textContent = "下書き " + draft;
     $("sumUnk").hidden = unk == null; if (unk != null) $("sumUnk").textContent = "判断できず " + unk;
-    $("toN5").href = "n5.html" + (p.site_id ? "?site=" + encodeURIComponent(p.site_id) : "");
+    $("toN5").href = "n4.html" + (p.site_id ? "?site=" + encodeURIComponent(p.site_id) : "");
     view("done");
   }
   function fail(msg) { clearInterval(timer); $("errText").textContent = msg; view("error"); }

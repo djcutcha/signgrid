@@ -544,5 +544,64 @@ class FieldLocateTest(unittest.TestCase):
         self.assertEqual((out["address"], out["municipality"]), ("東京都新宿区西新宿", "新宿区"))
 
 
+class N4PageTest(unittest.TestCase):
+    """N4 不明点: ページが返る・N3→N4→N5 の順につながる・ページが使う経路(判断できず→訂正)が見本の台帳で動く。"""
+
+    @classmethod
+    def setUpClass(cls):
+        from kanban_karte.web.server import SAMPLE_JSON, seed_sample
+        cls.td = tempfile.TemporaryDirectory()
+        db = Path(cls.td.name) / "l.sqlite"
+        seed_sample(db)
+        cls.srv = make_server(App(db, SAMPLE_JSON.parent, sample=True), "127.0.0.1", 0)
+        cls.base = f"http://127.0.0.1:{cls.srv.server_address[1]}"
+        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown()
+        cls.srv.server_close()
+        cls.td.cleanup()
+
+    def get(self, path):
+        with urllib.request.urlopen(self.base + path) as r:
+            return r.status, r.read().decode("utf-8")
+
+    def post(self, path, body):
+        r = urllib.request.Request(self.base + path, data=json.dumps(body).encode(), method="POST",
+                                   headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(r) as resp:
+            return json.loads(resp.read())
+
+    def test_page_and_assets_are_served(self):
+        st, html = self.get("/v3/n4.html")
+        self.assertEqual(st, 200)
+        self.assertIn("N4 不明点", html)
+        for asset in ("n4.css", "n4.js", "shell.js", "ui.css"):
+            self.assertIn(f'"{asset}"', html)
+            self.assertEqual(self.get("/v3/" + asset)[0], 200, asset)
+
+    def test_links_point_to_n4_and_on_to_n5(self):
+        self.assertIn('["n4", "N4 不明点"]', self.get("/v3/shell.js")[1])     # 見本の画面一覧
+        n3 = self.get("/v3/n3.js")[1]
+        self.assertIn('$("toN5").href = "n4.html"', n3)                       # N3 の「次へ」は N4 へ
+        self.assertNotIn('$("toN5").href = "n5.html"', n3)
+        n4 = self.get("/v3/n4.js")[1]
+        self.assertIn('href="n5.html?site=${S}"', n4)                          # N4 の次は N5(現場つき)
+        self.assertIn('href="n3.html?site=${S}"', n4)                          # 戻るは N3
+
+    def test_undecided_items_can_be_answered_with_the_page_body(self):
+        signs = json.loads(self.get("/api/signs?site=demo-site-1")[1])
+        sign = next(s for s in signs if s["status"] == "draft" and s["undecided"] > 0)
+        d = json.loads(self.get(f"/api/signs/{sign['id']}")[1])
+        unk = [it for it in d["items"] if not it["value"] and it["guide"] != "na" and not it["corrected"]]
+        self.assertEqual(len(unk), sign["undecided"])                           # 一覧の数とページが拾う数が同じ
+        r = self.post(f"/api/signs/{sign['id']}/items", {"item": unk[0]["key"], "value": "経過観察", "by": "試験", "note": None})
+        it = next(x for x in r["items"] if x["key"] == unk[0]["key"])
+        self.assertEqual((it["value"], it["corrected"], it["yellow"]), ("経過観察", True, False))
+        after = next(s for s in json.loads(self.get("/api/signs?site=demo-site-1")[1]) if s["id"] == sign["id"])
+        self.assertEqual(after["undecided"], sign["undecided"] - 1)
+
+
 if __name__ == "__main__":
     unittest.main()
