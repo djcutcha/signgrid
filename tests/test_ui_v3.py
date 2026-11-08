@@ -593,6 +593,45 @@ class KPageTest(Server, unittest.TestCase):
         js = self.req("/v3/k.js", raw=True)[1].decode("utf-8")
         self.assertIn("shownConflicts(r)) await api(\"/api/rules/resolve\"", js)
 
+class N2EntranceTest(Server, unittest.TestCase):
+    """N2 入口: ページが返り、ホームの「新規点検を始める」が N2 を指し、N2 の 3 択が取り込み・現場ウィザードを指す。"""
+
+    def setUp(self):
+        self.setUp_server(sample=False)
+        self.addCleanup(self.tearDown_server)
+
+    def page(self, path):
+        st, body = self.req(path, raw=True)
+        self.assertEqual(st, 200, path)
+        return body.decode("utf-8")
+
+    def test_n2_page_served(self):
+        html = self.page("/v3/n2.html")
+        self.assertIn('data-page="n2"', html)
+        self.assertIn("どう取り込みますか", html)
+        for v in ("files", "field", "paper"):
+            self.assertIn(f'data-v="{v}"', html)
+        self.assertIn('src="n2.js"', html)
+        self.assertNotIn("点検票", html)   # 現場ウィザードと同じ「点検表」に揃える
+        self.assertNotIn("点検票", self.page("/v3/n2.js"))
+        self.page("/v3/n2.js")
+        self.page("/v3/n2.css")
+
+    def test_home_new_inspection_points_to_n2(self):
+        html = self.page("/v3/")
+        self.assertEqual(html.count('href="n2.html"'), 2)   # 入口のカードと、物件が無いときの空の画面
+        self.assertNotIn('href="n3.html"', html)
+
+    def test_n2_destinations(self):
+        js = self.page("/v3/n2.js")
+        self.assertIn('"n3.html" + q()', js)
+        self.assertIn('"field/" + q()', js)
+        self.assertIn('"field/" + q({ mode: "paper" })', js)
+        self.assertIn('p.set("site", site)', js)
+        self.assertIn('new URL(d.href, location.href)', js)   # スマホで開くアドレスも「次へ」と同じ行き先
+        self.page("/v3/n3.html")
+        self.page("/v3/field/")
+
 
 if __name__ == "__main__":
     unittest.main()
