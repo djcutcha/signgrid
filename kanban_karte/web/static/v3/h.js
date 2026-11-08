@@ -36,7 +36,7 @@
     const soon = (s) => [s.next_inspection, s.permit_expires].filter(Boolean).sort()[0];
     const due = sites.filter(soon).sort((a, b) => soon(a).localeCompare(soon(b)));
     $("dueList").innerHTML = due.length ? due.map((s) =>
-      `<li><span class="nm">${esc(s.name)}</span><span class="due-dates"><span>次の点検日 <b class="num">${esc(s.next_inspection || "未設定")}</b></span><span>許可の期限 <b class="num">${esc(s.permit_expires || "未設定")}</b></span></span><a class="btn sm" href="l.html">台帳で開く</a></li>`).join("")
+      `<li><span class="nm">${esc(s.name)}</span><span class="due-dates"><span>次の点検日 <b class="num">${esc(s.next_inspection || "未設定")}</b></span><span>許可の期限 <b class="num">${esc(s.permit_expires || "未設定")}</b></span></span><a class="btn sm" href="/index.html#/">台帳で開く</a></li>`).join("")
       : '<li class="empty-line">次の点検日や許可の期限が入った物件は、まだありません。</li>';
   }
   async function pollIngest() {

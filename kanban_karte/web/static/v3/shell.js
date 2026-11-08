@@ -17,8 +17,8 @@
     <a class="brand" href="h.html"><i></i>SignGrid</a>
     <nav class="topnav">
       <a href="h.html"${page === "h" || stepNo ? ' aria-current="page"' : ""}>今日やること</a>
-      <a href="l.html"${page === "l" ? ' aria-current="page"' : ""}>台帳</a>
-      <a href="k.html"${page === "k" ? ' aria-current="page"' : ""}>学んだこと</a>
+      <a href="/index.html#/">台帳</a>
+      <a href="/index.html#/rules">学んだこと</a>
     </nav>
     <div class="company"><b>${SG.COMPANY}</b>${SG.TODAY}</div>
   </header>`);
