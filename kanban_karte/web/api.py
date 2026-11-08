@@ -362,7 +362,7 @@ def draft_bundle(ledger: Ledger, bundle_id: int, judge_factory=None) -> dict:
     if ledger.get_bundle(bundle_id) is None:
         raise ApiError(404, f"束 {bundle_id} が台帳にありません")
     if judge_factory is None and not can_draft():
-        raise ApiError(503, "ANTHROPIC_API_KEY がないので、下書きは作れません(環境変数か .env)")
+        raise ApiError(503, "AI の鍵(ANTHROPIC_API_KEY)が設定されていないため、新しい物件の下書きは作れません。この公開デモでは、見本の物件(下書き済み)から確認・署名・報告書の流れをご覧ください。")
     # ガイド付き点検(LINE)で現場が答えた看板がある束は、答えを上書きせず「分からない」だけを下書きする
     only_missing = any((ledger.get_sign(sid).draft_by or "").startswith(("line_guide", "field_wizard"))
                        for sid in draft_mod.ensure_signs(ledger, bundle_id))
