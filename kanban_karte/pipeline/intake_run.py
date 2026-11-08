@@ -245,17 +245,20 @@ def transcribe_paper_pages(ledger: Ledger, bundle_id: int, log) -> list[str]:
         sign = Sign(id=sid, photos=[rel], source_bundle=bundle_id, site_id=site.id if site else None,
                     address=site.address if site else None, municipality=site.municipality if site else None,
                     remark="紙の点検表から転記")
-        ledger.upsert_sign(sign)
-        ids.append(sid)
         try:
             from ..intake.paper_transcribe import transcribe_paper
             d = transcribe_paper(ledger.resolve_path(rel), None)
-        except Exception as e:   # ImportError・API の失敗。看板は残す
+        except Exception as e:   # ImportError・API の失敗
             log(f"転記できませんでした({r['page_no']} 枚目): {type(e).__name__}: {e}")
+            d = None
+        if not d or not (d.get("items") or d.get("size") or d.get("name")):
+            # 読めなかった(紙でなかった・中身が無い)= 写真の道に戻して、判定役に見せる。空の看板は作らない
+            log(f"転記できませんでした({r['page_no']} 枚目): 読み取り結果なし。写真として扱います")
+            ledger.upsert_page(bundle_id, r["page_no"], kind="写真", image_path=rel, image_source=r["image_source"] if "image_source" in r.keys() else None)
+            n -= 1
             continue
-        if not d:
-            log(f"転記できませんでした({r['page_no']} 枚目): 読み取り結果なし")
-            continue
+        ledger.upsert_sign(sign)
+        ids.append(sid)
         sign.name = d.get("name")
         sign.size_w, sign.size_h = _parse_size(d.get("size"))
         sign.items = dict(d.get("items") or {})
