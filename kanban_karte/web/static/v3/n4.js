@@ -6,6 +6,7 @@
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const BY_KEY = "kk_by";   // N5・旧画面(karte.js)と同じ保存先
   const MAIN = [["良好", "r1"], ["経過観察", "r2"], ["要改善", "r3"]];
+  const LETTER = { "良好": "D", "経過観察": "C", "要改善": "B" };   // 紙の点検表の判定欄(A〜D)との対応。A(即時対応)は要改善+所見で扱う
   const q = new URLSearchParams(location.search);
   const SITE = q.get("site");
   const S = encodeURIComponent(SITE || "");
@@ -87,7 +88,7 @@
     } else {
       body = `<h2 class="q-title">${esc(it.group)} ${it.no}「${esc(it.text)}」は、どの区分ですか</h2>
       <p class="q-why">${esc(why)}(${esc(evPh)})</p>
-      <div class="opts" id="opts">${MAIN.map(([r, c]) => `<button type="button" class="btn" data-pick="${r}"${dis}><span class="res ${c}">${r}</span></button>`).join("")}</div>
+      <div class="opts" id="opts">${MAIN.map(([r, c]) => `<button type="button" class="btn" data-pick="${r}"${dis}><span class="res ${c}">${r}</span><small class="muted"> ${LETTER[r] || ""}</small></button>`).join("")}</div>
       <div><label class="f" for="noteIn">所見(任意・1 行)</label><input class="input" id="noteIn" maxlength="200" placeholder="例: 取付部プレートの下端に赤さびが広がっている"></div>
       <div class="opts-sub"><button type="button" class="btn sm" data-pick="対象外"${dis}>対象外(その部位が無い)</button><button type="button" class="btn ghost" id="later"${dis}>あとで</button></div>`;
     }
