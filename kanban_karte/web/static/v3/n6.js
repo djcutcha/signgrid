@@ -23,10 +23,12 @@
   const when = (s) => s ? String(s).replace("T", " ").slice(0, 16) : "";
   const label = (s) => s.name || s.id;
 
-  // 看板の区分け: 確定済み / 確定できる / 判断できずが残る
+  // 看板の区分け: 確定済み / 確定できる / 確定できない(判断できずが残る・ランクがまだ無い)
+  // ランクの無い下書きは API(review.finalize)が 400 で拒むので、ここでも確定できない側に入れる
   const isDone = (s) => s.status === "confirmed";
-  const isBlocked = (s) => s.status === "draft" && s.undecided > 0;
-  const isReady = (s) => s.status === "draft" && !(s.undecided > 0);
+  const isBlocked = (s) => s.status === "draft" && (s.undecided > 0 || s.rank == null);
+  const isReady = (s) => s.status === "draft" && !(s.undecided > 0) && s.rank != null;
+  const blockedWord = (list) => list.every((s) => s.undecided > 0) ? "判断できずが残る看板" : "確定できない看板";
   const others = (s) => !isDone(s) && s.status !== "draft";   // draft でも confirmed でもない(念のため)
 
   function rankHtml(s) {
@@ -42,7 +44,9 @@
       note = `<div class="note muted">署名 ${esc(s.confirmed_by || "")}${s.confirmed_at ? ` ・ <span class="num">${esc(when(s.confirmed_at))}</span>` : ""}</div>`;
     } else if (isBlocked(s)) {
       chip = `<span class="chip wait">確定できません</span>`;
-      note = `<div class="note bad">判断できずの項目が ${s.undecided} つ残っているので確定できません。<a href="${n5}">看板ごとの確認で区分を決める</a></div>`;
+      note = s.undecided > 0
+        ? `<div class="note bad">判断できずの項目が ${s.undecided} 項目残っているので確定できません。<a href="${n5}">看板ごとの確認で区分を決める</a></div>`
+        : `<div class="note bad">ランクがまだ付いていないので確定できません。<a href="${n5}">看板ごとの確認で見る</a></div>`;
     } else if (s.status === "draft") {
       chip = `<span class="chip draft">確認待ち</span>`;
     } else {
@@ -63,7 +67,7 @@
     $("bar").firstElementChild.style.width = (total ? done / total * 100 : 0) + "%";
     let box;
     if (allDone) box = `<div class="callout ok"><span>この現場の看板 ${total} 基はすべて確定済みです。報告書へ進めます。</span></div>`;
-    else if (blocked.length) box = `<div class="callout bad"><span><b>判断できずが残る看板 ${blocked.length} 基</b>: ${blocked.map((s) => esc(label(s))).join("、")}。判断できずの項目の区分を決めるまで確定できません。${ready.length ? `ほかの ${ready.length} 基は先に確定できます。` : ""}</span></div>`;
+    else if (blocked.length) box = `<div class="callout bad"><span><b>${blockedWord(blocked)} ${blocked.length} 基</b>: ${blocked.map((s) => esc(label(s))).join("、")}。${blocked.every((s) => s.undecided > 0) ? "判断できずの項目の区分を決めるまで" : "判断できずの項目を決めてランクが付くまで"}確定できません。${ready.length ? `ほかの ${ready.length} 基は先に確定できます。` : ""}</span></div>`;
     else box = `<div class="callout"><span>確認待ちの看板 ${ready.length} 基を確定できます。</span></div>`;
     $("ngBox").innerHTML = box;
     const sorted = [...signs].sort((a, b) => rankOf(a) - rankOf(b));
@@ -80,7 +84,7 @@
     nx.tabIndex = allDone ? 0 : -1;
     drawDone(allDone);
   }
-  // 並び: 確定できる → 判断できずが残る → その他 → 確定済み
+  // 並び: 確定できる → 確定できない(判断できず・ランクなし) → その他 → 確定済み
   function rankOf(s) { return isReady(s) ? 0 : isBlocked(s) ? 1 : others(s) ? 2 : 3; }
 
   function drawDone(allDone) {
@@ -103,7 +107,7 @@
     const ready = signs.filter(isReady), blocked = signs.filter(isBlocked);
     lf = $("signBtn");
     $("dBody").innerHTML = `<b>${esc(by)}</b> の名前で、看板 ${ready.length} 基(${ready.map((s) => esc(label(s))).join("、")})の点検結果を確定します。確定後は編集できません。`
-      + (blocked.length ? `<br><span class="small muted">判断できずが残る ${blocked.length} 基は、今回は確定しません。</span>` : "");
+      + (blocked.length ? `<br><span class="small muted">${blockedWord(blocked)} ${blocked.length} 基は、今回は確定しません。</span>` : "");
     $("dlg").classList.add("on"); $("cNo").focus();
   }
   async function signAll() {
@@ -153,7 +157,7 @@
   <section class="card signed" id="doneCard" hidden aria-live="polite">
     <div class="card-title"><h2>確定しました</h2><span class="chip done">確定</span></div>
     <dl><dt>署名者</dt><dd id="dName"></dd><dt>確定日時</dt><dd class="num" id="dAt"></dd><dt>看板</dt><dd id="dSigns"></dd></dl>
-    <div class="callout" style="margin-top:16px"><span>確定後は編集できません。直すときは、台帳から新しい点検として開き直してください。</span></div>
+    <div class="callout" style="margin-top:16px"><span>確定後は編集できません。確定した看板は、この後の取り込みや訂正で書き換わりません。</span></div>
     <div class="row" style="margin-top:16px" id="dNext"></div>
   </section>`;
     $("byIn").value = getBy();

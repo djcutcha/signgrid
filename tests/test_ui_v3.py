@@ -586,6 +586,19 @@ class N6SignPageTest(Server, unittest.TestCase):
         self.assertEqual(st, 409)                # 二度目は確定できない
         self.assertIn("下書きだけ", err["error"])
 
+    def test_rankless_draft_is_not_sent(self):
+        # ランクの無い下書きは API が 400 で拒む。画面は「確定できる」に数えない(送らない)
+        import dataclasses
+        from kanban_karte.ledger.db import Ledger
+        with Ledger(self.db) as lg:
+            lg.upsert_sign(dataclasses.replace(lg.get_sign("demo-001"), id="t-norank", rank=None))
+        st, err = self.req("/api/signs/t-norank/finalize", {"by": "点検 花子"})
+        self.assertEqual(st, 400)
+        self.assertIn("ランクがありません", err["error"])
+        n6 = (self.v3 / "n6.js").read_text("utf-8")
+        self.assertIn('const isReady = (s) => s.status === "draft" && !(s.undecided > 0) && s.rank != null;', n6)
+        self.assertIn("s.rank == null", n6)
+
 
 if __name__ == "__main__":
     unittest.main()
