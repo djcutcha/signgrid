@@ -14,6 +14,8 @@
 """
 from __future__ import annotations
 
+import sys
+
 import re
 from dataclasses import dataclass
 
@@ -172,6 +174,12 @@ def default_judge(rules: list[str] | None = None, sources_config=None, examples:
     rules= 台帳の最新の規則(ledger.recent_rules())を例示の後ろに入れる。"""
     from ..eval import dataset
     from ..eval.claude_judge import ClaudeJudge
+    try:
+        pool = dataset.load_all(sources_config, sources=(FORM_SOURCE,))
+    except (FileNotFoundError, KeyError, OSError, ValueError) as e:
+        # 顧客データの参照先(sources.toml)が無い環境(公開デモ等)= 例示なしのゼロショットで判定する(2026-11-08)
+        print(f"例示なしで判定(顧客データの参照先が無い: {e})", file=sys.stderr)
+        return ClaudeJudge(examples=0, rules=rules, **opts)
     judge = ClaudeJudge(examples=examples, rules=rules, **opts)
-    judge.set_example_pool(dataset.load_all(sources_config, sources=(FORM_SOURCE,)))
+    judge.set_example_pool(pool)
     return judge
