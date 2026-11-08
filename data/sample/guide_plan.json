@@ -4,9 +4,9 @@
  "signs": [
   {
    "name": "① 正面の袖看板",
-   "overview": "photos/plain_a.png",
+   "overview": "photos/plain_a.jpg",
    "front": [
-    "photos/plain_f.png"
+    "photos/plain_f.jpg"
    ],
    "kind": "proj",
    "measure": {
@@ -23,7 +23,7 @@
     },
     {
      "photos": [
-      "photos/plain_d.png"
+      "photos/plain_d.jpg"
      ],
      "answers": [
       "a",
@@ -32,7 +32,7 @@
     },
     {
      "photos": [
-      "photos/plain_e.png"
+      "photos/plain_e.jpg"
      ],
      "answers": [
       "c",
@@ -42,9 +42,9 @@
     },
     {
      "photos": [
-      "photos/plain_f.png",
-      "photos/plain_b.png",
-      "photos/plain_c.png"
+      "photos/plain_f.jpg",
+      "photos/plain_b.jpg",
+      "photos/plain_c.jpg"
      ],
      "answers": [
       "a",
@@ -58,7 +58,7 @@
     },
     {
      "photos": [
-      "photos/plain_d.png"
+      "photos/plain_d.jpg"
      ],
      "answers": [
       "a",
@@ -71,12 +71,12 @@
   },
   {
    "name": "② 側面の看板",
-   "overview": "photos/plain_d.png",
+   "overview": "photos/plain_d.jpg",
    "front": [],
    "kind": "wall",
    "measure": {
     "drawing": [
-     "photos/plain_e.png"
+     "photos/plain_e.jpg"
     ]
    },
    "parts": [
@@ -103,9 +103,9 @@
   },
   {
    "name": "① 正面の袖看板",
-   "overview": "photos/plain_e.png",
+   "overview": "photos/plain_e.jpg",
    "front": [
-    "photos/plain_f.png"
+    "photos/plain_f.jpg"
    ],
    "kind": "proj",
    "measure": "inherit",

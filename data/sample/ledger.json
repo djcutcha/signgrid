@@ -46,12 +46,12 @@
       },
       "remark": "支柱根元の腐食(写真3)。補修後に許可申請。表示面に退色。",
       "photos": [
-        "photos/plain_a.png",
-        "photos/plain_b.png",
-        "photos/plain_c.png",
-        "photos/plain_d.png",
-        "photos/plain_e.png",
-        "photos/plain_f.png"
+        "photos/plain_a.jpg",
+        "photos/plain_b.jpg",
+        "photos/plain_c.jpg",
+        "photos/plain_d.jpg",
+        "photos/plain_e.jpg",
+        "photos/plain_f.jpg"
       ],
       "last_inspected": "2026-11-05",
       "prev_rank": 1,
@@ -124,9 +124,9 @@
       },
       "remark": "コーキングの劣化(経過観察)。",
       "photos": [
-        "photos/plain_b.png",
-        "photos/plain_a.png",
-        "photos/plain_f.png"
+        "photos/plain_b.jpg",
+        "photos/plain_a.jpg",
+        "photos/plain_f.jpg"
       ],
       "last_inspected": "2026-11-05",
       "prev_rank": 2,
@@ -176,8 +176,8 @@
       },
       "remark": "",
       "photos": [
-        "photos/plain_c.png",
-        "photos/plain_d.png"
+        "photos/plain_c.jpg",
+        "photos/plain_d.jpg"
       ],
       "last_inspected": "2026-11-05",
       "prev_rank": 1,

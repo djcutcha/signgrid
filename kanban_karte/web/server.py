@@ -341,6 +341,11 @@ def main(argv=None) -> int:
             seed_sample(db, data_dir)
         seed_sample_rules(db, data_dir)
         with Ledger(db, data_dir=data_dir) as lg:
+            # 見本写真を PNG → JPEG に軽量化した(2026-11-08)ので、古い見本の台帳の参照も付け替える
+            for x in "abcdef":
+                lg.conn.execute("UPDATE signs SET photos=REPLACE(photos, ?, ?) WHERE photos LIKE ?",
+                                (f"photos/plain_{x}.png", f"photos/plain_{x}.jpg", f"%photos/plain_{x}.png%"))
+            lg.conn.commit()
             n = api.attach_orphan_bundles(lg)   # 物件なしで取り込んだ束を物件に紐づける(見本の台帳の修復、2026-11-08)
             if n:
                 print(f"物件の無い束 {n} 件に物件を作って紐づけた", file=sys.stderr)
