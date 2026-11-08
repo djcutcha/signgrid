@@ -117,7 +117,16 @@
   }
   function fail(msg) { clearInterval(timer); $("errText").textContent = msg; view("error"); }
 
-  $("retry").onclick = () => (lastFiles ? send(lastFiles) : (bundleId ? watch() : view("before")));
+  // やり直し: 送った直後なら同じ写真を送り直す。束が残っている(仕分けまで済んで下書きで止まった等)なら、送り直さず下書きだけやり直す
+  async function redraft() {
+    view("running"); $("errText").textContent = "";
+    try {
+      const r = await fetch("/api/bundles/" + encodeURIComponent(bundleId) + "/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      if (!r.ok) { fail(await errText(r)); return; }
+    } catch (e) { fail("通信エラー " + e.message); return; }
+    watch();
+  }
+  $("retry").onclick = () => (lastFiles ? send(lastFiles) : (bundleId ? redraft() : view("before")));
   $("back").onclick = () => { history.replaceState(null, "", location.pathname); bundleId = null; view("before"); };
   $("again").onclick = $("back").onclick;
 

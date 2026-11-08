@@ -371,6 +371,8 @@ def draft_bundle(ledger: Ledger, bundle_id: int, judge_factory=None) -> dict:
         results = draft_mod.draft_bundle(ledger, bundle_id, judge, only_missing=only_missing)
     except (RuntimeError, OSError, LookupError, ValueError) as e:
         raise ApiError(503, f"下書きを作れませんでした: {e}")
+    if any(r.status != "error" for r in results):
+        ledger.set_bundle(bundle_id, error="")   # 鍵なし等で残っていた前回のエラー文を消す(下書きのやり直しが通った)
     return {"only_missing": only_missing,
             "results": [{"sign_id": r.sign_id, "status": r.status, "rank": r.rank, "undecided": r.undecided,
                          "error": r.error} for r in results]}
