@@ -546,3 +546,31 @@ class FieldLocateTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LedgerPagesTest(Server, unittest.TestCase):
+    """L 台帳と N1 物件の静的画面が返り、ナビの「台帳」が l.html を指す。"""
+
+    def setUp(self):
+        self.setUp_server(sample=False)
+        self.addCleanup(self.tearDown_server)
+
+    def get(self, path):
+        with urllib.request.urlopen(self.base + path) as r:
+            return r.status, r.read().decode()
+
+    def test_l_and_n1_pages_served(self):
+        for p in ("/v3/l.html", "/v3/l.js", "/v3/l.css", "/v3/n1.html", "/v3/n1.js"):
+            st, _ = self.get(p)
+            self.assertEqual(st, 200, p)
+
+    def test_nav_ledger_points_to_l(self):
+        _, js = self.get("/v3/shell.js")
+        self.assertIn('<a href="l.html"', js)
+        self.assertNotIn('href="/index.html#/">台帳', js)
+
+    def test_entry_links_rewired(self):
+        _, h = self.get("/v3/h.html")
+        self.assertIn('href="n1.html" id="reinspect"', h)
+        _, hj = self.get("/v3/h.js")
+        self.assertIn('href="l.html?site=', hj)

@@ -295,7 +295,7 @@
   async function init() {
     // 上の枠の会社名は見本の固定値なので、本物の画面では出さない(日付だけ)
     const c = document.querySelector(".topbar .company"); if (c) c.innerHTML = `<b>${new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" })}</b>`;
-    if (!SITE) return message("現場が選ばれていません", "N1 の物件の選択から入ってください。", ["h.html", "ホームへ"]);
+    if (!SITE) return message("現場が選ばれていません", "N1 の物件の選択から入ってください。", ["n1.html", "物件を選ぶ"]);
     foot();
     try { signs = await api(`/api/signs?site=${encodeURIComponent(SITE)}`); }
     catch (e) { return message("看板の一覧を読み込めませんでした", e.message, ["n5.html?site=" + encodeURIComponent(SITE), "もう一度読み込む"]); }

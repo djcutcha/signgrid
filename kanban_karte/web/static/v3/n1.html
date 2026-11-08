@@ -1,0 +1,23 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SignGrid N1 物件</title><link rel="stylesheet" href="ui.css"><link rel="stylesheet" href="h.css"></head>
+<body data-page="n1" data-no-foot>
+<script src="data.js"></script>
+<script>SG.TODAY = new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric", weekday: "short" }); SG.COMPANY = "";</script>
+<script src="shell.js"></script>
+<main class="page narrow">
+  <div class="page-head"><div><h1>どの物件を点検しますか</h1><p class="lead">台帳にある物件から 1 つ選ぶと、前回の結果と比べながら点検します。</p></div></div>
+  <p class="load-msg" id="loading" role="status">読み込んでいます…</p>
+  <div class="err-box" id="error" role="alert" hidden>
+    <b>台帳を読めませんでした</b><span id="errMsg"></span>
+    <button type="button" class="btn sm" id="retry">もう一度読む</button>
+  </div>
+  <section class="card" id="pick" hidden aria-labelledby="pickH">
+    <div class="card-title"><h2 id="pickH">台帳にある物件</h2><span class="right" id="cnt"></span></div>
+    <input class="input" id="q" type="search" placeholder="店舗名・住所で検索" aria-label="検索">
+    <ul class="list" id="sites"></ul>
+  </section>
+  <a class="entry-card sec-gap" href="n3.html"><div class="ic">+</div><h3>新しい物件</h3><p>台帳にまだ無い物件。写真と報告書を取り込むところから始めます。</p><span class="go">新しい物件で始める →</span></a>
+  <div class="wizard-foot"><div class="in"><a class="btn" href="h.html">戻る</a></div></div>
+</main>
+<script src="n1.js"></script>
+</body></html>
