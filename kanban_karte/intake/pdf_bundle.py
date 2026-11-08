@@ -138,6 +138,8 @@ def draft_signs(ledger: Ledger, bundle_id: int, cells_dir: Path, grouper: SignGr
             faces.append((r["page_no"], half, [c for c in cells if c.half == half]))
     grouper.prepare(imgs)
     ids = []
+    b = ledger.get_bundle(bundle_id)
+    site = ledger.get_site(b["site_id"]) if b is not None and b["site_id"] else None   # 束の物件を看板にも付ける(取り込み画面の N4/N5 が物件で引くため)
     for k, group in enumerate(grouper.group(faces), 1):
         sid = f"b{bundle_id}-s{k:03d}"
         out = cells_dir / f"{bundle_id:06d}" / sid
@@ -151,6 +153,8 @@ def draft_signs(ledger: Ledger, bundle_id: int, cells_dir: Path, grouper: SignGr
             sub.save(dst, quality=90)
             photos.append(ledger.rel_path(dst))
         ledger.upsert_sign(Sign(id=sid, name=None, photos=photos, source_bundle=bundle_id,
+                                site_id=site.id if site else None, address=site.address if site else None,
+                                municipality=site.municipality if site else None,
                                 remark="入口2で作った下書き(束ね・判定は未確定)"))
         ids.append(sid)
     ledger.set_bundle(bundle_id, status="signs_drafted")
