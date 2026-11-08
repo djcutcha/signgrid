@@ -25,7 +25,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from ..eval import crop
 from ..intake import pdf_bundle
 from ..intake.classifier import Classification, HeuristicClassifier, PageClassifier, PageImage
-from ..ledger.db import Ledger
+from ..ledger.db import Ledger, Sign
 
 MAX_FILES = 100
 MAX_IMAGE_BYTES = 25_000_000    # 紙1枚のスマホ写真・スキャン JPEG は 10MB 超がある
@@ -184,7 +184,87 @@ class PhotoFallbackClassifier(PageClassifier):
         n = len(crop.cut_cells(page.image, page.dpi))
         if n >= HeuristicClassifier.MIN_CELLS:
             return Classification("完成報告書", f"{self.name}: 写真セル {n} 個")
+        ratio = paper_ratio(page.image)
+        if ratio >= PAPER_RATIO:
+            return Classification("点検表", f"{self.name}: 紙(明るい画素 {ratio:.0%})")
+        if looks_like_paper_by_ai(page.image):   # 暗く写った紙(画面越し・影)は明るさでは拾えないので AI に 1 文字で聞く
+            return Classification("点検表", f"{self.name}: 紙(AI 判定)")
         return Classification("写真", f"{self.name}: 写真セル {n} 個")
+
+
+PAPER_BRIGHT, PAPER_RATIO = 200, 0.45
+
+
+def looks_like_paper_by_ai(image: Image.Image) -> bool:
+    """手書きの点検表・書類(紙)か、看板や建物の写真かを AI に 1 文字で答えさせる。鍵が無い・失敗は False(写真扱い)。"""
+    try:
+        import base64, io
+        from ..eval.claude_judge import DEFAULT_MODEL, make_client
+        client = make_client()
+        im = image.convert("RGB")
+        im.thumbnail((800, 800))
+        buf = io.BytesIO()
+        im.save(buf, format="JPEG", quality=80)
+        data = base64.standard_b64encode(buf.getvalue()).decode("ascii")
+        resp = client.messages.create(model=DEFAULT_MODEL, max_tokens=1500, messages=[{"role": "user", "content": [
+            {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": data}},
+            {"type": "text", "text": "この画像はどちらですか。A: 手書きの点検表・チェック表・書類など紙の面がほぼ全体に写っている。B: 看板・建物・街など実物の写真。A か B の一文字だけで答えてください。"}]}])
+        text = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text").strip()
+        return text[:1].upper() == "A"
+    except Exception:  # noqa: BLE001  鍵なし・通信失敗は写真扱い
+        return False
+
+
+def paper_ratio(image: Image.Image) -> float:
+    """API を使わない紙の判定: 64x64 の L に縮めて、明度 PAPER_BRIGHT 以上の画素の割合。写真は普通これより暗い。"""
+    g = image.convert("L").resize((64, 64), Image.BILINEAR)
+    h = g.histogram()
+    return sum(h[PAPER_BRIGHT:]) / (64 * 64)
+
+
+def _parse_size(text: str | None) -> tuple[int, int] | tuple[None, None]:
+    m = re.findall(r"\d+(?:\.\d+)?", (text or "").replace(",", ""))
+    return (int(float(m[0])), int(float(m[1]))) if len(m) >= 2 else (None, None)
+
+
+def transcribe_paper_pages(ledger: Ledger, bundle_id: int, log) -> list[str]:
+    """kind=="点検表" の頁ごとに看板 b{bundle}-s{n:03d} を作り、紙の点検表を転記する。作った看板 id を返す。"""
+    pages = [r for r in ledger.list_pages(bundle_id) if r["kind"] == "点検表" and r["image_path"]]
+    if not pages:
+        return []
+    b = ledger.get_bundle(bundle_id)
+    site = ledger.get_site(b["site_id"]) if b["site_id"] else None
+    used = [int(m.group(1)) for x in ledger.list_signs(bundle_id=bundle_id)
+            if (m := re.fullmatch(rf"b{bundle_id}-s(\d+)", x.id))]
+    n = max(used, default=0)
+    ids = []
+    for r in pages:
+        n += 1
+        sid = f"b{bundle_id}-s{n:03d}"
+        rel = r["image_path"]
+        sign = Sign(id=sid, photos=[rel], source_bundle=bundle_id, site_id=site.id if site else None,
+                    address=site.address if site else None, municipality=site.municipality if site else None,
+                    remark="紙の点検表から転記")
+        ledger.upsert_sign(sign)
+        ids.append(sid)
+        try:
+            from ..intake.paper_transcribe import transcribe_paper
+            d = transcribe_paper(ledger.resolve_path(rel), None)
+        except Exception as e:   # ImportError・API の失敗。看板は残す
+            log(f"転記できませんでした({r['page_no']} 枚目): {type(e).__name__}: {e}")
+            continue
+        if not d:
+            log(f"転記できませんでした({r['page_no']} 枚目): 読み取り結果なし")
+            continue
+        sign.name = d.get("name")
+        sign.size_w, sign.size_h = _parse_size(d.get("size"))
+        sign.items = dict(d.get("items") or {})
+        sign.rank = sign.draft_rank = d.get("rank")
+        sign.remark = d.get("remark") or sign.remark
+        sign.status = "draft"
+        ledger.upsert_sign(sign)
+        log(f"転記: {sign.name or '(看板名なし)'} / 項目 {len(sign.items)} 件")
+    return ids
 
 
 def default_parts(log=None) -> tuple[PageClassifier, pdf_bundle.SignGrouper]:
@@ -277,20 +357,30 @@ class IntakeJobs:
         log("仕分け完了: " + "、".join(f"{k} {v}" for k, v in counts.items()))
         signs = pdf_bundle.draft_signs(ledger, bundle_id, self.data_dir / "cells", grouper)
         log(f"看板の枠 {len(signs)} 基を作成" if signs else "完成報告書のページが無いので、写真から1基の枠を作ります")
+        paper_ids = transcribe_paper_pages(ledger, bundle_id, log)
+        if paper_ids:
+            signs = list(signs) + paper_ids
         if self.draft is None:
             log("下書きは作りません(判定役が設定されていません)")
             return self._finish(bundle_id, "done")
+        saved = [ledger.get_sign(i) for i in paper_ids]   # 下書きの段が点検表の転記を上書きしないよう退避
         try:
             r = self.draft(ledger, bundle_id)
         except Exception as e:   # 鍵が無い・API の失敗。仕分けまでの結果は残す
+            for sg in saved:
+                if sg is not None:
+                    ledger.upsert_sign(sg)
             msg = getattr(e, "message", None) or f"{type(e).__name__}: {e}"
             log(f"下書きを作れませんでした: {msg}")
             ledger.set_bundle(bundle_id, error=msg)   # status は変えない(仕分けまで済んだ束のまま)
             return self._finish(bundle_id, "error", msg)
+        for sg in saved:
+            if sg is not None:
+                ledger.upsert_sign(sg)
         for x in r["results"]:
             log(f"看板 {x['sign_id']} の下書き: " + (f"ランク {x['rank']}、判断できず {x['undecided']} 項目" if x["status"] == "draft"
                                                     else x["status"] + (f"({x['error']})" if x.get("error") else "")))
-        errs = [x for x in r["results"] if x["status"] == "error"]
+        errs = [x for x in r["results"] if x["status"] == "error" and x["sign_id"] not in paper_ids]
         if errs:
             return self._finish(bundle_id, "error", errs[0].get("error") or "下書きに失敗した看板があります")
         log("下書き完了")
