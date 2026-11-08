@@ -39,8 +39,8 @@
   }
   function renderBy() {
     const by = lsGet(), el = $("byLine");
-    const hasCand = rules.some((r) => r.status === "candidate");
-    el.hidden = !hasCand;   // 押すボタンが無い間は出さない
+    const hasBtn = rules.some((r) => r.status !== "approved");   // 候補の承認・却下、却下の承認し直し
+    el.hidden = !hasBtn;   // 押すボタンが無い間は出さない
     el.innerHTML = by ? `承認・却下は「${esc(by)}」の名前で記録します。<button type="button" id="byChange">名前を変える</button>`
       : `承認・却下を押すと、記録に残す名前(有資格者)を最初に一度だけ聞きます。`;
     const b = $("byChange");
@@ -77,13 +77,17 @@
   }
   const byId = () => Object.fromEntries(rules.map((r) => [r.id, r]));
   function liveConflicts(r) { const m = byId(); return (r.conflicts || []).map((i) => m[i]).filter((x) => x && x.status !== "rejected"); }
+  // 画面に出す食い違いの相手。却下した規則は承認済みの相手だけ(そのまま承認し直すと 409 になるので「こちらを残す」にする)
+  const shownConflicts = (r) => r.status === "rejected" ? liveConflicts(r).filter((o) => o.status === "approved") : liveConflicts(r);
+  // 台帳の resolution は「却下(#4 を残した)」のように規則の番号を持つ。画面に番号は出していないので言い換える
+  const resText = (s) => String(s).replace(/#\d+ を残した/g, "食い違う規則を残した").replace(/#\d+/g, "別の規則");
   function applied(r) {
     const n = [r.applied_count, r.applied, r.use_count].find((v) => typeof v === "number");
     return n == null ? "" : ` / 適用 ${n} 回`;
   }
 
   function ruleHtml(r) {
-    const conf = r.status !== "rejected" ? liveConflicts(r) : [];
+    const conf = shownConflicts(r);
     const [label, cls] = r.status === "candidate" && conf.length ? ["矛盾の可能性", "wait"] : (STATUS[r.status] || STATUS.candidate);
     const lines = [];
     const src = sourceOf(r);
@@ -91,7 +95,7 @@
     const st = r.structured || {};
     if (st.question && st.answer) lines.push(`<div class="qa">聞き返し: ${esc(st.question)} → ${esc(st.answer)}</div>`);
     conf.forEach((o) => lines.push(`<div class="conf">食い違う規則: ${esc(day(o.created))}「${ruleText(o).replace(/<span class="was">.*<\/span>$/, "")}」(${esc(STATUS[o.status][0])})</div>`));
-    if (r.approved_by) lines.push(`<div class="dec">${esc(STATUS[r.status][0])}: ${esc(r.approved_by)} / ${esc(day(r.approved_at))}${r.resolution ? ` / ${esc(r.resolution)}` : ""}</div>`);
+    if (r.approved_by) lines.push(`<div class="dec">${esc(STATUS[r.status][0])}: ${esc(r.approved_by)} / ${esc(day(r.approved_at))}${r.resolution ? ` / ${esc(resText(r.resolution))}` : ""}</div>`);
     let acts = "";
     if (r.status === "candidate" && conf.length) {
       acts = `<div class="acts"><button class="btn primary" type="button" data-act="keep" data-id="${r.id}">こちらを残す</button>` +
@@ -100,6 +104,9 @@
     } else if (r.status === "candidate") {
       acts = `<div class="acts"><button class="btn primary" type="button" data-act="approve" data-id="${r.id}">承認</button>` +
         `<button class="btn" type="button" data-act="reject" data-id="${r.id}">却下</button></div>`;
+    } else if (r.status === "rejected" && conf.length) {
+      acts = `<div class="acts"><button class="btn sm ghost" type="button" data-act="keep" data-id="${r.id}">こちらを残す</button>` +
+        `<span class="acts-note">残すと、食い違う承認済みの規則は却下になります。</span></div>`;
     } else if (r.status === "rejected") {
       acts = `<div class="acts"><button class="btn sm ghost" type="button" data-act="approve" data-id="${r.id}">承認し直す</button></div>`;
     }
@@ -143,7 +150,7 @@
     document.querySelectorAll("[data-act]").forEach((b) => (b.disabled = true));
     try {
       if (action === "keep") {
-        for (const o of liveConflicts(r)) await api("/api/rules/resolve", { keep: r.id, drop: o.id, by });
+        for (const o of shownConflicts(r)) await api("/api/rules/resolve", { keep: r.id, drop: o.id, by });
         toast("こちらを残しました。食い違う規則は却下し、次の下書きからはこの規則が効きます。");
       } else {
         await api(`/api/rules/${r.id}/${action}`, { by });

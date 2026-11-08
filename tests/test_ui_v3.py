@@ -581,6 +581,18 @@ class KPageTest(Server, unittest.TestCase):
         self.assertEqual(self.req(f"/api/rules/{b}/reject", {"by": "有資格者"})[1]["status"], "rejected")
         self.assertEqual(self.req(f"/api/rules/{a}/approve", {})[0], 400)   # 名前なしは記録できない
 
+    def test_rejected_rule_with_approved_partner_is_kept_not_reapproved(self):
+        # 却下した規則の相手が承認済みなら、承認し直しは 409。画面は「こちらを残す」(resolve)を出し、それは通る
+        with Ledger(self.db) as lg:
+            a = lg.add_rule("支持部-1: 「表面さび」は経過観察(下書きは要改善)", "s-1 / 有資格者")
+            b = lg.add_rule("支持部-1: 「表面さび」は要改善(下書きは判断できず)", "s-2 / 有資格者", conflicts_with=[a])
+        self.assertEqual(self.req("/api/rules/resolve", {"keep": b, "drop": a, "by": "有資格者"})[0], 200)
+        self.assertEqual(self.req(f"/api/rules/{a}/approve", {"by": "有資格者"})[0], 409)
+        st, pair = self.req("/api/rules/resolve", {"keep": a, "drop": b, "by": "有資格者"})
+        self.assertEqual((st, [r["status"] for r in pair]), (200, ["approved", "rejected"]))
+        js = self.req("/v3/k.js", raw=True)[1].decode("utf-8")
+        self.assertIn("shownConflicts(r)) await api(\"/api/rules/resolve\"", js)
+
 
 if __name__ == "__main__":
     unittest.main()
