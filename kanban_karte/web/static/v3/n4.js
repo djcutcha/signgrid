@@ -134,7 +134,7 @@
     if (noPhoto.length) notes.push(`写真が無い看板 ${noPhoto.length} 基(${noPhoto.map((s) => s.name || s.id).join("、")})は、ここでは聞いていません。取り込みで写真を入れてください。`);
     if (locked.length) notes.push(`確定済みの看板 ${locked.length} 基(${locked.map((s) => s.name || s.id).join("、")})の判断できず ${locked.reduce((a, s) => a + s.undecided, 0)} 項目は、確定時の内容のままです。`);
     let head, sub;
-    if (!Q.length) { head = `<div class="callout ok" role="status"><b>不明点はありません。</b></div>`; sub = "この現場の看板には、判断できない項目がありません。"; }
+    if (!Q.length) { head = `<div class="callout ok" role="status"><b>${notes.length ? "ここで答える不明点はありません。" : "不明点はありません。"}</b></div>`; sub = notes.length ? "判断できずの項目が残っている看板は、下のとおりここでは聞いていません。" : "この現場の看板には、判断できない項目がありません。"; }
     else if (later) { head = `<div class="callout warn" role="status"><b>「あとで」に回した ${later} 件が残っています。</b></div>`; sub = `${answered} 件に答えました。「あとで」に回した ${later} 件は、看板ごとの確認で黄色の「判断できず」として残ります。`; }
     else { head = `<div class="callout ok" role="status"><b>不明点はありません。</b></div>`; sub = `${Q.length} 件すべてに答えました。`; }
     $("finCard").innerHTML = `${head}<p class="muted">${esc(sub)}</p>${notes.length ? `<ul class="fin-list muted">${notes.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>` : ""}
@@ -156,7 +156,7 @@
   async function init() {
     // 上の枠の会社名は見本の固定値なので、本物の画面では出さない(日付だけ)
     const c = document.querySelector(".topbar .company"); if (c) c.innerHTML = `<b>${new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" })}</b>`;
-    if (!SITE) return message("現場が選ばれていません", "N1 の物件の選択から入ってください。", ["h.html", "ホームへ"]);
+    if (!SITE) return message("現場が選ばれていません", "ホームで物件を選んでから入ってください。", ["h.html", "ホームへ"]);
     foot();
     try { signs = await api(`/api/signs?site=${S}`); }
     catch (e) { return message("看板の一覧を読み込めませんでした", e.message, ["n4.html?site=" + S, "もう一度読み込む"]); }
@@ -167,7 +167,8 @@
     try { ds = await Promise.all(want.filter((s) => s.status === "draft").map((s) => api(`/api/signs/${encodeURIComponent(s.id)}`))); }
     catch (e) { return message("看板を読み込めませんでした", e.message, ["n4.html?site=" + S, "もう一度読み込む"]); }
     for (const d of ds) {
-      if (!d.editable) { noPhoto.push(d); continue; }
+      if (!d.editable) { locked.push(d); continue; }        // 読み込みの間に確定された
+      if (!d.photos.length) { noPhoto.push(d); continue; }  // 写真が無い看板は聞かない(N5 と同じく確認できない)
       const its = d.items.filter(undecided);
       if (!its.length) continue;
       det[d.id] = d;

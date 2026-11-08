@@ -586,6 +586,8 @@ class N4PageTest(unittest.TestCase):
         n3 = self.get("/v3/n3.js")[1]
         self.assertIn('$("toN5").href = "n4.html"', n3)                       # N3 の「次へ」は N4 へ
         self.assertNotIn('$("toN5").href = "n5.html"', n3)
+        n3h = self.get("/v3/n3.html")[1]
+        self.assertIn('href="n4.html">不明点を確かめる</a>', n3h)             # ボタンの文字も N4 向け(見本どおり)
         n4 = self.get("/v3/n4.js")[1]
         self.assertIn('href="n5.html?site=${S}"', n4)                          # N4 の次は N5(現場つき)
         self.assertIn('href="n3.html?site=${S}"', n4)                          # 戻るは N3
