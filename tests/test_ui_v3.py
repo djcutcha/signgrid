@@ -544,5 +544,43 @@ class FieldLocateTest(unittest.TestCase):
         self.assertEqual((out["address"], out["municipality"]), ("東京都新宿区西新宿", "新宿区"))
 
 
+class KPageTest(Server, unittest.TestCase):
+    """K 学んだこと(k.html): ページが返る、上の枠の「学んだこと」が k.html を指す、画面が使う規則の API が通る。"""
+
+    def setUp(self):
+        self.setUp_server()
+
+    def tearDown(self):
+        self.tearDown_server()
+
+    def test_page_and_assets_200(self):
+        st, body = self.req("/v3/k.html", raw=True)
+        self.assertEqual(st, 200)
+        html = body.decode("utf-8")
+        self.assertIn("学んだこと", html)
+        self.assertIn('data-page="k"', html)
+        self.assertIn('src="k.js"', html)
+        for path in ("/v3/k.js", "/v3/k.css"):
+            self.assertEqual(self.req(path, raw=True)[0], 200, path)
+        js = self.req("/v3/k.js", raw=True)[1].decode("utf-8")
+        self.assertIn("/api/rules", js)
+        self.assertIn("まだ規則はありません", js)   # 見本(規則 0 件)の空状態
+
+    def test_nav_points_to_k(self):
+        shell = self.req("/v3/shell.js", raw=True)[1].decode("utf-8")
+        self.assertIn('<a href="k.html"${page === "k" ? \' aria-current="page"\' : ""}>学んだこと</a>', shell)
+        self.assertNotIn("/index.html#/rules", shell)
+
+    def test_rules_api_used_by_page(self):
+        with Ledger(self.db) as lg:
+            a = lg.add_rule("支持部-1 ボルト: 「赤錆」は要改善(下書きは経過観察)", "s-1 / 有資格者")
+            b = lg.add_rule("表示部-4 表示面: 「退色」は経過観察(下書きは良好)", "s-2 / 有資格者")
+        st, rules = self.req("/api/rules")
+        self.assertEqual((st, [r["status"] for r in rules]), (200, ["candidate", "candidate"]))
+        self.assertEqual(self.req(f"/api/rules/{a}/approve", {"by": "有資格者"})[1]["status"], "approved")
+        self.assertEqual(self.req(f"/api/rules/{b}/reject", {"by": "有資格者"})[1]["status"], "rejected")
+        self.assertEqual(self.req(f"/api/rules/{a}/approve", {})[0], 400)   # 名前なしは記録できない
+
+
 if __name__ == "__main__":
     unittest.main()
