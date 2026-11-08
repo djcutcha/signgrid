@@ -544,5 +544,48 @@ class FieldLocateTest(unittest.TestCase):
         self.assertEqual((out["address"], out["municipality"]), ("東京都新宿区西新宿", "新宿区"))
 
 
+class N6SignPageTest(Server, unittest.TestCase):
+    """N6 署名: 画面が返る・前後の画面(N5 の次、N7 の戻る)が N6 を指す・画面が使う確定 API の返し方。"""
+
+    def setUp(self):
+        from kanban_karte.web.server import SAMPLE_JSON, seed_sample
+        self.setUp_server()
+        seed_sample(self.db, SAMPLE_JSON.parent)
+        self.addCleanup(self.tearDown_server)
+        self.v3 = Path(api.__file__).resolve().parent / "static" / "v3"
+
+    def test_page_served(self):
+        for path, want in (("/v3/n6.html", "N6 署名"), ("/v3/n6.js", "/finalize"), ("/v3/n6.css", ".signs")):
+            st, body = self.req(path, raw=True)
+            self.assertEqual(st, 200, path)
+            self.assertIn(want, body.decode("utf-8"), path)
+
+    def test_links_point_to_n6(self):
+        n5 = (self.v3 / "n5.js").read_text("utf-8")
+        self.assertIn('href="n6.html?site=${s}">署名へ進む</a>', n5)      # N5 の次 = N6
+        n7 = (self.v3 / "n7.js").read_text("utf-8")
+        self.assertIn('href="n6.html${SITE ? "?site=" + q(SITE) : ""}">戻る</a>', n7)   # N7 の戻る = N6
+        self.assertIn('["n6", "N6 署名"]', (self.v3 / "shell.js").read_text("utf-8"))
+        n6 = (self.v3 / "n6.js").read_text("utf-8")
+        self.assertIn("n7.html?site=", n6)      # 全部確定したら報告書へ
+        self.assertIn("n5.html?site=", n6)      # 戻る・判断できずの看板は N5 へ
+
+    def test_finalize_as_the_page_calls_it(self):
+        st, signs = self.req("/api/signs?site=demo-site-1")
+        self.assertEqual(st, 200)
+        drafts = [s for s in signs if s["status"] == "draft"]
+        self.assertTrue(drafts, "見本データに確認待ちの看板がある(N6 が空にならない)")
+        ready = next(s for s in drafts if s["undecided"] == 0)
+        st, err = self.req(f"/api/signs/{ready['id']}/finalize", {"by": " "})
+        self.assertEqual(st, 400)
+        self.assertTrue(err["error"])            # 画面はこの文をそのまま出す
+        st, d = self.req(f"/api/signs/{ready['id']}/finalize", {"by": "点検 花子"})
+        self.assertEqual(st, 200)
+        self.assertEqual((d["status"], d["confirmed_by"]), ("confirmed", "点検 花子"))
+        st, err = self.req(f"/api/signs/{ready['id']}/finalize", {"by": "点検 花子"})
+        self.assertEqual(st, 409)                # 二度目は確定できない
+        self.assertIn("下書きだけ", err["error"])
+
+
 if __name__ == "__main__":
     unittest.main()

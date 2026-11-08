@@ -278,7 +278,7 @@
   function foot() {
     if (document.querySelector(".wizard-foot")) return;
     const s = encodeURIComponent(SITE);
-    document.body.insertAdjacentHTML("beforeend", `<div class="wizard-foot"><div class="in"><a class="btn" href="n3.html?site=${s}">戻る</a><a class="btn primary lg" id="nextBtn" href="n7.html?site=${s}">報告書へ進む</a></div></div>`);
+    document.body.insertAdjacentHTML("beforeend", `<div class="wizard-foot"><div class="in"><a class="btn" href="n3.html?site=${s}">戻る</a><a class="btn primary lg" id="nextBtn" href="n6.html?site=${s}">署名へ進む</a></div></div>`);
   }
   function message(title, body, link) {
     $("app").innerHTML = `<div class="empty"><b>${esc(title)}</b>${esc(body || "")}${link ? `<br><a class="btn" href="${esc(link[0])}">${esc(link[1])}</a>` : ""}</div>`;

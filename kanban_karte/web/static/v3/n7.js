@@ -88,7 +88,7 @@
   }
   async function init() {
     const c = document.querySelector(".topbar .company"); if (c) c.innerHTML = `<b>${new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" })}</b>`;
-    document.body.insertAdjacentHTML("beforeend", `<div class="wizard-foot"><div class="in"><a class="btn" href="n5.html${SITE ? "?site=" + q(SITE) : ""}">戻る</a><a class="btn primary lg" href="h.html">ホームへ戻る</a></div></div>`);
+    document.body.insertAdjacentHTML("beforeend", `<div class="wizard-foot"><div class="in"><a class="btn" href="n6.html${SITE ? "?site=" + q(SITE) : ""}">戻る</a><a class="btn primary lg" href="h.html">ホームへ戻る</a></div></div>`);
     if (!SITE) return message("現場が選ばれていません", "N1 の物件の選択から入ってください。", ["h.html", "ホームへ"]);
     try {
       const all = await get("/api/sites");
