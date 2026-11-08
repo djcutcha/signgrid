@@ -89,16 +89,19 @@
       if (p.status === "error") { clearInterval(timer); fail(p.error || "途中で止まりました。"); }
       else if (p.status === "done") { clearInterval(timer); finish(p); }
     } catch (e) {
-      if (e.status === 404 || /\b404\b/.test(e.message || "")) { clearInterval(timer); fail("その取り込みが見つかりません。取り込み前に戻ってやり直してください。"); return; }
+      // 台帳に無い束だけ止める(サーバ再起動中の 404 は一時的な失敗として取り直す)
+      if (e.status === 404 && /台帳にありません/.test(e.message || "")) { clearInterval(timer); fail("その取り込みが見つかりません。取り込み前に戻ってやり直してください。"); return; }
       /* 一時的な通信失敗は次の 2 秒で取り直す */
     }
   }
   function paint(p) {
     STAGES.forEach((s, i) => {
       const st = p.stages.find((x) => x.key === s[0]) || {}, has = st.total != null;
-      $("ct" + i).textContent = has ? st.done + "/" + st.total : "—";
-      $("br" + i).style.width = has && st.total ? Math.round(st.done / st.total * 100) + "%" : "0";
-      $("st" + i).classList.toggle("idle", !has || st.done === 0);
+      // 判定役は看板をまとめて見るので、途中の数字が出ない。走行中で 0 のままの段は「判定中」と見せ、バーも少し進める
+      const busy = has && st.total && st.done === 0 && p.status === "running" && i === STAGES.length - 1;
+      $("ct" + i).textContent = has ? (busy ? `判定中 ${st.total} 基` : st.done + "/" + st.total) : "—";
+      $("br" + i).style.width = has && st.total ? (busy ? "12%" : Math.round(st.done / st.total * 100) + "%") : "0";
+      $("st" + i).classList.toggle("idle", !has || (st.done === 0 && !busy));
     });
     const log = $("log");
     log.innerHTML = (p.log || []).slice(-6).map((l) => `<div><span class="who">${who(l)}</span>${esc(l)}</div>`).join("");
