@@ -56,6 +56,8 @@ class App:
                  intake_parts=None, field_drafter_factory=None):
         # data_dir は絶対パスで持つ(--data-dir が相対でも、台帳の絶対パスの写真と突き合わせられる。Ledger も同じ)
         self.db, self.data_dir, self.sample, self.judge_factory = Path(db), Path(data_dir).resolve(), sample, judge_factory
+        # 見本モードで data_dir が見本フォルダと別(--db の隣など)なら、同梱の見本写真は見本フォルダから配る
+        self.fallback_dir = SAMPLE_JSON.parent.resolve() if sample and self.data_dir != SAMPLE_JSON.parent.resolve() else None
         self.estimator_factory = estimator_factory
         self.field_drafter_factory = field_drafter_factory   # 部位の下書き役。None なら鍵があれば Sonnet(テストは偽物)
         self.clarifier = clarifier  # 聞き返し役。None なら見本・鍵なしは固定文、鍵があれば Sonnet(リクエストごとに作る)
@@ -77,15 +79,18 @@ class App:
         return Geocoder(str(self.db) + ".geocache.json")   # gov.cli の既定と同じキャッシュ
 
     def ledger(self) -> Ledger:
-        return Ledger(self.db, data_dir=self.data_dir)
+        return Ledger(self.db, data_dir=self.data_dir, fallback_dir=self.fallback_dir)
 
     def media_path(self, rel: str) -> Path | None:
-        """/media/<rel> → data_dir の下の画像。下に収まらない・画像でない・無いものは None。"""
-        root = self.data_dir.resolve()
-        p = (root / rel).resolve()
-        if not p.is_relative_to(root) or p.suffix.lower() not in MEDIA_TYPES or not p.is_file():
-            return None
-        return p
+        """/media/<rel> → data_dir の下の画像(無ければ見本フォルダの下)。下に収まらない・画像でない・無いものは None。"""
+        for base in (self.data_dir, self.fallback_dir):
+            if base is None:
+                continue
+            root = base.resolve()
+            p = (root / rel).resolve()
+            if p.is_relative_to(root) and p.suffix.lower() in MEDIA_TYPES and p.is_file():
+                return p
+        return None
 
 
 JST = timezone(timedelta(hours=9))
@@ -336,11 +341,12 @@ def main(argv=None) -> int:
         print(f"台帳が見つかりません: {db}(見本データで始めるなら --sample)", file=sys.stderr)
         return 1
     if sample:
-        data_dir = SAMPLE_JSON.parent
+        # --db 付きの見本起動(公開デモ)は、取り込みの書き込み先を台帳と同じ永続側(db の隣)にする。--db 無しは従来どおり
+        data_dir = db.parent if a.db else SAMPLE_JSON.parent
         if not db.exists():
-            seed_sample(db, data_dir)
-        seed_sample_rules(db, data_dir)
-        with Ledger(db, data_dir=data_dir) as lg:
+            seed_sample(db, SAMPLE_JSON.parent)
+        seed_sample_rules(db, SAMPLE_JSON.parent)
+        with Ledger(db, data_dir=data_dir, fallback_dir=SAMPLE_JSON.parent) as lg:
             # 見本写真を PNG → JPEG に軽量化した(2026-11-08)ので、古い見本の台帳の参照も付け替える
             for x in "abcdef":
                 lg.conn.execute("UPDATE signs SET photos=REPLACE(photos, ?, ?) WHERE photos LIKE ?",
@@ -349,7 +355,14 @@ def main(argv=None) -> int:
             n = api.attach_orphan_bundles(lg)   # 物件なしで取り込んだ束を物件に紐づける(見本の台帳の修復、2026-11-08)
             if n:
                 print(f"物件の無い束 {n} 件に物件を作って紐づけた", file=sys.stderr)
-    app = App(db, data_dir, sample=sample, placer=None if sample else make_placer())
+    geocoder = None
+    if sample and a.db:
+        # 公開デモ(見本+永続の --db): 住所の逆引きは本当に国土地理院へ引く(見本だけの起動は通信しない)。キャッシュは永続側、初期値は見本のキャッシュ
+        gc = db.parent / "geocache.json"
+        if not gc.exists() and (SAMPLE_JSON.parent / "gov" / "geocache.json").exists():
+            gc.write_bytes((SAMPLE_JSON.parent / "gov" / "geocache.json").read_bytes())
+        geocoder = Geocoder(gc)
+    app = App(db, data_dir, sample=sample, placer=None if sample else make_placer(), geocoder=geocoder)
     if not sample:
         print("用途地域: " + ("GIS を読み込んだ" if app.placer else "GIS が無いので区分なしで判定(python3 -m kanban_karte.geo.fetch_gis)"), file=sys.stderr)
     app.verbose = True

@@ -38,7 +38,7 @@ def line_bundle(lg, n_photos=2, site=True, sha="sha-line"):
     bid = lg.add_bundle("line://u/2026-11-02/m1", sha, pages=n_photos)
     lg.set_bundle(bid, status="pages_registered")
     for i in range(n_photos):
-        lg.upsert_page(bid, i + 1, kind="不明", image_path=str(PHOTOS / f"plain_{'abc'[i]}.png"), image_source="line")
+        lg.upsert_page(bid, i + 1, kind="不明", image_path=str(PHOTOS / f"plain_{'abc'[i]}.jpg"), image_source="line")
     if site:
         lg.upsert_site(Site("line-1", "LINE受信", "東京都豊島区見本町1-2-3", municipality="東京都豊島区"))
         lg.set_bundle(bid, site_id="line-1")
@@ -111,7 +111,7 @@ class DraftTest(unittest.TestCase):
     def test_existing_signs_of_pdf_bundle_are_drafted_in_place(self):
         bid = self.lg.add_bundle("a.pdf", "sha-pdf", pages=1)
         for k in (1, 2):
-            self.lg.upsert_sign(Sign(f"b{bid}-s00{k}", photos=[str(PHOTOS / "plain_a.png")], source_bundle=bid))
+            self.lg.upsert_sign(Sign(f"b{bid}-s00{k}", photos=[str(PHOTOS / "plain_a.jpg")], source_bundle=bid))
         res = draft.draft_bundle(self.lg, bid, FakeJudge(2))
         self.assertEqual([r.sign_id for r in res], [f"b{bid}-s001", f"b{bid}-s002"])
         self.assertEqual({s.status for s in self.lg.list_signs(bundle_id=bid)}, {"draft"})

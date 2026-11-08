@@ -1,5 +1,5 @@
 <!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SignGrid 今日やること</title><link rel="stylesheet" href="ui.css"><link rel="stylesheet" href="h.css"></head>
+<title>SignGrid ホーム</title><link rel="stylesheet" href="ui.css"><link rel="stylesheet" href="h.css"></head>
 <body data-page="h">
 <script src="data.js"></script>
 <script>/* 見本の固定データを本物に差し替える(shell.js が読む前に): 日付は今日、会社名は API が返すまで空 */
@@ -7,7 +7,7 @@ SG.TODAY = new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "lon
 <script src="shell.js"></script>
 <main class="page">
   <div class="page-head">
-    <div><h1>今日やること</h1><p class="lead" id="lead"></p></div>
+    <div><h1>ホーム</h1><p class="lead" id="lead"></p></div>
     <div class="ingest" id="ingest" role="status" aria-label="取り込み中の束" hidden></div>
   </div>
 

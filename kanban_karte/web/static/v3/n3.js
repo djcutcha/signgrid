@@ -3,7 +3,7 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-  const getJSON = async (u) => { const r = await fetch(u); if (!r.ok) throw new Error(await errText(r)); return r.json(); };
+  const getJSON = async (u) => { const r = await fetch(u); if (!r.ok) { const e = new Error(await errText(r)); e.status = r.status; throw e; } return r.json(); };
   async function errText(r) { try { const j = await r.json(); return j.error || j.message || ("通信エラー " + r.status); } catch (e) { return "通信エラー " + r.status; } }
 
   const co = document.querySelector(".company");
@@ -88,7 +88,10 @@
       paint(p);
       if (p.status === "error") { clearInterval(timer); fail(p.error || "途中で止まりました。"); }
       else if (p.status === "done") { clearInterval(timer); finish(p); }
-    } catch (e) { /* 一時的な通信失敗は次の 2 秒で取り直す */ }
+    } catch (e) {
+      if (e.status === 404 || /\b404\b/.test(e.message || "")) { clearInterval(timer); fail("その取り込みが見つかりません。取り込み前に戻ってやり直してください。"); return; }
+      /* 一時的な通信失敗は次の 2 秒で取り直す */
+    }
   }
   function paint(p) {
     STAGES.forEach((s, i) => {

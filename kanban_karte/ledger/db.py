@@ -116,7 +116,8 @@ def _tri(v):
 class Ledger:
     """台帳への入口。Ledger(path) か Ledger(":memory:")。"""
 
-    def __init__(self, path: str | Path = ":memory:", data_dir: str | Path | None = None):
+    def __init__(self, path: str | Path = ":memory:", data_dir: str | Path | None = None,
+                 fallback_dir: str | Path | None = None):
         if str(path) != ":memory:":
             Path(path).parent.mkdir(parents=True, exist_ok=True)
         # timeout: LINE の自動下書き(別スレッド・別接続)と webhook が同じ台帳に書く時、ロックを 30 秒まで待つ
@@ -124,6 +125,8 @@ class Ledger:
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA foreign_keys = ON")
         self.data_dir = data_dir
+        # 第2の基準フォルダ(見本モード: 同梱の見本写真)。data_dir に無い相対パスはここから探す
+        self.fallback_dir = Path(fallback_dir).resolve() if fallback_dir is not None else None
         self.ensure_schema()
 
     @property
@@ -139,18 +142,26 @@ class Ledger:
         """台帳に入っている画像のパスを、開けるパスにする。相対パスは data_dir 基準(取り込みが書く形)、
         絶対パス(見本データなど)はそのまま。data_dir が無いときの相対パスは実行時のカレント基準。"""
         p = Path(p)
-        return p if p.is_absolute() or self.data_dir is None else self.data_dir / p
+        if p.is_absolute() or self.data_dir is None:
+            return p
+        q = self.data_dir / p
+        if self.fallback_dir is not None and not q.exists() and (self.fallback_dir / p).exists():
+            return self.fallback_dir / p
+        return q
 
     def rel_path(self, p: str | Path) -> str:
         """data_dir の下にある画像のパスを、台帳に入れる相対パス(/ 区切り)にする。下になければそのまま。
         data_dir は絶対パス。p は絶対パスのまま、だめなら resolve して(相対・シンボリックリンク経由)比べる。"""
         p = Path(p)
         if self.data_dir is not None:
-            for q in (p, p.resolve()) if p.is_absolute() else (p.resolve(),):
-                try:
-                    return q.relative_to(self.data_dir).as_posix()
-                except ValueError:
-                    pass
+            for base in (self.data_dir, self.fallback_dir):
+                if base is None:
+                    continue
+                for q in (p, p.resolve()) if p.is_absolute() else (p.resolve(),):
+                    try:
+                        return q.relative_to(base).as_posix()
+                    except ValueError:
+                        pass
         return str(p)
 
     def close(self) -> None:

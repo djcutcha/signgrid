@@ -59,7 +59,7 @@ class SampleStartTest(WebTest):
         self.assertIn("text/html", h["Content-Type"])
         st, body, h = self.req("/", raw=True)   # / は /v3/(UI v3 のホーム)へ転送される(urlopen が追う)
         self.assertEqual(st, 200)
-        self.assertIn("今日やること", body.decode("utf-8"))
+        self.assertIn("ホーム", body.decode("utf-8"))
         st, meta, _ = self.req("/api/meta")
         self.assertTrue(meta["sample"])
         self.assertEqual(len(meta["items"]), 18)
@@ -101,7 +101,7 @@ class SampleStartTest(WebTest):
         self.assertEqual(self.req("/v3/../../server.py", raw=True)[0], 404)
 
     def test_v3_entrances(self):
-        for path, want in (("/v3/", "今日やること"), ("/v3/field/", "現場"), ("/v3/n5.html", "N5")):
+        for path, want in (("/v3/", "ホーム"), ("/v3/field/", "現場"), ("/v3/n5.html", "N5")):
             st, body, _ = self.req(path, raw=True)
             self.assertEqual(st, 200, path)
             self.assertIn(want, body.decode("utf-8"), path)
@@ -280,6 +280,37 @@ class RoundTripTest(unittest.TestCase):
                     with self.assertRaises(api.ApiError) as cm:
                         api.draft_bundle(lg, bid)
                     self.assertEqual(cm.exception.status, 503)
+
+
+class SampleWithDbMainTest(unittest.TestCase):
+    """公開デモ(--sample --db /data/x.sqlite): 取り込みの書き込み先(data_dir)は db の隣、見本写真は同梱側から配る。"""
+
+    def test_data_dir_is_db_parent_and_sample_photos_still_served(self):
+        from unittest import mock
+        from kanban_karte.web import server
+        captured = {}
+
+        def fake_make_server(app, host, port):
+            captured["app"] = app
+            raise KeyboardInterrupt   # serve_forever まで行かせず main を終える
+
+        with tempfile.TemporaryDirectory() as td:
+            db = Path(td).resolve() / "demo.sqlite"
+            with mock.patch.object(server, "make_server", fake_make_server), mock.patch("sys.stderr"):
+                with self.assertRaises(KeyboardInterrupt):
+                    server.main(["--sample", "--db", str(db), "--port", "0"])
+            app = captured["app"]
+            self.assertEqual(app.data_dir, db.parent)
+            self.assertEqual(app.intake_jobs.data_dir, db.parent)
+            self.assertEqual(app.media_path("photos/plain_a.jpg"), SAMPLE_DIR.resolve() / "photos" / "plain_a.jpg")
+            self.assertIsNone(app.media_path("../ledger.json"))
+            self.assertIsNone(app.media_path("../../../etc/hosts"))
+            with app.ledger() as lg:
+                self.assertEqual(lg.resolve_path("photos/plain_a.jpg"), SAMPLE_DIR.resolve() / "photos" / "plain_a.jpg")
+                self.assertEqual(lg.rel_path(SAMPLE_DIR / "photos" / "plain_a.jpg"), "photos/plain_a.jpg")
+            (db.parent / "pages").mkdir()
+            (db.parent / "pages" / "x.jpg").write_bytes(b"\xff\xd8")
+            self.assertEqual(app.media_path("pages/x.jpg"), db.parent / "pages" / "x.jpg")   # 永続側の写真も配る
 
 
 class SampleBadgeTest(unittest.TestCase):

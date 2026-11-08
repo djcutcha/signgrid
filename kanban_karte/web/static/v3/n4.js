@@ -161,7 +161,8 @@
     catch (e) { return message("看板の一覧を読み込めませんでした", e.message, ["n4.html?site=" + S, "もう一度読み込む"]); }
     if (!signs.length) return message("この現場にはまだ看板がありません", "取り込みの画面で写真を入れると、看板ができます。", ["n3.html?site=" + S, "取り込みへ"]);
     const want = signs.filter((s) => (s.undecided || 0) > 0);
-    locked = want.filter((s) => s.status !== "draft");
+    noPhoto = want.filter((s) => s.status === "needs_photos");   // 写真が要る看板は「確定済み」ではない。写真なしとして案内する
+    locked = want.filter((s) => s.status !== "draft" && s.status !== "needs_photos");
     let ds;
     try { ds = await Promise.all(want.filter((s) => s.status === "draft").map((s) => api(`/api/signs/${encodeURIComponent(s.id)}`))); }
     catch (e) { return message("看板を読み込めませんでした", e.message, ["n4.html?site=" + S, "もう一度読み込む"]); }

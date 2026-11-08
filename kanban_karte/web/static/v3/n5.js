@@ -110,6 +110,7 @@
     const by = await askBy(); if (!by) return;
     try {
       snapshotGroups(); d = await api(`/api/signs/${encodeURIComponent(d.id)}/reopen`, { by });
+      const k = signs.findIndex((s) => s.id === d.id); if (k >= 0) signs[k] = Object.assign({}, signs[k], { status: d.status || "draft", rank: d.rank });  // 上の ✓ と「N/3 基」を今の状態で数える
       drawHead(); drawJudge(); drawGroups(); toast("確定を取り消しました。項目の「違う」から直せます。");
     } catch (e) { toast(e.message); }
   }
