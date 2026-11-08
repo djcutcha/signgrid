@@ -499,7 +499,7 @@ class Expert:
             if cls == "exclude":
                 cnt["exclude"][why] = cnt["exclude"].get(why, 0) + 1
             elif cls == "outdoor" or it.source == "insp2017":
-                cnt["outdoor"] += 1   # 2017 年の点検報告書(中央住宅)は種類が読めない物(写真の束)も先頭側に残す(Cutcha 2026-11-08 08:5x)
+                cnt["outdoor"] += 1   # 2017 年の点検報告書は種類が読めない物(写真の束)も先頭側に残す(Cutcha 2026-11-08 08:5x)
                 keep.append(i)
             else:
                 cnt["unknown"] += 1
