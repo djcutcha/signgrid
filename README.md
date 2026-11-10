@@ -36,34 +36,42 @@ Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期�
 
 ### ① 点検会社(`/`)
 
-**職人: 現場のスマホ画面(`/v3/field/`)や LINE のガイド付き点検の結果を、カルテのバッジ「現場の回答」で確認**
-![guide-karte-sp](docs/img/guide-karte-sp.png)
+画像は要所の切り出し。クリックすると画面全体のキャプチャが開く。
 
-**職人: 寸法の実測(初回だけ。飛ばせる。図は LINE の会話を模擬した画面)**
-![guide-measure-pc](docs/img/guide-measure-pc.png)
+<table>
+<tr>
+<td align="center" valign="top"><a href="docs/img/guide-karte-sp.png"><img src="docs/img/readme/guide-karte-sp.png" width="200" alt="guide-karte-sp"></a><br><sub>職人: 現場のスマホ画面(<code>/v3/field/</code>)や LINE のガイド付き点検の結果を、カルテのバッジ「現場の回答」で確認</sub></td>
+<td align="center" valign="top"><a href="docs/img/guide-measure-pc.png"><img src="docs/img/readme/guide-measure-pc.png" width="520" alt="guide-measure-pc"></a><br><sub>職人: 寸法の実測(初回だけ。飛ばせる。図は LINE の会話を模擬した画面)</sub></td>
+</tr>
+</table>
 
-**有資格者: カルテ(黄色は判断できず)**
-![karte-sp](docs/img/karte-sp.png)
-
-**事務・営業: 台帳**
-![ledger-pc](docs/img/ledger-pc.png)
+<table>
+<tr>
+<td align="center" valign="top"><a href="docs/img/karte-sp.png"><img src="docs/img/readme/karte-sp.png" width="200" alt="karte-sp"></a><br><sub>有資格者: カルテ(黄色は判断できず)</sub></td>
+<td align="center" valign="top"><a href="docs/img/ledger-pc.png"><img src="docs/img/readme/ledger-pc.png" width="520" alt="ledger-pc"></a><br><sub>事務・営業: 台帳</sub></td>
+</tr>
+</table>
 
 **ガイド付き点検は、全景の次に表示面の正面(各面)を撮り、看板の種類を選ぶ**: 部位ごとの問いに、種類に合わせた撮る場所が 1 行付く(高所に登らせない。傾きは全景で見る)。**寸法の実測は初回だけ**: 台帳にその看板の寸法が無い時、幅・高さ・厚み(任意)・GL(地面から看板の下端まで)・取付方法(一覧か文字)・支柱を聞く。図面があれば「図面で送る」、要らなければ「飛ばす」で通せる。2回目以降は前回の実測を引き継ぎ、聞かない(`docs/LINE.md`)。
 
 ### ② 看板の持ち主(`/owner/`)
 
-**さいたま市の条文つき**
-![owner-saitama-sp](docs/img/owner-saitama-sp.png)
+<table>
+<tr>
+<td align="center" valign="top"><a href="docs/img/owner-saitama-sp.png"><img src="docs/img/readme/owner-saitama-sp.png" width="200" alt="owner-saitama-sp"></a><br><sub>さいたま市の条文つき</sub></td>
+</tr>
+</table>
 
 **写真から推定した寸法のまま調べると、推定の範囲の両端で判定する(両端で結論が分かれた項目は「要実測」。欄を手で直すと入力値で判定)**: [owner-judge-range-sp](docs/img/owner-judge-range-sp.png)
 
 ### ③ 行政(`/gov/`)
 
-**巡回(スマホ。撮る→送る、送った直後)**
-![gov-capture-sp](docs/img/gov-capture-sp.png)
-
-**窓口(PC。一括登録と地図)**
-![gov-capture-pc](docs/img/gov-capture-pc.png)
+<table>
+<tr>
+<td align="center" valign="top"><a href="docs/img/gov-capture-sp.png"><img src="docs/img/readme/gov-capture-sp.png" width="200" alt="gov-capture-sp"></a><br><sub>巡回(スマホ。撮る→送る、送った直後)</sub></td>
+<td align="center" valign="top"><a href="docs/img/gov-capture-pc.png"><img src="docs/img/readme/gov-capture-pc.png" width="520" alt="gov-capture-pc"></a><br><sub>窓口(PC。一括登録と地図)</sub></td>
+</tr>
+</table>
 
 ## 3. 知識が育つ工程
 
@@ -71,15 +79,19 @@ Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期�
 
 声・写真 → **AI の下書き** → **有資格者の訂正** → **1問の聞き返し** → **規則の候補** → **承認** → **矛盾の検出** → 次の下書きに効く
 
-| # | 場面 | 画面 |
-|---|---|---|
-| 1 | AI の下書き。黄色は判断できない・確信が低いマス | ![](docs/img/workflow-1-draft-sp.png) |
-| 2 | 「赤錆」とだけ訂正すると、範囲・程度・写真番号を1問だけ聞き返す | ![](docs/img/workflow-2-clarify-sp.png) |
-| 3 | 答えで、規則が 項目 / 所見 / 条件 / 区分 の形で候補に積まれる | ![](docs/img/workflow-3-candidate-sp.png) |
-| 4 | 同じ条件で別の区分の訂正が入ると、2つの規則を並べて矛盾を知らせる | ![](docs/img/workflow-4-conflict-sp.png) |
-| 5 | 候補のままでは次の下書きに効かない | ![](docs/img/workflow-5-not-yet-sp.png) |
-| 6 | 「こちらを残す」1操作で、承認と却下、理由と承認者が残る | ![](docs/img/workflow-6-approved-sp.png) |
-| 7 | 承認済みの規則に従って、同じ看板の下書きが変わる | ![](docs/img/workflow-7-effect-sp.png) |
+<table>
+<tr>
+<td align="center" valign="top"><a href="docs/img/workflow-1-draft-sp.png"><img src="docs/img/readme/workflow-1-draft-sp.png" width="180" alt="workflow-1-draft-sp"></a><br><sub><b>1</b> AI の下書き。黄色は判断できない・確信が低いマス</sub></td>
+<td align="center" valign="top"><a href="docs/img/workflow-2-clarify-sp.png"><img src="docs/img/readme/workflow-2-clarify-sp.png" width="180" alt="workflow-2-clarify-sp"></a><br><sub><b>2</b> 「赤錆」とだけ訂正すると、範囲・程度・写真番号を1問だけ聞き返す</sub></td>
+<td align="center" valign="top"><a href="docs/img/workflow-3-candidate-sp.png"><img src="docs/img/readme/workflow-3-candidate-sp.png" width="180" alt="workflow-3-candidate-sp"></a><br><sub><b>3</b> 答えで、規則が 項目 / 所見 / 条件 / 区分 の形で候補に積まれる</sub></td>
+<td align="center" valign="top"><a href="docs/img/workflow-4-conflict-sp.png"><img src="docs/img/readme/workflow-4-conflict-sp.png" width="180" alt="workflow-4-conflict-sp"></a><br><sub><b>4</b> 同じ条件で別の区分の訂正が入ると、2つの規則を並べて矛盾を知らせる</sub></td>
+</tr>
+<tr>
+<td align="center" valign="top"><a href="docs/img/workflow-5-not-yet-sp.png"><img src="docs/img/readme/workflow-5-not-yet-sp.png" width="180" alt="workflow-5-not-yet-sp"></a><br><sub><b>5</b> 候補のままでは次の下書きに効かない</sub></td>
+<td align="center" valign="top"><a href="docs/img/workflow-6-approved-sp.png"><img src="docs/img/readme/workflow-6-approved-sp.png" width="180" alt="workflow-6-approved-sp"></a><br><sub><b>6</b> 「こちらを残す」1操作で、承認と却下、理由と承認者が残る</sub></td>
+<td align="center" valign="top"><a href="docs/img/workflow-7-effect-sp.png"><img src="docs/img/readme/workflow-7-effect-sp.png" width="180" alt="workflow-7-effect-sp"></a><br><sub><b>7</b> 承認済みの規則に従って、同じ看板の下書きが変わる</sub></td>
+</tr>
+</table>
 
 - 規則に顧客名・店名は入らない(項目名・所見・条件・区分だけ)。
 - 一周は固定値の見本の判定役で通す(API なし)。7 の下書きで他の17項目が黄色なのはそのため。
