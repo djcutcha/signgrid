@@ -40,15 +40,15 @@ Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期�
 
 <table>
 <tr>
-<td align="center" valign="top"><a href="docs/img/guide-karte-sp.png"><img src="docs/img/readme/guide-karte-sp.png" width="200" alt="guide-karte-sp"></a><br><sub>職人: 現場のスマホ画面(<code>/v3/field/</code>)や LINE のガイド付き点検の結果を、カルテのバッジ「現場の回答」で確認</sub></td>
-<td align="center" valign="top"><a href="docs/img/guide-measure-pc.png"><img src="docs/img/readme/guide-measure-pc.png" width="520" alt="guide-measure-pc"></a><br><sub>職人: 寸法の実測(初回だけ。飛ばせる。図は LINE の会話を模擬した画面)</sub></td>
+<td align="center" valign="top" width="36%"><a href="docs/img/guide-karte-sp.png"><img src="docs/img/readme/guide-karte-sp.png" width="200" alt="guide-karte-sp"></a><br><sub>職人: 現場のスマホ画面(<code>/v3/field/</code>)や LINE のガイド付き点検の結果を、カルテのバッジ「現場の回答」で確認</sub></td>
+<td align="center" valign="top" width="64%"><a href="docs/img/guide-measure-pc.png"><img src="docs/img/readme/guide-measure-pc.png" width="520" alt="guide-measure-pc"></a><br><sub>職人: 寸法の実測(初回だけ。飛ばせる。図は LINE の会話を模擬した画面)</sub></td>
 </tr>
 </table>
 
 <table>
 <tr>
-<td align="center" valign="top"><a href="docs/img/karte-sp.png"><img src="docs/img/readme/karte-sp.png" width="200" alt="karte-sp"></a><br><sub>有資格者: カルテ(黄色は判断できず)</sub></td>
-<td align="center" valign="top"><a href="docs/img/ledger-pc.png"><img src="docs/img/readme/ledger-pc.png" width="520" alt="ledger-pc"></a><br><sub>事務・営業: 台帳</sub></td>
+<td align="center" valign="top" width="36%"><a href="docs/img/karte-sp.png"><img src="docs/img/readme/karte-sp.png" width="200" alt="karte-sp"></a><br><sub>有資格者: カルテ(黄色は判断できず)</sub></td>
+<td align="center" valign="top" width="64%"><a href="docs/img/ledger-pc.png"><img src="docs/img/readme/ledger-pc.png" width="520" alt="ledger-pc"></a><br><sub>事務・営業: 台帳</sub></td>
 </tr>
 </table>
 
@@ -68,8 +68,8 @@ Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期�
 
 <table>
 <tr>
-<td align="center" valign="top"><a href="docs/img/gov-capture-sp.png"><img src="docs/img/readme/gov-capture-sp.png" width="200" alt="gov-capture-sp"></a><br><sub>巡回(スマホ。撮る→送る、送った直後)</sub></td>
-<td align="center" valign="top"><a href="docs/img/gov-capture-pc.png"><img src="docs/img/readme/gov-capture-pc.png" width="520" alt="gov-capture-pc"></a><br><sub>窓口(PC。一括登録と地図)</sub></td>
+<td align="center" valign="top" width="36%"><a href="docs/img/gov-capture-sp.png"><img src="docs/img/readme/gov-capture-sp.png" width="200" alt="gov-capture-sp"></a><br><sub>巡回(スマホ。撮る→送る、送った直後)</sub></td>
+<td align="center" valign="top" width="64%"><a href="docs/img/gov-capture-pc.png"><img src="docs/img/readme/gov-capture-pc.png" width="520" alt="gov-capture-pc"></a><br><sub>窓口(PC。一括登録と地図)</sub></td>
 </tr>
 </table>
 
@@ -81,15 +81,19 @@ Built with Claude: Japan 2026(開発開始 2026-11-02 12:30 JST)の作品。期�
 
 <table>
 <tr>
-<td align="center" valign="top"><a href="docs/img/workflow-1-draft-sp.png"><img src="docs/img/readme/workflow-1-draft-sp.png" width="180" alt="workflow-1-draft-sp"></a><br><sub><b>1</b> AI の下書き。黄色は判断できない・確信が低いマス</sub></td>
-<td align="center" valign="top"><a href="docs/img/workflow-2-clarify-sp.png"><img src="docs/img/readme/workflow-2-clarify-sp.png" width="180" alt="workflow-2-clarify-sp"></a><br><sub><b>2</b> 「赤錆」とだけ訂正すると、範囲・程度・写真番号を1問だけ聞き返す</sub></td>
-<td align="center" valign="top"><a href="docs/img/workflow-3-candidate-sp.png"><img src="docs/img/readme/workflow-3-candidate-sp.png" width="180" alt="workflow-3-candidate-sp"></a><br><sub><b>3</b> 答えで、規則が 項目 / 所見 / 条件 / 区分 の形で候補に積まれる</sub></td>
-<td align="center" valign="top"><a href="docs/img/workflow-4-conflict-sp.png"><img src="docs/img/readme/workflow-4-conflict-sp.png" width="180" alt="workflow-4-conflict-sp"></a><br><sub><b>4</b> 同じ条件で別の区分の訂正が入ると、2つの規則を並べて矛盾を知らせる</sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/img/workflow-1-draft-sp.png"><img src="docs/img/readme/workflow-1-draft-sp.png" width="180" alt="workflow-1-draft-sp"></a><br><sub><b>1</b> AI の下書き。黄色は判断できない・確信が低いマス</sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/img/workflow-2-clarify-sp.png"><img src="docs/img/readme/workflow-2-clarify-sp.png" width="180" alt="workflow-2-clarify-sp"></a><br><sub><b>2</b> 「赤錆」とだけ訂正すると、範囲・程度・写真番号を1問だけ聞き返す</sub></td>
 </tr>
 <tr>
-<td align="center" valign="top"><a href="docs/img/workflow-5-not-yet-sp.png"><img src="docs/img/readme/workflow-5-not-yet-sp.png" width="180" alt="workflow-5-not-yet-sp"></a><br><sub><b>5</b> 候補のままでは次の下書きに効かない</sub></td>
-<td align="center" valign="top"><a href="docs/img/workflow-6-approved-sp.png"><img src="docs/img/readme/workflow-6-approved-sp.png" width="180" alt="workflow-6-approved-sp"></a><br><sub><b>6</b> 「こちらを残す」1操作で、承認と却下、理由と承認者が残る</sub></td>
-<td align="center" valign="top"><a href="docs/img/workflow-7-effect-sp.png"><img src="docs/img/readme/workflow-7-effect-sp.png" width="180" alt="workflow-7-effect-sp"></a><br><sub><b>7</b> 承認済みの規則に従って、同じ看板の下書きが変わる</sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/img/workflow-3-candidate-sp.png"><img src="docs/img/readme/workflow-3-candidate-sp.png" width="180" alt="workflow-3-candidate-sp"></a><br><sub><b>3</b> 答えで、規則が 項目 / 所見 / 条件 / 区分 の形で候補に積まれる</sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/img/workflow-4-conflict-sp.png"><img src="docs/img/readme/workflow-4-conflict-sp.png" width="180" alt="workflow-4-conflict-sp"></a><br><sub><b>4</b> 同じ条件で別の区分の訂正が入ると、2つの規則を並べて矛盾を知らせる</sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/img/workflow-5-not-yet-sp.png"><img src="docs/img/readme/workflow-5-not-yet-sp.png" width="180" alt="workflow-5-not-yet-sp"></a><br><sub><b>5</b> 候補のままでは次の下書きに効かない</sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/img/workflow-6-approved-sp.png"><img src="docs/img/readme/workflow-6-approved-sp.png" width="180" alt="workflow-6-approved-sp"></a><br><sub><b>6</b> 「こちらを残す」1操作で、承認と却下、理由と承認者が残る</sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/img/workflow-7-effect-sp.png"><img src="docs/img/readme/workflow-7-effect-sp.png" width="180" alt="workflow-7-effect-sp"></a><br><sub><b>7</b> 承認済みの規則に従って、同じ看板の下書きが変わる</sub></td>
 </tr>
 </table>
 
